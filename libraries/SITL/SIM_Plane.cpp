@@ -115,6 +115,9 @@ Plane::Plane(const char *frame_str) :
         mass = 2.0;
         coefficient.c_drag_p = 0.05;
     }
+
+    ::printf("Plane mass: %.2f kg\n", mass);
+
 }
 
 void Plane::load_coeffs(const char *model_json)
@@ -524,10 +527,19 @@ void Plane::update(const struct sitl_input &input)
     Vector3f rot_accel;
 
     update_wind(input);
-    
-    calculate_forces(input, rot_accel);
-    
-    update_dynamics(rot_accel);
+
+
+    if (1)
+    {
+        v_ardu_input_to_lat_input(input);
+        v_lat_fdm_run();
+    }
+    else
+    {        
+        calculate_forces(input, rot_accel);
+        update_dynamics(rot_accel);
+    }
+
 
     /*
       add in ground steering, this should be replaced with a proper
