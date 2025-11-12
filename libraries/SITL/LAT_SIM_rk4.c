@@ -1,10 +1,12 @@
 #include <math.h>
 #include "math_util.h"
-#include "plant.h"
-#include "Ground_model.h"
+#include "LAT_SIM_Runner.h"
+#include "LAT_SIM_rk4.h"
+#include "LAT_SIM_derivative.h"
 
 
-void rk4(float y[],float t,float h,float acc_real_plant[])
+
+void v_rk4(float y[],float t,float h)
 {
 	float VX=0,VY=0,VZ=0;
 	float AX=0,AY=0,AZ=0;
@@ -25,7 +27,7 @@ void rk4(float y[],float t,float h,float acc_real_plant[])
 	h2 = h/2;
 	h6 = h/6;
 
-	derivative(y, t, k1, acc_real_plant);// supply y to get k1
+	v_derivative(y, t, k1);// supply y to get k1
 
 
 	for(i = 0; i < NUM_STATEVARS; i++)
@@ -34,7 +36,7 @@ void rk4(float y[],float t,float h,float acc_real_plant[])
 	}
 
 	th = t + h2;
-	derivative(yt, th, k2, acc_real_plant); // now supply yt to get k2
+	v_derivative(yt, th, k2); // now supply yt to get k2
 
 
 	for(i = 0; i < NUM_STATEVARS; i++)
@@ -42,18 +44,15 @@ void rk4(float y[],float t,float h,float acc_real_plant[])
 		yt[i] = y[i] + (h2 * k2[i]); // yt is y + (h/2) *k2
 	}
 
-	derivative(yt, th, k3, acc_real_plant);// now supply yt to get k3
+	v_derivative(yt, th, k3);// now supply yt to get k3
 
 	for(i = 0; i < NUM_STATEVARS; i++)
 	{
 		yt[i] = y[i]+ h * k3[i];// here yt is y + h*k3
 	}
 
-	derivative(yt, t+h, k4, acc_real_plant); // now supply yt to get k4
+	v_derivative(yt, t+h, k4); // now supply yt to get k4
 
-	// will sense plane on ground based on agl height, if <0 then it will freeze all dof motion
-	// grnd_model is only used if vehicle.dof = DOF_ALL_MOTION;
-	v_grnd_model_run(y[6],y[7],y[11]); // sending roll ,pitch and alt_agl
 
 	switch(vehicle.dof)
 	{

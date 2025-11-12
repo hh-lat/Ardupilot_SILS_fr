@@ -7,82 +7,21 @@
 #include "stdint.h"
 
 
-#define NUM_STATEVARS 15
-extern float current_time;
 #define PI 3.141592653589793
 
-#define Quadplane
-#ifdef Quadplane
-//	#define Plane
-#endif
-//#define Quad_H
-//#define Quad_X
-//#define Quad_+
-//#define Coax_Quad_X
-//#define Coax_Hexa_H_sym
-//#define Octa
-
-#ifdef Quadplane
-#define quad_num_motors		 4
+#define LAT_EQUINOX
 #define fwv_motors		 	 1
 #define num_actuator		 4
-#endif
 
-#ifdef Quad_H
-#define quad_num_motors		 4
-#define fwv_motors		 	 0
-#define num_actuator		 0
-#endif
-
-//#define XPLANE_IN_LOOP /******************Xplane for SITL mode***********/
-//#define XPLANE_IN_LOOP_VISUALISATION /*********** only for xplane visualisation************/
-//#define OBC_IN_LOOP_BLOCK	// NRT mode OBC in loop
-//#define PRINT_DEBUG1		// Developmental testing, Not for test team/production, remove before gating
-//#ifdef PRINT_DEBUG1
-//	 #define PRINT_DEBUG2
-//#endif
-
-
-extern void ins_derivative(float y[],float,float[]);
-extern void rk4_ins(float[],float,float);
 extern void pseudo_INS(float,float[],float[],float[],float*,float*,float*,float[],float[],float[],float[],float[],float);
 void rk4(float y[],float t,float h,float[]);
 void derivative(float [],float ,float[],float[]);
 extern float Angle_Ranges(float);
-//============================================================================================//
-
-//extern void rotor_dynamics(float,float,float,float,float,float*,float*,float*,float*,float*);
-void rotor_dynamics(float);
-void Actuator_dynamics(float);
-void init_plant();
-//===========test function============================================//
-extern void test_ins_state_update_every_hundred_cycle(float [],float []);
-void rk4(float y[],float t,float h,float[]);
-extern FILE* fp_omega;
-extern FILE* fp_delta;
-extern FILE* fp_derivative;
-extern FILE* fp_rot_dyn;
-extern float t, t_step_plant, t_step_act, t_step_rot, t_step_imu;
 
 extern float delay_array_T[];
 extern float delay_array_T1[];
 extern float Delay_input_fn_T(float);
 extern int delay_array_length;
-
-extern int delayed_ins_use;
-
-extern uint16_t pwm_in[quad_num_motors + fwv_motors];
-extern uint16_t pwm_out_esc[quad_num_motors + fwv_motors];
-extern uint16_t mil_rpm[quad_num_motors + fwv_motors];
-
-extern uint16_t gnc_rpm_in[quad_num_motors + fwv_motors];
-extern float rotor_force_out[quad_num_motors + fwv_motors];
-extern float rotor_speed[quad_num_motors + fwv_motors];
-
-
-extern uint16_t pwm_in_servo[num_actuator];
-extern uint16_t pwm_out_servo[num_actuator];
-
 
 extern int delay_array_length_pwm_servo ;   // delay_array_length =  (int)(Plant_freq*delay_in_seconds);
 extern uint16_t bufferarray_pwm_servo[2000][num_actuator] ;
@@ -90,22 +29,14 @@ extern uint16_t bufferarray_pwm_servo[2000][num_actuator] ;
 extern int delay_array_length_pwm;
 extern uint16_t bufferarray_pwm[][quad_num_motors + fwv_motors];
 
-
-extern void v_fill_data_out_for_socket(float ,float[],float[] ,float[],float[],float[]);
-
-
 void pure_transport_delay_int(uint16_t out[],uint16_t new[],uint16_t bufferarray[][quad_num_motors + fwv_motors + num_actuator],int len, int delay_array_length);
 extern void pure_transport_delay_int_servo(float[],uint16_t[],float[][5],int, int);
 extern void pure_transport_delay_float(float[],float[][quad_num_motors + fwv_motors + num_actuator],int, int);
-
-extern void esc_dynamics();
-extern void battery_dynamics();
-extern void Configure_rotor_geometry();
-
-extern int flg_sitl_mode;
-
-void fn_uav_states_init(int,float* latitude_point,float* longitude_point,float* Alt,float *V_bd_ins ,float* V_ned_ins,float* ax_bd_ins,float* Body_rate_bf_ins,float* attitude);
-
+extern void  v_lat_fdm_init();
+extern void v_lat_fdm_run();
+extern void v_init_vehicle_states();
+extern void v_update_vehicle_states(float state[]);
+extern void v_fill_lla_to_vehicle_state(float, float , float );
 
 typedef struct
 {
@@ -200,6 +131,11 @@ typedef struct
 	float all_aero_force[3], all_aero_moment[3], all_payload_moment[3];
 	float all_rotors_force[3], all_rotors_moment[3],all_payload_force[3];
 
+	int aero_model_type;
+	float alpha_stall;
+	float s;
+	float s_blown;
+	
 	struct_enum_dof dof;
 }VEHICLE_STATES;
 
@@ -207,8 +143,4 @@ extern VEHICLE_STATES vehicle;
 
 extern strct_home_states s_home_state;
 
-extern void v_param_init_aarav();
-extern void v_param_init_Abhay_12R10();
-extern void v_param_init_Talon_quad();
-extern void v_param_init_UT1();
 #endif

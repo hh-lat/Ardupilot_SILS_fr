@@ -14,7 +14,7 @@ void v_map_ardu_in_for_equinox(struct sitl_input &input)
 {
     actuator[AILERON].pwm  = input.servos[0];
     actuator[ELEVATOR].pwm = input.servos[1];
-    actuator[RUDDER].pwm   = input.servos[2];
+    actuator[RUDDER].pwm   = input.servos[3];
     actuator[FLAP].pwm     = input.servos[0];
 
     // for computing control surface forces in for loop, so that you dont have to call each control surface separately
@@ -22,14 +22,14 @@ void v_map_ardu_in_for_equinox(struct sitl_input &input)
     csta[1]= ELEVATOR;
     csta[2]= RUDDER_COMMON;
 
-    s_motor.pwm_in[0] = input.servos[3]; // motor 1
-    s_motor.pwm_in[1] = input.servos[4]; // motor 2
-    s_motor.pwm_in[2] = input.servos[5]; // motor 3
-    s_motor.pwm_in[3] = input.servos[6]; // motor 4
-    s_motor.pwm_in[4] = input.servos[7]; // motor 5
-    s_motor.pwm_in[5] = input.servos[8]; // motor 6
-    s_motor.pwm_in[6] = input.servos[9]; // motor 7
-    s_motor.pwm_in[7] = input.servos[10];// motor 8
+    s_motor.pwm_in[0] = input.servos[2]; // motor 1
+    s_motor.pwm_in[1] = input.servos[2]; // motor 2
+    s_motor.pwm_in[2] = input.servos[2]; // motor 3
+    s_motor.pwm_in[3] = input.servos[2]; // motor 4
+    s_motor.pwm_in[4] = input.servos[2]; // motor 5
+    s_motor.pwm_in[5] = input.servos[2]; // motor 6
+    s_motor.pwm_in[6] = input.servos[2]; // motor 7
+    s_motor.pwm_in[7] = input.servos[2]; // motor 8
 }
 
 

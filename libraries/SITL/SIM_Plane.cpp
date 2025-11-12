@@ -525,12 +525,19 @@ void Plane::calculate_forces(const struct sitl_input &input, Vector3f &rot_accel
 void Plane::update(const struct sitl_input &input)
 {
     Vector3f rot_accel;
+    static int lat_fdm_init =0;
 
     update_wind(input);
 
 
     if (1)
     {
+        if (lat_fdm_init ==0)
+        {
+            v_lat_fdm_init(); // initialises fdm for Equinox
+            lat_fdm_init=1;
+        }
+        
         v_ardu_input_to_lat_input(input);
         v_lat_fdm_run();
     }

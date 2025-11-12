@@ -61,7 +61,7 @@ extern Ctrl_srfc_actuator actuator[16];
 extern AKAP_CONTROL_SURFACE_TYPE csta[16];//control_surface_type_array
 
 
-extern void Actuator_dynamics(float t_step_act);
+extern void v_actuator_dynamics(float t_step_act);
 extern void v_fill_pwm_in_csta();
 extern void v_apply_rate_limits_to_control_surfaces(float);
 

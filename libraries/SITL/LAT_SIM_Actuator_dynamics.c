@@ -54,11 +54,9 @@ void pwm_out_servo_to_angles()
 
 
 
-void Actuator_dynamics(float t_step_act)
+void v_actuator_dynamics(float t_step_act)
 {
-
 	pwm_out_servo_to_angles();
-
 	v_apply_rate_limits_to_control_surfaces(t_step_act);
 
 }

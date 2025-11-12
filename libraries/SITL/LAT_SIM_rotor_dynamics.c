@@ -19,8 +19,6 @@
 float thrust_noise_old[28]={0.0};
 float thrust_noise[28]={0.0};
 
-float aa = 0.0f, bb = 0.0f, cc = 0.0f;
-
 S_motor s_motor;
 
 void rotor_dynamics(float t_step_rot)
@@ -161,58 +159,55 @@ void input_noise_in_thrust()
 
 
 
-void rotor_geometry_definition()
+void v_rotor_geometry_define()
 {
 	int i =1;
 
-	s_motor.rotor_xyz[2-i][0]=  x2;                         s_motor.rotor_xyz[3-i][0]=x2;
-	s_motor.rotor_xyz[2-i][1]= -y2;                         s_motor.rotor_xyz[3-i][1]=y2;
-	s_motor.rotor_xyz[2-i][2]= -z;                         s_motor.rotor_xyz[3-i][2]= -z;
+	s_motor.rotor_xyz[1-i][0] =  0;                        s_motor.rotor_xyz[2-i][0] = 0;
+	s_motor.rotor_xyz[1-i][1] =  0;                        s_motor.rotor_xyz[2-i][1] = 0;
+	s_motor.rotor_xyz[1-i][2] =  0;                        s_motor.rotor_xyz[2-i][2] = 0;
 
-	s_motor.rotor_xyz[1-i][0]=   x1;                       s_motor.rotor_xyz[4-i][0]= x1;
-	s_motor.rotor_xyz[1-i][1]=  -y1;                       s_motor.rotor_xyz[4-i][1]= y1;
-	s_motor.rotor_xyz[1-i][2]=   z;                        s_motor.rotor_xyz[4-i][2]= z;
+	s_motor.rotor_xyz[3-i][0] =  0;                        s_motor.rotor_xyz[4-i][0] = 0;
+	s_motor.rotor_xyz[3-i][1] =  0;                        s_motor.rotor_xyz[4-i][1] = 0;
+	s_motor.rotor_xyz[3-i][2] =  0;                        s_motor.rotor_xyz[4-i][2] = 0;
 
-	s_motor.rotor_xyz[8-i][0]= -x1;                        s_motor.rotor_xyz[5-i][0]= -x1;
-	s_motor.rotor_xyz[8-i][1]= -y1;                        s_motor.rotor_xyz[5-i][1]=  y1;
-	s_motor.rotor_xyz[8-i][2]= -z;                         s_motor.rotor_xyz[5-i][2]= -z;
+	s_motor.rotor_xyz[5-i][0] =  0;                        s_motor.rotor_xyz[6-i][0]=  0;
+	s_motor.rotor_xyz[5-i][1] =  0;                        s_motor.rotor_xyz[6-i][1]=  0;
+	s_motor.rotor_xyz[5-i][2] =  0;                        s_motor.rotor_xyz[6-i][2]=  0;
 
-	s_motor.rotor_xyz[7-i][0]= -x2;                        s_motor.rotor_xyz[6-i][0]= -x2;
-	s_motor.rotor_xyz[7-i][1]= -y2;                        s_motor.rotor_xyz[6-i][1]=  y2;
-	s_motor.rotor_xyz[7-i][2]=  z;                         s_motor.rotor_xyz[6-i][2]=  z;
-
-	////////////////////////////////////////////////////////////////////////////////////////
-
-	////////////////////////////////////////////////////////////////////////////////////////
-	s_motor.rotor_tilt[2-i][0]= 0.0;                        s_motor.rotor_tilt[3-i][0]= 0.0;
-	s_motor.rotor_tilt[2-i][1]= 0.0;                        s_motor.rotor_tilt[3-i][1]= 0.0;
-	s_motor.rotor_tilt[2-i][2]= 0.0;                        s_motor.rotor_tilt[3-i][2]= 0.0;
-
-	s_motor.rotor_tilt[1-i][0]= 0.0;                        s_motor.rotor_tilt[4-i][0]= 0.0;
-	s_motor.rotor_tilt[1-i][1]= 0.0;                        s_motor.rotor_tilt[4-i][1]= 0.0;
-	s_motor.rotor_tilt[1-i][2]= 0.0;                        s_motor.rotor_tilt[4-i][2]= 0.0;
-
-	s_motor.rotor_tilt[8-i][0]= 0.0;                        s_motor.rotor_tilt[5-i][0]= 0.0;
-	s_motor.rotor_tilt[8-i][1]= 0.0;                        s_motor.rotor_tilt[5-i][1]= 0.0;
-	s_motor.rotor_tilt[8-i][2]= 0.0;                        s_motor.rotor_tilt[5-i][2]= 0.0;
-
-	s_motor.rotor_tilt[7-i][0]= 0.0;                        s_motor.rotor_tilt[6-i][0]= 0.0;
-	s_motor.rotor_tilt[7-i][1]= 0.0;                        s_motor.rotor_tilt[6-i][1]= 0.0;
-	s_motor.rotor_tilt[7-i][2]= 0.0;                        s_motor.rotor_tilt[6-i][2]= 0.0;
-
+	s_motor.rotor_xyz[7-i][0] =  0;                        s_motor.rotor_xyz[8-i][0]=  0;
+	s_motor.rotor_xyz[7-i][1] =  0;                        s_motor.rotor_xyz[8-i][1]=  0;
+	s_motor.rotor_xyz[7-i][2] =  0;                        s_motor.rotor_xyz[8-i][2]=  0;
 
 	////////////////////////////////////////////////////////////////////////////////////////
 
-	s_motor.rotor_r_direction[2-i]= 1.0;                	s_motor.rotor_r_direction[3-i]=-1.0;
-	s_motor.rotor_r_direction[1-i]=-1.0;                	s_motor.rotor_r_direction[4-i]= 1.0;
+	////////////////////////////////////////////////////////////////////////////////////////
+	s_motor.rotor_tilt[1-i][0]= 0.0;                        s_motor.rotor_tilt[2-i][0]= 0.0;
+	s_motor.rotor_tilt[1-i][1]= 0.0;                        s_motor.rotor_tilt[2-i][1]= 0.0;
+	s_motor.rotor_tilt[1-i][2]= 0.0;                        s_motor.rotor_tilt[2-i][2]= 0.0;
 
-	s_motor.rotor_r_direction[8-i]= 1.0;                	s_motor.rotor_r_direction[5-i]=-1.0;
-	s_motor.rotor_r_direction[7-i]=-1.0;                	s_motor.rotor_r_direction[6-i]=1.0;
+	s_motor.rotor_tilt[3-i][0]= 0.0;                        s_motor.rotor_tilt[4-i][0]= 0.0;
+	s_motor.rotor_tilt[3-i][1]= 0.0;                        s_motor.rotor_tilt[4-i][1]= 0.0;
+	s_motor.rotor_tilt[3-i][2]= 0.0;                        s_motor.rotor_tilt[4-i][2]= 0.0;
+
+	s_motor.rotor_tilt[5-i][0]= 0.0;                        s_motor.rotor_tilt[6-i][0]= 0.0;
+	s_motor.rotor_tilt[5-i][1]= 0.0;                        s_motor.rotor_tilt[6-i][1]= 0.0;
+	s_motor.rotor_tilt[5-i][2]= 0.0;                        s_motor.rotor_tilt[6-i][2]= 0.0;
+
+	s_motor.rotor_tilt[7-i][0]= 0.0;                        s_motor.rotor_tilt[8-i][0]= 0.0;
+	s_motor.rotor_tilt[7-i][1]= 0.0;                        s_motor.rotor_tilt[8-i][1]= 0.0;
+	s_motor.rotor_tilt[7-i][2]= 0.0;                        s_motor.rotor_tilt[8-i][2]= 0.0;
+
+
+	////////////////////////////////////////////////////////////////////////////////////////
+
+	s_motor.rotor_r_direction[1-i]= 1.0;                	s_motor.rotor_r_direction[2-i]=-1.0;
+	s_motor.rotor_r_direction[3-i]=-1.0;                	s_motor.rotor_r_direction[4-i]= 1.0;
+
+	s_motor.rotor_r_direction[5-i]= 1.0;                	s_motor.rotor_r_direction[6-i]=-1.0;
+	s_motor.rotor_r_direction[7-i]=-1.0;                	s_motor.rotor_r_direction[8-i]=1.0;
 
 }
-
-
-
 
 
 void v_thrust_rotor2body()

@@ -41,7 +41,7 @@ void deg_2_rad(float *angle_)
 
 
 // updates rotation matrices between different frames based on euler angles and wind angles (alpha , beta)
-void Rotation_matrices_update(float phi, float theta, float psi, float alpha, float beta)
+void v_rotation_matrices_update(float phi, float theta, float psi, float alpha, float beta)
 {
 	if((fabsf(phi)>89.0/57.3) && (fabsf(phi<91.0/57.3)))
 	{

@@ -19,7 +19,7 @@ void body_to_frame2(float[] , float[]);
 void frame2_to_body(float[] , float[]);
 void NED_to_frame2(float[] , float[]);
 void frame2_to_NED(float[] , float[]);
-void Rotation_matrices_update(float,float,float,float,float);
+void v_rotation_matrices_update(float,float,float,float,float);
 void Euler_angle_singularity_checker(float*, float*);
 void rad_2_deg(float*);
 void deg_2_rad(float*);
