@@ -16,61 +16,24 @@ extern float rotor_speed_old[28],rotor_speed_dot[28];
 
 extern float thrust_noise_old[28];
 extern float thrust_noise[28];
-
-extern void v_param_init_rotor();
-
-extern void v_update_thrust_torque();
-
-
-extern void rotor_speed_to_thrust();
-
 extern void input_noise_in_thrust();
-
-
 typedef struct
 {
-	float quad_thrust_max;
-	float quad_thrust_min;
-	float quad_thrust;
+	float pwm_in[28];
+	float motor_pwm_min;
+	float motor_pwm_max;
+	float rate_limit_throttle;
+	float max_thrust_per_motor;
+	float throttle_cmd[28];
+	float throttle_cmd_old[28];
+	float rotor_force_out[28];
+	float rotor_xyz[28][3];
+ 	float rotor_moment[28][3];
+ 	float rotor_tilt[28][3];
+ 	float rotor_yaw_moment_b[28][3];
 
-	float fwv_thrust_max;
-	float fwv_thrust_min;
-	float fwv_thrust;
+extern float rotor_r_direction[28];
+}S_motor;
 
-	float quad_torque_max;
-	float quad_torque_min;
-	float quad_torque;
-
-	float fwv_torque_max;
-	float fwv_torque_min;
-	float fwv_torque;
-
-	float motor_thrust[quad_num_motors + fwv_motors];
-	float motor_torque[quad_num_motors + fwv_motors];
-
-	float pwm_min;
-	float pwm_max;
-	float thrust_min;
-	float thrust_max;
-
-	float ratio_end;
-	float thrust_l[28];
-	float thrust_nl[28];
-	float thrust_out[28];
-
-
-	float skewness_ratio;
-	float skewness_power;
-
-	uint16_t max_quad_thr_tor_pwm;
-	uint16_t zero_quad_thr_tor_pwm;
-
-	uint16_t max_fwv_thr_tor_pwm;
-	uint16_t zero_fwv_thr_tor_pwm;
-
-	uint8_t flg_use_scale_model;
-}struct_motor;
-
-extern struct_motor s_rotor;
-
+extern S_motor s_motor;
 

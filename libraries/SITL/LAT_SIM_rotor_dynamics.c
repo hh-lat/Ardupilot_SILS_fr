@@ -12,366 +12,128 @@
 #include <common_variable.h>
 #include "rotor_dynamics.h"
 #include "battery_dynamics.h"
-# include "Forces_and_moments_rotors.h"
-# include "common_variable.h"
-# include "time.h"
+#include "Forces_and_moments_rotors.h"
+#include "common_variable.h"
 
-float w_omega[28]={0.0f},zeta_omega[28]={0.0f},rotor_speed_dot_dot[28]={0.0f},factor=1.0f;
-float rotor_speed_old[28]={0.0f},rotor_speed_dot[28]={0.0f};
 
 float thrust_noise_old[28]={0.0};
 float thrust_noise[28]={0.0};
 
 float aa = 0.0f, bb = 0.0f, cc = 0.0f;
 
-struct_motor s_rotor;
-
-
-void v_param_init_rotor()
-{
-	/*max and zero thrust/torque corresponding PWM for quad motor(present using the cruise motor data)*/
-	s_rotor.max_quad_thr_tor_pwm = 1900;
-	s_rotor.zero_quad_thr_tor_pwm = 1150;
-
-	/*max and zero thrust/torque corresponding PWM for cruise motor*/
-	s_rotor.max_fwv_thr_tor_pwm = 1900;
-	s_rotor.zero_fwv_thr_tor_pwm = 1150;
-
-	s_rotor.quad_thrust_max = 2335.2f;	// grams
-	s_rotor.quad_thrust_min = 0.0f;		// grams
-	s_rotor.quad_thrust = 0.0f;			// grams
-
-	s_rotor.fwv_thrust_max = 2335.2f;	// grams
-	s_rotor.fwv_thrust_min = 0.0f;		// grams
-	s_rotor.fwv_thrust = 0.0f;			// grams
-
-	s_rotor.quad_torque_max = 0.0f;		// Nm
-	s_rotor.quad_torque_min = 0.0f;		// Nm
-	s_rotor.quad_torque = 0.0f;			// Nm
-
-	s_rotor.fwv_torque_max = 0.0f;		// Nm
-	s_rotor.fwv_torque_min = 0.0f;		// Nm
-	s_rotor.fwv_torque = 0.0f;			// Nm
-
-	memset(s_rotor.motor_thrust, 0.0f, sizeof(s_rotor.motor_thrust));	// grams
-	memset(s_rotor.motor_torque, 0.0f, sizeof(s_rotor.motor_torque));	// Nm
-
-	s_rotor.pwm_min = 1150;
-	s_rotor.pwm_max = 1860;
-	s_rotor.thrust_min = 0.0;
-
-
-	if (quad_num_motors>0)
-	{
-		s_rotor.thrust_max = 2.0f*mass*g/quad_num_motors;
-	}
-	else
-	{
-		s_rotor.thrust_max = 0.0;
-	}
-
-
-	//s_rotor.thrust_l[28] = {0.0};
-	//s_rotor.thrust_nl[28] = {0.0};
-	//s_rotor.thrust_out[28] = {0.0};
-	s_rotor.ratio_end =1.0;
-	s_rotor.skewness_ratio = 0.5;
-	s_rotor.skewness_power =2.0;
-
-	s_rotor.flg_use_scale_model = 0; // for new scale model use 1, else use 0
-}
-
-
-void v_update_thrust_torque()
-{
-	float quad_thrust = 0.0f, quad_torque = 0.0f, norm_motor_thrust = 0.0f, norm_motor_torque = 0.0f;
-
-	float norm_pwm[quad_num_motors + fwv_motors] = {0.0f};
-	uint16_t rotor_pwm[quad_num_motors + fwv_motors] = {1000};
-
-	int i = 0;
-	/*taken from motor static test data*/
-	for(i = 0; i < (quad_num_motors + fwv_motors); i++)
-	{
-		if (i < quad_num_motors)
-		{
-			rotor_pwm[i] = constrain_float(pwm_out_esc[i], s_rotor.zero_quad_thr_tor_pwm, s_rotor.max_quad_thr_tor_pwm);
-
-			norm_pwm[i] = (float) (rotor_pwm[i] - s_rotor.zero_quad_thr_tor_pwm)/(s_rotor.max_quad_thr_tor_pwm - s_rotor.zero_quad_thr_tor_pwm);
-
-			/*this is MN3515(AARAV cruise motor) motor static test curve, replace it with U5(AARAV quad motor) for exact quad motor characteristics*/
-			norm_motor_thrust = -0.02257f + 0.601f*norm_pwm[i] + 0.4709f*powf(norm_pwm[i], 2);	// grams
-			norm_motor_thrust = constrain_float(norm_motor_thrust, 0.0f, 1.0f);
-
-			norm_motor_torque = 0.0f + 0.0f*norm_pwm[i] + 0.0f*powf(norm_pwm[i], 2);				// Nm
-			norm_motor_torque = constrain_float(norm_motor_torque, 0.0f, 1.0f);
-
-			s_rotor.motor_thrust[i] = (norm_motor_thrust*(s_rotor.quad_thrust_max - s_rotor.quad_thrust_min)) + s_rotor.quad_thrust_min;
-			s_rotor.motor_thrust[i] = constrain_float(s_rotor.motor_thrust[i], s_rotor.quad_thrust_min, s_rotor.quad_thrust_max);
-
-			s_rotor.motor_torque[i] = (norm_motor_torque*(s_rotor.quad_torque_max - s_rotor.fwv_torque_min)) + s_rotor.quad_torque_min;
-			s_rotor.motor_torque[i] = constrain_float(s_rotor.motor_torque[i], s_rotor.quad_torque_min, s_rotor.quad_torque_max);
-
-			quad_thrust = quad_thrust + s_rotor.motor_thrust[i];
-			quad_torque = quad_torque + s_rotor.motor_torque[i];
-		}
-		else
-		{
-			rotor_pwm[i] = constrain_float(pwm_out_esc[i], s_rotor.zero_fwv_thr_tor_pwm, s_rotor.max_fwv_thr_tor_pwm);
-
-			norm_pwm[i] = (float) (rotor_pwm[i] - s_rotor.zero_fwv_thr_tor_pwm)/(s_rotor.max_fwv_thr_tor_pwm - s_rotor.zero_fwv_thr_tor_pwm);
-
-			/*MN3515(AARAV cruise motor) motor static test curve*/
-			norm_motor_thrust = -0.02257f + 0.601f*norm_pwm[i] + 0.4709f*powf(norm_pwm[i], 2);	//grams
-			norm_motor_thrust = constrain_float(norm_motor_thrust, 0.0f, 1.0f);
-
-			norm_motor_torque = 0.0f + 0.0f*norm_pwm[i] + 0.0f*powf(norm_pwm[i], 2);				// Nm
-			norm_motor_torque = constrain_float(norm_motor_torque, 0.0f, 1.0f);
-
-			s_rotor.motor_thrust[i] = (norm_motor_thrust*(s_rotor.fwv_thrust_max - s_rotor.fwv_thrust_min)) + s_rotor.fwv_thrust_min;
-			s_rotor.motor_torque[i] = (norm_motor_torque*(s_rotor.fwv_torque_max - s_rotor.fwv_torque_min)) + s_rotor.fwv_torque_min;
-
-			s_rotor.fwv_thrust = constrain_float(s_rotor.motor_thrust[i], s_rotor.fwv_thrust_min, s_rotor.fwv_thrust_max);
-			s_rotor.fwv_torque = constrain_float(s_rotor.motor_torque[i], s_rotor.fwv_torque_min, s_rotor.fwv_torque_max);
-		}
-	}
-
-	s_rotor.quad_thrust = constrain_float(quad_thrust, quad_num_motors*s_rotor.quad_thrust_min, quad_num_motors*s_rotor.quad_thrust_max);
-	s_rotor.quad_torque = constrain_float(quad_torque, quad_num_motors*s_rotor.quad_torque_min, quad_num_motors*s_rotor.quad_torque_max);
-}
-
+S_motor s_motor;
 
 void rotor_dynamics(float t_step_rot)
 {
-	if (t_step_rot<0.0009)
-	{
-		t_step_rot = 0.001;
-	}
-	int i=0,j=0,k=0;
-	float w =2.0*3.14*40.0;
-	float zeta=0.5;
+	v_throttle_to_thrust_torque(t_step_rot); // updates s_motor.rotor_force_out[]
 
-	float max_limit =  (587.0f-317.0f)/(10.0f/1000.0f);
-	float min_limit =  -(587.0f-317.0f)/(10.0f/1000.0f);
-	// RPM PWM mapping
-	/* pwm1 =   ((0.0009489)*powf(rotor_speed[0],2))   +   (0.622 *rotor_speed[0]) + 1107.0;
-       pwm2 =   ((0.0009489)*powf(rotor_speed[1],2))   +   (0.622 *rotor_speed[1]) + 1107.0;
-       pwm3 =   ((0.0009489)*powf(rotor_speed[2],2))   +   (0.622 *rotor_speed[2]) + 1107.0;
-       pwm4 =   ((0.0009489)*powf(rotor_speed[3],2))   +   (0.622 *rotor_speed[3]) + 1107.0;*/
-
-#ifdef Quad_H
-	bb = 0.622*1.0f;
-	aa = 0.0009489*1.0f;
-	cc = 1107.0f;
-#endif
-
-#ifdef Quadplane
-	bb = 1.0f;
-	aa = 1.0f;
-	cc = 1.0f;
-#endif
-
-#ifdef Coax_Hexa_H_sym
-	bb = 0.166556f;
-	aa = 0.180722f;
-	cc = 1192.9f;
-#endif
-
-	factor=1.2f; /*** 1.2 rad/sec/pwm from rpm fineness test ***/
-
-	// PWM to rotor_speed coversion model
-	s_rotor.flg_use_scale_model=1;// done for T1 testing, this maps pwm to rotor_speed using linear and non-linear functions with weightage
-	//s_rotor.flg_use_scale_model=0;// this maps exact rotor_speed to pwm , generally if you tested on bench then you get data to use like this
+	v_rotors_force_and_moments(); // updates in body frame of uav
 
 
-	switch(s_rotor.flg_use_scale_model)
-	{
 
-	uint8_t iii=0;
-	case 0:
-	{
-		for ( iii=0;iii<quad_num_motors + fwv_motors;iii++)
+	#ifdef Quad_H
+
+		for (i=4;i<28;i++)
 		{
-			if (pwm_out_esc[iii]<=cc)
-			{
-				rotor_speed[iii]=0.0;
-			}
-			else
-			{
-				rotor_speed[iii] = (1.0f)*(-bb  + sqrtf((powf(bb,2)) - (4.0f*aa*(cc-pwm_out_esc[iii]))))/(2.0f*aa);
-			}
-
-			/*** RPM quantization  ***/
-			rotor_speed[iii]=(floorf(rotor_speed[iii]/factor))*factor;
+			rotor_force_out[i]=0.0;
 		}
-		break;
-	}
+	#endif
 
-	case 1:
-	{
-		for ( iii=0;iii<quad_num_motors + fwv_motors;iii++)
+
+	#ifdef Quad_X
+
+		for (i=4;i<28;i++)
 		{
-#ifdef Quadplane
-			if ((iii>=quad_num_motors) && (iii<quad_num_motors + fwv_motors))
-			{
-				s_rotor.thrust_max = mass*g*0.5;
-			}
-			else
-			{
-				if (quad_num_motors>0)
-				{
-					s_rotor.thrust_max = 2.0f*mass*g/quad_num_motors;
-				}
-				else
-				{
-					s_rotor.thrust_max = 0.0;
-				}
-			}
-#endif
-
-			if (pwm_out_esc[iii] < (s_rotor.pwm_min + 20.0))
-			{
-				s_rotor.thrust_out[iii] = s_rotor.thrust_min;
-			}
-			else if (pwm_out_esc[iii] > (s_rotor.pwm_max - 20.0))
-			{
-				s_rotor.thrust_out[iii] = s_rotor.thrust_max;
-			}
-			else
-			{
-				s_rotor.thrust_l[iii] = ((s_rotor.thrust_max - s_rotor.thrust_min)/(s_rotor.pwm_max - s_rotor.pwm_min))*(pwm_out_esc[iii]-s_rotor.pwm_min);
-				s_rotor.thrust_nl[iii] = (powf((pwm_out_esc[iii]-s_rotor.pwm_min),s_rotor.skewness_power))*(s_rotor.ratio_end*((s_rotor.thrust_max - s_rotor.thrust_min)/(powf((s_rotor.pwm_max - s_rotor.pwm_min),s_rotor.skewness_power))));
-				s_rotor.thrust_out[iii] = (s_rotor.skewness_ratio)*s_rotor.thrust_l[iii] + (1.0-s_rotor.skewness_ratio)*s_rotor.thrust_nl[iii];
-			}
-
-			if (s_rotor.thrust_out[iii] < s_rotor.thrust_min)
-			{
-				s_rotor.thrust_out[iii] = s_rotor.thrust_min;
-			}
-
-			if (s_rotor.thrust_out[iii] > s_rotor.thrust_max)
-			{
-				s_rotor.thrust_out[iii] = s_rotor.thrust_max;
-			}
-
-			rotor_speed[iii] = sqrtf(s_rotor.thrust_out[iii]/b1);
-
-			/*** RPM quantization  ***/
-			rotor_speed[iii]=(floorf(rotor_speed[iii]/factor))*factor;
+			rotor_force_out[i]=0.0;
 		}
-		break;
-	}
-	}
+	#endif
 
 
-	// Bandwidth simulation of rotor_speed
-	for(i=0;i<quad_num_motors + fwv_motors;i++)
-	{
-		w_omega[i]=w;
-		zeta_omega[i]=zeta;
-		rotor_speed_dot_dot[i]=rotor_speed[i]*powf(w_omega[i],2) - 2.0f*zeta_omega[i]*w_omega[i]*rotor_speed_dot[i] - (powf(w_omega[i],2))*rotor_speed_old[i];
-	}
-	for(k=0;k<4;k++)
-	{
-		for(i=0;i<quad_num_motors + fwv_motors;i++)
-		{	
-			rotor_speed_dot[i] = rotor_speed_dot_dot[i]*(t_step_rot/4.0f) + rotor_speed_dot[i];
+	#ifdef Quad_+
 
-			if (rotor_speed_dot[i]<min_limit)
-			{
-				rotor_speed_dot[i]=min_limit;
-			}
-
-			if (rotor_speed_dot[i]>max_limit)
-			{
-				rotor_speed_dot[i]=max_limit;
-			}
-		}
-		for(i=0;i<quad_num_motors + fwv_motors;i++)
+		for (i=4;i<28;i++)
 		{
-			rotor_speed[i] = rotor_speed_dot[i]*(t_step_rot/4.0f) + rotor_speed[i];
+			rotor_force_out[i]=0.0;
 		}
-	}
+	#endif
 
-	for(i=0;i<quad_num_motors + fwv_motors;i++)
+
+	#ifdef Coax_Quad_X
+
+		for (i=8;i<28;i++)
+		{
+			rotor_force_out[i]=0.0;
+		}
+	#endif
+
+
+	#ifdef Coax_Hexa_H_sym
+
+		for (i=12;i<28;i++)
+		{
+			rotor_force_out[i]=0.0;
+		}
+	#endif
+}
+
+void v_motor_pwm_to_throttle(float t_step_rot)
+{
+	int i=0;
+	float throttle_rate_cmd = 0.0f;
+
+	for (i=0;i<(fwv_motors);i++)
 	{
-		rotor_speed_old[i]=rotor_speed[i];
+		// PWM to throttle conversion
+		if (s_motor.pwm_in[i] <= s_motor.motor_pwm_min)
+		{
+			s_motor.throttle_cmd[i] = 0.0f;
+		}
+		else if (s_motor.pwm_in[i] >= s_motor.motor_pwm_max)
+		{
+			s_motor.throttle_cmd[i] = 1.0f;
+		}
+		else if ( (s_motor.pwm_in[i] > s_motor.motor_pwm_min) && (s_motor.pwm_in[i] < s_motor.motor_pwm_max) )
+		{
+			s_motor.throttle_cmd[i] = (s_motor.pwm_in[i] - s_motor.motor_pwm_min)/(s_motor.motor_pwm_max - s_motor.motor_pwm_min);
+		}
+
+		// Rate limiting on throttle command
+		throttle_rate_cmd = (s_motor.throttle_cmd[i] - s_motor.throttle_cmd_old[i])/t_step_rot;
+
+		if (throttle_rate_cmd > s_motor.rate_limit_throttle)
+		{
+			throttle_rate_cmd = s_motor.rate_limit_throttle;
+		}
+		else if (throttle_rate_cmd < -s_motor.rate_limit_throttle)
+		{
+			throttle_rate_cmd = -s_motor.rate_limit_throttle;
+		}
+
+		s_motor.throttle_cmd[i] = s_motor.throttle_cmd_old[i] + throttle_rate_cmd*t_step_rot;
 	}
 
-	rotor_speed_to_thrust();
-
-	//input_noise_in_thrust();
-
-
-#ifdef Quad_H
-
-	for (i=4;i<28;i++)
-	{
-		rotor_force_out[i]=0.0;
-	}
-#endif
-
-
-#ifdef Quad_X
-
-	for (i=4;i<28;i++)
-	{
-		rotor_force_out[i]=0.0;
-	}
-#endif
-
-
-#ifdef Quad_+
-
-	for (i=4;i<28;i++)
-	{
-		rotor_force_out[i]=0.0;
-	}
-#endif
-
-
-#ifdef Coax_Quad_X
-
-	for (i=8;i<28;i++)
-	{
-		rotor_force_out[i]=0.0;
-	}
-#endif
-
-
-#ifdef Coax_Hexa_H_sym
-
-	for (i=12;i<28;i++)
-	{
-		rotor_force_out[i]=0.0;
-	}
-#endif
 }
 
 
-
-void rotor_speed_to_thrust()
+void v_throttle_to_thrust_torque(t_step_rot, int model)
 {
 	int i=0;
 
-	for(i=0;i<quad_num_motors;i++)
+	if (model == 0)
 	{
-		rotor_force_out[i]= - b1*rotor_speed[i]*rotor_speed[i]; // - sign because motor z axis is down and thrust is up
-		// but b*w^2 will always give +ve value, so making it -ve for making it consistent with motor frame z axis direction
+		for (i=0;i<(fwv_motors);i++)
+		{
+			s_motor.rotor_force_out[i] = s_motor.throttle_cmd[i] * s_motor.max_thrust_per_motor;
+		}
+
+		
+	}
+	else if (model == 1)
+	{
+
 	}
 
-	for(i=quad_num_motors;i<quad_num_motors+fwv_motors;i++)
-	{
-		rotor_force_out[i]= - b1_fwv*rotor_speed[i]*rotor_speed[i]; // - sign because motor z axis is down and thrust is up
-		// but b*w^2 will always give +ve value, so making it -ve for making it consistent with motor frame z axis direction
-	}
-}
-
-
-
-void scale_thrust_for_plant_mass()
-{
-
+	input_noise_in_thrust();
 }
 
 
@@ -395,5 +157,159 @@ void input_noise_in_thrust()
 		pp=rand()%10000;
 		rotor_force_out[i]=rotor_force_out[i] + (powf(-1.0,pp)*thrust_noise[i]);
 	}
+}
+
+
+
+void rotor_geometry_definition()
+{
+	int i =1;
+
+	s_motor.rotor_xyz[2-i][0]=  x2;                         s_motor.rotor_xyz[3-i][0]=x2;
+	s_motor.rotor_xyz[2-i][1]= -y2;                         s_motor.rotor_xyz[3-i][1]=y2;
+	s_motor.rotor_xyz[2-i][2]= -z;                         s_motor.rotor_xyz[3-i][2]= -z;
+
+	s_motor.rotor_xyz[1-i][0]=   x1;                       s_motor.rotor_xyz[4-i][0]= x1;
+	s_motor.rotor_xyz[1-i][1]=  -y1;                       s_motor.rotor_xyz[4-i][1]= y1;
+	s_motor.rotor_xyz[1-i][2]=   z;                        s_motor.rotor_xyz[4-i][2]= z;
+
+	s_motor.rotor_xyz[8-i][0]= -x1;                        s_motor.rotor_xyz[5-i][0]= -x1;
+	s_motor.rotor_xyz[8-i][1]= -y1;                        s_motor.rotor_xyz[5-i][1]=  y1;
+	s_motor.rotor_xyz[8-i][2]= -z;                         s_motor.rotor_xyz[5-i][2]= -z;
+
+	s_motor.rotor_xyz[7-i][0]= -x2;                        s_motor.rotor_xyz[6-i][0]= -x2;
+	s_motor.rotor_xyz[7-i][1]= -y2;                        s_motor.rotor_xyz[6-i][1]=  y2;
+	s_motor.rotor_xyz[7-i][2]=  z;                         s_motor.rotor_xyz[6-i][2]=  z;
+
+	////////////////////////////////////////////////////////////////////////////////////////
+
+	////////////////////////////////////////////////////////////////////////////////////////
+	s_motor.rotor_tilt[2-i][0]= 0.0;                        s_motor.rotor_tilt[3-i][0]= 0.0;
+	s_motor.rotor_tilt[2-i][1]= 0.0;                        s_motor.rotor_tilt[3-i][1]= 0.0;
+	s_motor.rotor_tilt[2-i][2]= 0.0;                        s_motor.rotor_tilt[3-i][2]= 0.0;
+
+	s_motor.rotor_tilt[1-i][0]= 0.0;                        s_motor.rotor_tilt[4-i][0]= 0.0;
+	s_motor.rotor_tilt[1-i][1]= 0.0;                        s_motor.rotor_tilt[4-i][1]= 0.0;
+	s_motor.rotor_tilt[1-i][2]= 0.0;                        s_motor.rotor_tilt[4-i][2]= 0.0;
+
+	s_motor.rotor_tilt[8-i][0]= 0.0;                        s_motor.rotor_tilt[5-i][0]= 0.0;
+	s_motor.rotor_tilt[8-i][1]= 0.0;                        s_motor.rotor_tilt[5-i][1]= 0.0;
+	s_motor.rotor_tilt[8-i][2]= 0.0;                        s_motor.rotor_tilt[5-i][2]= 0.0;
+
+	s_motor.rotor_tilt[7-i][0]= 0.0;                        s_motor.rotor_tilt[6-i][0]= 0.0;
+	s_motor.rotor_tilt[7-i][1]= 0.0;                        s_motor.rotor_tilt[6-i][1]= 0.0;
+	s_motor.rotor_tilt[7-i][2]= 0.0;                        s_motor.rotor_tilt[6-i][2]= 0.0;
+
+
+	////////////////////////////////////////////////////////////////////////////////////////
+
+	s_motor.rotor_r_direction[2-i]= 1.0;                	s_motor.rotor_r_direction[3-i]=-1.0;
+	s_motor.rotor_r_direction[1-i]=-1.0;                	s_motor.rotor_r_direction[4-i]= 1.0;
+
+	s_motor.rotor_r_direction[8-i]= 1.0;                	s_motor.rotor_r_direction[5-i]=-1.0;
+	s_motor.rotor_r_direction[7-i]=-1.0;                	s_motor.rotor_r_direction[6-i]=1.0;
+
+}
+
+
+
+
+
+void v_thrust_rotor2body()
+{
+
+	// this is conversion of [u,v,w] body frame vector to same vector representation in NED frame( in this case from motor frame to uav frame)
+	/*w*(sin_phi*sin_psi + cos_phi*cos_psi*sin_theta) - v*(cos_phi*sin_psi - cos_psi*sin_phi*sin_theta) + cos_psi*cos_theta*u;
+	 v*(cos_phi*cos_psi + sin_phi*sin_psi*sin_theta) - w*(cos_psi*sin_phi - cos_phi*sin_psi*sin_theta) + cos_theta*sin_psi*u;
+	cos_phi*cos_theta*w - sin_theta*u + cos_theta*sin_phi*v ;       */
+
+
+	// this is conversion of [0,0,w] body frame vector to same vector representation in NED frame(in this case from motor frame to uav frame)
+	/* w*(sin_phi*sin_psi + cos_phi*cos_psi*sin_theta)
+	-w*(cos_psi*sin_phi - cos_phi*sin_psi*sin_theta)
+	                             cos_phi*cos_theta*w	*/
+	int i = 0;
+
+	for (i = 0; i <  fwv_motors; i++)
+	{
+		s_motor.rotor_force[i][0] =  s_motor.rotor_force_out[i] * (sinf(s_motor.rotor_tilt[i][0]) * sinf(s_motor.rotor_tilt[i][2]) + cosf(s_motor.rotor_tilt[i][0]) * cosf(s_motor.rotor_tilt[i][2]) * sinf(s_motor.rotor_tilt[i][1]));
+		s_motor.rotor_force[i][1] = -s_motor.rotor_force_out[i] * (sinf(s_motor.rotor_tilt[i][0]) * cosf(s_motor.rotor_tilt[i][2]) - cosf(s_motor.rotor_tilt[i][0]) * sinf(s_motor.rotor_tilt[i][2]) * sinf(s_motor.rotor_tilt[i][1]));
+		s_motor.rotor_force[i][2] =  s_motor.rotor_force_out[i] * (cosf(s_motor.rotor_tilt[i][0]) * cosf(s_motor.rotor_tilt[i][1]));
+	}
+}
+
+
+void v_yaw_moment_motor_frame()
+{
+	int i=0;
+
+	for (i = 0; i <  fwv_motors; i++)
+	{
+		s_motor.rotor_yaw_moment_m[i] = d_by_b_fwv * s_motor.rotor_r_direction[i] * fabsf(s_motor.rotor_force_out[i])  ;
+	}
+}
+
+
+void v_yaw_moment_rotor2body()
+{
+	int i = 0;
+	for (i = 0; i <  fwv_motors; i++)
+	{
+		s_motor.rotor_yaw_moment_b[i][0] =  s_motor.rotor_yaw_moment_m[i] * (sinf(s_motor.rotor_tilt[i][0]) * sinf(s_motor.rotor_tilt[i][2]) + cosf(s_motor.rotor_tilt[i][0]) * cosf(s_motor.rotor_tilt[i][2])*sinf(s_motor.rotor_tilt[i][1]));
+		s_motor.rotor_yaw_moment_b[i][1] = -s_motor.rotor_yaw_moment_m[i] * (sinf(s_motor.rotor_tilt[i][0]) * cosf(s_motor.rotor_tilt[i][2]) - cosf(s_motor.rotor_tilt[i][0]) * sinf(s_motor.rotor_tilt[i][2])*sinf(s_motor.rotor_tilt[i][1]));
+		s_motor.rotor_yaw_moment_b[i][2] =  s_motor.rotor_yaw_moment_m[i] * (cosf(s_motor.rotor_tilt[i][0]) * cosf(s_motor.rotor_tilt[i][1]));
+	}
+}
+
+
+void v_moment_rotor2body()
+{
+	int i = 0;
+
+	for (i = 0; i < fwv_motors; i++)
+	{
+		cross_product(s_motor.rotor_xyz[i],s_motor.rotor_force[i],s_motor.rotor_moment[i]);
+		s_motor.rotor_moment[i][0] = s_motor.rotor_moment[i][0] + s_motor.rotor_yaw_moment_b[i][0] ;
+		s_motor.rotor_moment[i][1] = s_motor.rotor_moment[i][1] + s_motor.rotor_yaw_moment_b[i][1] ;
+		s_motor.rotor_moment[i][2] = s_motor.rotor_moment[i][2] + s_motor.rotor_yaw_moment_b[i][2] ;
+	}
+}
+
+
+void v_rotors_force_and_moments()
+{
+	int i = 0;
+
+	v_thrust_rotor2body();
+	v_yaw_moment_motor_frame();
+	v_yaw_moment_rotor2body();
+	v_moment_rotor2body();
+
+	all_rotors_force[0] = 0.0f;
+	all_rotors_force[1] = 0.0f;
+	all_rotors_force[2] = 0.0f;
+
+	all_rotors_moment[0] = 0.0f;
+	all_rotors_moment[1] = 0.0f;
+	all_rotors_moment[2] = 0.0f;
+
+	for (i = 0; i < fwv_motors; i++)
+	{
+		all_rotors_force[0] = all_rotors_force[0] + rotor_force[i][0];
+		all_rotors_force[1] = all_rotors_force[1] + rotor_force[i][1];
+		all_rotors_force[2] = all_rotors_force[2] + rotor_force[i][2];
+
+		all_rotors_moment[0] =  all_rotors_moment[0] + rotor_moment[i][0];
+		all_rotors_moment[1] =  all_rotors_moment[1] + rotor_moment[i][1];
+		all_rotors_moment[2] =  all_rotors_moment[2] + rotor_moment[i][2];
+	}
+
+	vehicle.all_rotors_force[0] = all_rotors_force[0];
+	vehicle.all_rotors_force[1] = all_rotors_force[1];
+	vehicle.all_rotors_force[2] = all_rotors_force[2];
+
+	vehicle.all_rotors_moment[0] = all_rotors_moment[0];
+	vehicle.all_rotors_moment[1] = all_rotors_moment[1];
+	vehicle.all_rotors_moment[2] = all_rotors_moment[2];
 }
 

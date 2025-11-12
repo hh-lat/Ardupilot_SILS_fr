@@ -57,61 +57,33 @@ void pwm_out_servo_to_angles()
 void Actuator_dynamics(float t_step_act)
 {
 
-	float zeta_elvtr = 0.7;
-	float zeta_alrn  = 0.7;
-	float zeta_rdr   = 0.7;
-	float w_elvtr    = 80.0;
-	float w_alrn     = 80.0;
-	float w_rdr      = 80.0;
-	static float ss2_array[3];
-	uint8_t i = 0;
-	uint8_t k = 0;
-
-	/************************************************************************************************************/
-	/*creating array for pwm input and output*/
-	uint16_t pwm_in_servo[16] = {0};
-	uint16_t pwm_out_servo[16] = {0};
-
-
-	/*adding delay for the servo output through function*/
-	//pure_transport_delay_int(pwm_out_servo, pwm_in_servo, bufferarray_pwm_servo, sizeof(pwm_in_servo)/sizeof(uint16_t),  delay_array_length_pwm_servo);
-
-	v_fill_pwm_in_csta();
-	/*Conversion function from pwm out servo to angle*/
 	pwm_out_servo_to_angles();
 
+	v_apply_rate_limits_to_control_surfaces(t_step_act);
 
-	/*second order transfer function for angle to increase gradually for steps with rate limit*/
-	for(i=0;i<num_actuator;i++)
-	{
-		actuator[csta[i]].ang_accel=actuator[csta[i]].angle*powf(actuator[csta[i]].omega,2) - 2.0f*actuator[csta[i]].zeta*actuator[csta[i]].omega*actuator[csta[i]].ang_vel - (powf(actuator[csta[i]].omega,2))*actuator[csta[i]].angle_old;
-	}
+}
 
-	for(k=0;k<4;k++)
-	{
-		for(i=0;i<num_actuator;i++)
-		{
-			actuator[csta[i]].ang_vel = actuator[csta[i]].ang_accel*(t_step_act/4.0f) + actuator[csta[i]].ang_vel;//argha latest changes as per January 10 matlab code changes
 
-			if (actuator[csta[i]].ang_vel<actuator[csta[i]].min_rate)
-			{
-				actuator[csta[i]].ang_vel=actuator[csta[i]].min_rate;
-			}
-
-			if (actuator[csta[i]].ang_vel>actuator[csta[i]].max_rate)
-			{
-				actuator[csta[i]].ang_vel=actuator[csta[i]].max_rate;
-			}
-		}
-		for(i=0;i<num_actuator;i++)
-		{
-			actuator[csta[i]].angle = actuator[csta[i]].ang_vel*(t_step_act/4.0f) + actuator[csta[i]].angle;
-		}
-	}
+void v_apply_rate_limits_to_control_surfaces(float t_step_act)
+{
+	uint8_t i = 0;
+	float angle_rate_cmd = 0.0f;
 
 	for(i=0;i<num_actuator;i++)
 	{
+		angle_rate_cmd = (actuator[csta[i]].angle - actuator[csta[i]].angle_old)/t_step_act;
+
+		if (angle_rate_cmd > actuator[csta[i]].max_rate)
+		{
+			angle_rate_cmd = actuator[csta[i]].max_rate;
+		}
+		else if (angle_rate_cmd < actuator[csta[i]].min_rate)
+		{
+			angle_rate_cmd = actuator[csta[i]].min_rate;
+		}
+
+		actuator[csta[i]].angle = actuator[csta[i]].angle_old + angle_rate_cmd*t_step_act;
+
 		actuator[csta[i]].angle_old = actuator[csta[i]].angle;
 	}
 }
-
