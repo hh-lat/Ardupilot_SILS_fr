@@ -98,6 +98,7 @@ typedef struct
 
 	float wind_ned[3];
 
+	float CL,CD,CY,Cl,Cm,Cn;
 	float CLo, CL_alpha, CL_q;
 	float CDo, CD_alpha;
 	float CYo, CY_beta, CY_p, CY_r;

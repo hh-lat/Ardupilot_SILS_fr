@@ -74,10 +74,11 @@ void v_calculate_lift_force()
 			CL_alpha_tot = ((vehicle.s * dCl_dalpha + (vehicle.s  - vehicle.s_blown) * 2.0*pi) / (vehicle.s))  - (vehicle.t_by_c * Cmu_S);
 
 			CL = vehicle.CL_0
-				+ F * (1 + vehicle.t_by_c) * (Lambda * theta_rad * dCl_dtheta + nu * vehicle.alpha * dCl_dalpha)
+				+ F * (1.0 + vehicle.t_by_c) * (Lambda * theta_rad * dCl_dtheta + nu * vehicle.alpha * dCl_dalpha)
 				- vehicle.t_by_c * Cmu_S * (theta_rad + vehicle.alpha)
-				+ actuator[ELEVATOR].cL*actuator[ELEVATOR].angle;
+				+ vehicle.CL_dele*vehicle.delta_e;
 
+			vehicle.CL = CL;
 			vehicle.all_lift_force = vehicle.all_lift_force + vehicle.Q*vehicle.s*CL;
 			
 		break;
@@ -96,14 +97,17 @@ void v_calculate_drag_force()
 
 			for(int i=0;i<num_actuator;i++)
 			{
-				vehicle.all_drag_force = vehicle.all_drag_force + vehicle.Q*s*actuator[csta[i]].cD*fabsf(actuator[csta[i]].angle);
+				vehicle.all_drag_force = vehicle.all_drag_force + vehicle.Q*vehicle.s*actuator[csta[i]].cD*fabsf(actuator[csta[i]].angle);
 			}
-				vehicle.all_drag_force = vehicle.all_drag_force + vehicle.Q*s*(vehicle.CDo + vehicle.CD_alpha*fabsf(vehicle.alpha));
+				vehicle.all_drag_force = vehicle.all_drag_force + vehicle.Q*vehicle.s*(vehicle.CDo + vehicle.CD_alpha*fabsf(vehicle.alpha));
 
 		break;
 
 		case 1:
-
+		float Cmu_S=0;
+		Cmu_S  = vehicle.Cmu * vehicle.c / vehicle.s;
+			vehicle.CD = vehicle.CD0 - 0.9*Cmu_S + (2.5*vehicle.CL*vehicle.CL / (pi * vehicle.AR * vehicle.e + 2.0*Cmu_S))
+			+ vehicle.CD_delf * vehicle.delta_f + vehicle.CD_dele*vehicle.delta_e + vehicle.CD_dele2 * vehicle.delta_e*vehicle.delta_e;
 		break;
 
 	}
@@ -122,11 +126,40 @@ void v_calculate_side_force()
 				vehicle.all_side_force = vehicle.all_side_force + vehicle.Q*s*actuator[csta[i]].cY*actuator[csta[i]].angle;
 			}
 				vehicle.all_side_force = vehicle.all_side_force + vehicle.Q*s*(vehicle.CYo + vehicle.CY_beta*vehicle.beta) +
-					(0.5*vehicle.rho*vehicle.tas)*vehicle.CY_r*vehicle.r*b/2.0f + (0.5*vehicle.rho*vehicle.tas)*vehicle.CY_p*vehicle.p*b/2.0f;
+					(0.5*vehicle.rho*vehicle.tas)*vehicle.CY_r*vehicle.r*vehicle.b/2.0f + (0.5*vehicle.rho*vehicle.tas)*vehicle.CY_p*vehicle.p*b/2.0f;
 		break;
 
 		case 1:
+		float CY=0;
+		float CY_att=0,CY_flat=0;
+			CY_att = vehicle.CY0 + vehicle.CY_beta*vehicle.beta + vehicle.CY_ail_L*vehicle.delta_a_L* + vehicle.CY_ail_R*vehicle.delta_a_R +
+                     vehicle.CY_delta_r*vehicle.delta_r + vehicle.CY_delta_aL_Cmu*vehicle.Cmu*vehicle.delta_aL + vehicle.CY_delta_aR_Cmu*vehicle.Cmu*vehicle.delta_aR 
+					 vehicle.CY_beta_Cmu*vehicle.Cmu*vehicle.beta;
 
+		float CY_base =0, CY_other =0;
+		CY_base = vehicle.CY_beta*vehicle.beta;
+		CY_other = CY_att - CY_base;
+
+		//stall onset
+		float beta_stall = 0,beta_eff = 0;
+		beta_stall = 14.999727 + 0.000001*((vehicle.delta_aL + vehicle.delta_aR)/2.0 + vehicle.delta_f) + 0.000148*vehicle.Cmu + 0.000003*vehicle.alpha ;
+		beta_stall = beta_stall / 57.3f;
+
+		beta_eff = vehicle.beta - 0.259*vehicle.delta_r;
+		beta_eff = beta_eff/57.3;
+		float W=0,num=0,den=0;
+		num = 1 + expf(-44.296*(beta_eff - beta_stall)) + expf(44.296*(beta_eff + beta_stall));
+		den = (1 + expf(-44.296*(beta_eff - beta_stall))) * (1 + expf(44.296*(beta_eff + beta_stall)));
+		if (den < 0.00000001)
+		{ 
+			den = 0.00000001
+			W = num/(den);
+		}
+
+		float CY_float=0;
+		CY_flat =  2.0*sign(beta_eff)*(sin(beta_eff)*sin(beta_eff))*cos(beta_eff);
+
+		CY = CY_base * (1 - W) + 1.3517*CY_flat * W + CY_other;
 		break;
 	}
 }
