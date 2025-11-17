@@ -6,16 +6,13 @@
  */
 
 
-#include "plant.h"
-#include <math.h>
-#include <math_util.h>
-#include <common_variable.h>
-#include "battery_dynamics.h"
-
+#include "LAT_SIM_Runner.h"
+#include "LAT_SIM_math_util.h"
+#include "LAT_SIM_common_variable.h"
+#include "LAT_SIM_battery_dynamics.h"
 
 s_battery  batt;
 s_battery_dynamics s_batt;
-
 
 void v_param_init_battery_dynamics()
 {

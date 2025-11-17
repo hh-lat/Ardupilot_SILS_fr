@@ -1,9 +1,7 @@
 /* Rajat*/
 
 
-#include "stdio.h"
-#include "stdint.h"
-#include "Forces_and_moments_rotors.h"
+#include "LAT_SIM_Forces_and_moments_rotors.h"
 
 #ifndef GROUND_MODEL_H
 #define GROUND_MODEL_H

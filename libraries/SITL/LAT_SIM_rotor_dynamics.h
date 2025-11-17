@@ -5,11 +5,9 @@
  *      Author: Rajat P.
  */
 
-
 #include "stdio.h"
-#include "plant.h"
-#include "Forces_and_moments_rotors.h"
-#include "common_variable.h"
+#include "LAT_SIM_Runner.h"
+#include "LAT_SIM_Forces_and_moments_rotors.h"
 
 extern float w_omega[28],zeta_omega[28],rotor_speed_dot_dot[28],factor;
 extern float rotor_speed_old[28],rotor_speed_dot[28];

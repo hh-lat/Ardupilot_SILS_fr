@@ -1,7 +1,7 @@
 #ifndef MATH_UTIL_H
 #define MATH_UTIL_H
 #include<stdlib.h>
-#include "math_util.h"
+#include "LAT_SIM_math_util.h"
 #include <stdint.h>
 void array_initd(float * arr,int num);
 

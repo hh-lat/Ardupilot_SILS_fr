@@ -2,8 +2,7 @@
 #define PLANT_H
 #include <stdio.h>
 #include "math.h"
-#include "math_util.h"
-#include "common_variable.h"
+#include "LAT_SIM_math_util.h"
 #include "stdint.h"
 
 
@@ -12,6 +11,10 @@
 #define LAT_EQUINOX
 #define fwv_motors		 	 1
 #define num_actuator		 4
+
+#define pi 3.14159265
+#define R2D 57.2957795
+#define D2R 0.0174532925
 
 extern void pseudo_INS(float,float[],float[],float[],float*,float*,float*,float[],float[],float[],float[],float[],float);
 void rk4(float y[],float t,float h,float[]);
@@ -134,8 +137,71 @@ typedef struct
 
 	int aero_model_type;
 	float alpha_stall;
-	float s;
-	float s_blown;
+
+    float delta_f;
+    float delta_e;
+    float delta_a;
+    float delta_r;
+    float delta_aL;
+    float delta_aR;
+    float AR;
+    float e;
+    float Cmu;
+    float s;
+    float s_blown;
+    float t_by_c;
+    float Ixx;
+    float Iyy;
+    float Izz;
+    float Ixz;
+    float c;
+    float b;
+    float mass;
+
+    float CL_0;
+    float CL_delta_e;
+
+    float CD_0;
+    float CD_delta_e;
+    float CD_delta_f;
+    float CD_delta_e2;
+
+    float CY_0;
+    float CY_beta;
+    float CY_delta_r;
+    float CY_delta_aL_Cmu;
+    float CY_delta_aR_Cmu;
+    float CY_delta_aL;
+    float CY_delta_aR;
+    float CY_beta_Cmu;
+
+    float Cl_0;
+    float Cl_beta;
+    float Cl_delta_r;
+    float Cl_delta_aL_Cmu;
+    float Cl_delta_aR_Cmu;
+    float Cl_delta_aL;
+    float Cl_delta_aR;
+
+    float Cm_0;
+    float Cm_alpha;
+    float Cm_delta_e;
+    float Cm_delta_aL;
+    float Cm_delta_aR;
+    float Cm_Cmu;
+    float Cm_alpha_Cmu;
+    float Cm_delta_f;
+    float Cm_beta2;
+    float Cm_beta2_Cmu;
+
+    float Cn_0;
+    float Cn_beta;
+    float Cn_delta_r;
+    float Cn_delta_aL_Cmu;
+    float Cn_delta_aR_Cmu;
+    float Cn_delta_aL;
+    float Cn_delta_aR;
+    float Cn_beta_Cmu;
 	
 	struct_enum_dof dof;
 }VEHICLE_STATES;
@@ -145,3 +211,5 @@ extern VEHICLE_STATES vehicle;
 extern strct_home_states s_home_state;
 
 #endif
+
+

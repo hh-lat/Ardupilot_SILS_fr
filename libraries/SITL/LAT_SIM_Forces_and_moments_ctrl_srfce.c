@@ -1,16 +1,10 @@
 #include <math.h>
 #include <stdlib.h>
 
-#include <aero.h>
-#include <math_util.h>
-#include <common_variable.h>
+#include "LAT_SIM_math_util.h"
 #include "LAT_SIM_Runner.h"
-#include "Forces_and_moments_ctrl_srfce.h"
-#include "Actuator_dynamics.h"
-
-#define pi 3.14159265
-#define R2D 57.2957795
-#define D2R 0.0174532925
+#include "LAT_SIM_Forces_and_moments_ctrl_srfce.h"
+#include "LAT_SIM_Actuator_dynamics.h"
 
 void v_calculate_lift_force()
 {

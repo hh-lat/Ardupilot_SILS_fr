@@ -1,14 +1,9 @@
-#include <math.h>
-#include <stdlib.h>
 
-#include <aero.h>
-#include <math_util.h>
-#include <common_variable.h>
-#include "plant.h"
-#include "Ground_model.h"
-#include "Forces_and_moments_ctrl_srfce.h"
-#include "Conversions_Frame_rotations.h"
-#include "update_vehicle_state.h"
+#include <LAT_SIM_math_util.h>
+#include "LAT_SIM_Runner.h"
+#include "LAT_SIM_Ground_model.h"
+#include "LAT_SIM_Forces_and_moments_ctrl_srfce.h"
+#include "LAT_SIM_Conversions_Frame_rotations.h"
 #include "LAT_SIM_derivative.h"
 
 

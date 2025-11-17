@@ -1,5 +1,5 @@
 #include <math.h>
-#include "math_util.h"
+#include "LAT_SIM_math_util.h"
 #include "LAT_SIM_Runner.h"
 #include "LAT_SIM_rk4.h"
 #include "LAT_SIM_derivative.h"

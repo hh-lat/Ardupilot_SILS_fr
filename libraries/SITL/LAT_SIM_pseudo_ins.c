@@ -1,11 +1,7 @@
-#include <math.h>
-#include "plant.h"
-#include <math_util.h>
-#include <common_variable.h>
-#include "pseudo_ins.h"
-# include "time.h"
-
-#include "xplane_sil.h"
+#include "LAT_SIM_Runner.h"
+#include "LAT_SIM_math_util.h"
+#include "LAT_SIM_pseudo_ins.h"
+#include "time.h"
 
 #define NUM_STATEVARS_INS 9
 

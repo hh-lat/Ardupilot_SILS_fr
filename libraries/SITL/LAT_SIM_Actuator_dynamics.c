@@ -1,9 +1,8 @@
 #include <math.h>
-#include <math_util.h>
-#include "plant.h"
-#include <common_variable.h>
-#include "Forces_and_moments_ctrl_srfce.h"
-#include "Actuator_dynamics.h"
+#include <LAT_SIM_math_util.h>
+
+#include "LAT_SIM_Forces_and_moments_ctrl_srfce.h"
+#include "LAT_SIM_Actuator_dynamics.h"
 
 #define DIV 1e-1
 
@@ -16,7 +15,6 @@ void v_actuator_dynamics_param_init()
 
 
 }
-
 
 
 void v_fill_pwm_in_csta()

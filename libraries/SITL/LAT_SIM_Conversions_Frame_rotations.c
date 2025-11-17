@@ -1,6 +1,6 @@
-#include "plant.h"
-#include "Conversions_Frame_rotations.h"
-#include "math_util.h"
+#include "LAT_SIM_Runner.h"
+#include "LAT_SIM_Conversions_Frame_rotations.h"
+#include "LAT_SIM_math_util.h"
 
 static float temp3X1_1[3];
 float V_b_d[3];

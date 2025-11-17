@@ -10,18 +10,88 @@ VEHICLE_STATES vehicle;
 
 strct_home_states s_home_state;
 
-
 void v_lat_fdm_init()
 {
-
     v_rotor_geometry_define(); // defines geometry
     v_plane_param_define();
     vehicle.dof = DOF_ALL_MOTION;
     vehicle.aero_model_type = 0; // 0 for default simple model, 1 for equinox model
-    vehicle.alpha_stall = 14.0/57.3;
+    vehicle.alpha_stall = 14.0*D2R; // stall angle in rad
     vehicle.s_blown = 0.216;
     vehicle.s = 0.9;
     vehicle.t_by_c = 0.15;
+
+	vehicle.aero_model_type = 0.0; // 0 for default model , 1 for complex model
+	vehicle.delta_f =0.0;
+	vehicle.delta_e=0;
+	vehicle.delta_a=0;
+	vehicle.delta_r=0;
+	vehicle.delta_aL=0;
+	vehicle.delta_aR=0;
+	vehicle.AR =10;
+	vehicle.e =1;
+	vehicle.Cmu = 0;
+	vehicle.s = 0.9;
+	vehicle.s_blown =;
+	vehicle.t_by_c = 0.15;
+	vehicle.Ixx = 14.658;
+	vehicle.Iyy = 16.944;
+	vehicle.Izz = 27.412;
+	vehicle.Ixz = 0;
+	vehicle.c = 0.3;
+	vehicle.b = 3.0;
+	vehicle.s_blown = 0.216;
+	vehicle.mass = 65;
+
+	vehicle.CL_0 = 0.29;
+	vehicle.CL_delta_e =1.175;
+	vehcile.CL_alpha = 5.0; // default
+	vehicle.CL_q =0; // default
+
+
+	vehicle.CD_0 = 0.2; 
+	vehicle.CD_delta_e = -0.355;
+	vehicle.CD_delta_f =0.1;
+	vehicle.CD_delta_e2 = 0.5;
+	vehicle.CD_alpha = 0.3;// default
+
+	vehicle.CY_0 = 0;
+	vehicle.CY_beta = 0.011931*R2D;
+	vehicle.CY_delta_r =0.001499*R2D;
+	vehicle.CY_delta_aL_Cmu =-0.000199*R2D;
+	vehicle.CY_delta_aR_Cmu = 0.000196*R2D;
+	vehicle.CY_delta_aL = 0.000391*R2D;
+	vehicle.CY_delta_aR = -0.000403*R2D;
+	vehicle.CY_beta_Cmu = 0.012240*R2D;
+
+	vehicle.Cl_0 = 0;
+	vehicle.Cl_beta = 0.000137*R2D;
+	vehicle.Cl_delta_r =0.000303*R2D;
+	vehicle.Cl_delta_aL_Cmu =-0.000338*R2D;
+	vehicle.Cl_delta_aR_Cmu = 0.000348*R2D;
+	vehicle.Cl_delta_aL = -0.001441*R2D;
+	vehicle.Cl_delta_aR =  0.001443*R2D;
+
+	vehicle.Cm_0 = 0.241903;
+	vehicle.Cm_alpha = -0.082990*R2D;
+	vehicle.Cm_delta_e =-0.096531*R2D;
+	vehicle.Cm_delta_aL = 0.004447*R2D;
+	vehicle.Cm_delta_aR =  0.004414*R2D;
+	vehicle.Cm_Cmu = 0.481194;
+	vehicle.Cm_alpha_Cmu = 0.042538*R2D;
+	vehicle.Cm_delta_f = 0.006377*R2D;
+	vehicle.Cm_beta2 = -0.001099*R2D*R2D;
+	VEHICLE.Cm_beta2_Cmu = 0.001855*R2D;
+
+	vehicle.Cn_0 = 0;
+	vehicle.Cn_beta = -0.000660*R2D;
+	vehicle.Cn_delta_r = -0.000679*R2D;
+	vehicle.Cn_delta_aL_Cmu = 0.000624*R2D;
+	vehicle.Cn_delta_aR_Cmu = -0.000626*R2D;
+	vehicle.Cn_delta_aL = -0.000118*R2D;
+	vehicle.Cn_delta_aR =  0.000119*R2D;
+	VEHICLE.Cn_beta_Cmu = -0.000829*R2D;
+
 }
 
 

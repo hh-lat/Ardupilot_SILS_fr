@@ -6,14 +6,12 @@
  */
 
 
-#include "plant.h"
-#include <math.h>
-#include <math_util.h>
-#include <common_variable.h>
-#include "rotor_dynamics.h"
-#include "battery_dynamics.h"
-#include "Forces_and_moments_rotors.h"
-#include "common_variable.h"
+#include "LAT_SIM_Runner.h"
+#include "math.h"
+#include "LAT_SIM_math_util.h"
+#include "LAT_SIM_rotor_dynamics.h"
+#include "LAT_SIM_battery_dynamics.h"
+#include "LAT_SIM_Forces_and_moments_rotors.h"
 
 
 float thrust_noise_old[28]={0.0};

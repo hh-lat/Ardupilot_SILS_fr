@@ -1,6 +1,5 @@
-#include <math.h>
-#include "math_util.h"
-#include "plant.h"
+#include "LAT_SIM_math_util.h"
+#include "LAT_SIM_Runner.h"
 
 
 float Delay_input_fn_T(float new_value_T)

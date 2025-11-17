@@ -6,8 +6,7 @@
  */
 
 
-#include "stdio.h"
-#include "plant.h"
+#include "LAT_SIM_Runner.h"
 
 #pragma pack(1)
 

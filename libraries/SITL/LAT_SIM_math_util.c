@@ -2,7 +2,7 @@
 #ifdef DEBUG
 #include <stdio.h>
 #endif
-#include "math_util.h"
+#include "LAT_SIM_math_util.h"
 //plant
 float determinant(float **a,int n);
 void cofactor(float **a,int n,float **b);

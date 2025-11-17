@@ -1,8 +1,7 @@
 
-#include "plant.h"
-#include "xplane_sil.h"
-#include "Ground_model.h"
-
+#include "LAT_SIM_plant.h"
+#include "LAT_SIM_xplane_sil.h"
+#include "LAT_SIM_Ground_model.h"
 
 void fn_uav_states_init(int SITL_mode,float* latitude_point,float* longitude_point,float* Alt,float *V_bd_ins ,float* V_ned_ins,float* ax_bd_ins,float* Body_rate_bf_ins,float* attitude)
 {

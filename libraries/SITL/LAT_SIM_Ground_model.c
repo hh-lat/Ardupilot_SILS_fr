@@ -1,10 +1,9 @@
 
 /* Rajat*/
 
-#include "stdio.h"
-#include "Ground_model.h"
-#include "plant.h"
-#include "rotor_dynamics.h"
+#include "LAT_SIM_Ground_model.h"
+#include "LAT_SIM_Runner.h"
+#include "LAT_SIM_rotor_dynamics.h"
 struct_grnd_model s_grnd_model;
 
 void v_ground_model_param_init()

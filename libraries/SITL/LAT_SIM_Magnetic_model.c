@@ -1,8 +1,8 @@
 /*Rajat*/
 
 
-#include "Magnetic_model.h"
-#include "plant.h"
+#include "LAT_SIM_Magnetic_model.h"
+#include "LAT_SIM_Runner.h"
 
 Struct_magneticmodel s_earth_mm;
 
