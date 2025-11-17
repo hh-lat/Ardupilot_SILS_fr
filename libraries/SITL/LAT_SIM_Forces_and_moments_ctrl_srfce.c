@@ -54,13 +54,13 @@ void v_calculate_lift_force()
 			Cmu_Sp = vehicle.Cmu * vehicle.c / vehicle.s_blown;
 
 			float theta_rad=0; // jet flap angle
-			if (vehicle.delta_f >= 10.0/57.3)
+			if (vehicle.delta_f >= 10.0*R2D)
 			{
-				theta_rad = (66.0/57.3 - abs(vehicle.delta_f - 20/57.3) + vehicle.delta_f);
+				theta_rad = (66.0*R2D - abs(vehicle.delta_f - 20*R2D) + vehicle.delta_f);
 			}
 			else
 			{
-				theta_rad = (35.0/57.3 + vehicle.delta_f);
+				theta_rad = (35.0*D2R + vehicle.delta_f);
 			}
 
 			float F=0;
@@ -70,15 +70,15 @@ void v_calculate_lift_force()
 			dCl_dalpha = 2.0*pi*(1.0 + 0.151*sqrt(Cmu_Sp) + 0.219*Cmu_Sp);
 
 			float nu=0;
-			nu = (vehicle.s * dCl_dalpha + (vehicle.s  - vehicle.s_blown) * 2.0*pi) / (vehicle.s * dCl_dalpha);
+			nu = (vehicle.s_blown * dCl_dalpha + (vehicle.s  - vehicle.s_blown) * 2.0*pi) / (vehicle.s * dCl_dalpha);
 
 			float CL_alpha_tot=0;
-			CL_alpha_tot = (vehicle.s * dCl_dalpha + (vehicle.s  - vehicle.s_blown) * 2.0*pi) / (vehicle.s);
+			CL_alpha_tot = (vehicle.s_blown * dCl_dalpha + (vehicle.s  - vehicle.s_blown) * 2.0*pi) / (vehicle.s);
 
 			CL = vehicle.CL_0
 				+ F * (1.0 + vehicle.t_by_c) * (Lambda * theta_rad * dCl_dtheta + nu * vehicle.alpha * dCl_dalpha)
 				- vehicle.t_by_c * Cmu_S * (theta_rad + vehicle.alpha)
-				+ vehicle.CL_dele*vehicle.delta_e;
+				+ vehicle.CL_delta_e*vehicle.delta_e;
 
 			vehicle.CL = CL;
 			vehicle.all_lift_force = vehicle.all_lift_force + vehicle.Q*vehicle.s*CL;
@@ -135,7 +135,7 @@ void v_calculate_side_force()
 		float CY=0;
 		float CY_att=0,CY_flat=0;
 		CY_att = vehicle.CY0 + vehicle.CY_beta*vehicle.beta + vehicle.CY_delta_aL*vehicle.delta_aL* + vehicle.CY_delta_aR*vehicle.delta_aR +
-                     vehicle.CY_delta_r*vehicle.delta_r + vehicle.CY_delta_aL_Cmu*vehicle.Cmu*vehicle.delta_aL + vehicle.CY_delta_aR_Cmu*vehicle.Cmu*vehicle.delta_aR 
+                     vehicle.CY_delta_r*vehicle.delta_r + vehicle.CY_delta_aL_Cmu*vehicle.Cmu*vehicle.delta_aL + vehicle.CY_delta_aR_Cmu*vehicle.Cmu*vehicle.delta_aR +
 					 vehicle.CY_beta_Cmu*vehicle.Cmu*vehicle.beta;
 
 		float CY_base =0, CY_other =0;
@@ -144,14 +144,13 @@ void v_calculate_side_force()
 
 		//stall onset 
 		float beta_stall = 0,beta_eff = 0;
-		beta_stall = 14.999727 + 0.000001*((vehicle.delta_aL + vehicle.delta_aR)/2.0 + vehicle.delta_f) + 0.000148*vehicle.Cmu + 0.000003*vehicle.alpha ;
-		beta_stall = beta_stall / 57.3f;
+		beta_stall = 14.999727 + 0.000001*R2D*((vehicle.delta_aL + vehicle.delta_aR)/2.0 + vehicle.delta_f) + 0.000148*vehicle.Cmu + 0.000003*R2D*vehicle.alpha ;
+		beta_stall = beta_stall *D2R;
 
-		beta_eff = vehicle.beta - 0.259*vehicle.delta_r;
-		beta_eff = beta_eff/57.3;
+		beta_eff = vehicle.beta - 0.259116*R2D*vehicle.delta_r;
 		float W=0,num=0,den=0;
-		num = 1 + expf(-44.296*(beta_eff - beta_stall)) + expf(44.296*(beta_eff + beta_stall));
-		den = (1 + expf(-44.296*(beta_eff - beta_stall))) * (1 + expf(44.296*(beta_eff + beta_stall)));
+		num = 1.0 + expf(-44.296724*(beta_eff - beta_stall)) + expf(44.296724*(beta_eff + beta_stall));
+		den = (1.0 + expf(-44.296724*(beta_eff - beta_stall))) * (1.0 + expf(44.296724*(beta_eff + beta_stall)));
 		if (den < 0.00000001)
 		{ 
 			den = 0.00000001
@@ -160,9 +159,11 @@ void v_calculate_side_force()
 		W = num/(den);
 
 		float CY_float=0;
-		CY_flat =  2.0*sign(beta_eff)*(sin(beta_eff)*sin(beta_eff))*cos(beta_eff);
+		CY_flat =  2.0*sign_1(beta_eff)*(sin(beta_eff)*sin(beta_eff))*cos(beta_eff);
 
-		CY = CY_base * (1 - W) + 1.3517*CY_flat * W + CY_other;
+		CY = CY_base * (1.0 - W) + W*1.351782*CY_flat + CY_other;
+
+		vehicle.CY = CY;
 		break;
 	}
 }
@@ -185,9 +186,9 @@ void v_calculate_aero_roll_moment()
 		case 1:
 		float A_L_base=0,A_R_base=0,R_att=0;
 		float aL=0,aR=0;
-			A_L_base = -0.001441*vehicle.delta_aL  - 0.000338*(vehicle.delta_aL*vehicle.Cmu);
-			A_R_base =  0.001443*vehicle.delta_aR  + 0.000348*(vehicle.delta_aR*vehicle.Cmu);
-			R_att    =  vehicle.Cl_beta * vehicle.beta + vehicle.Cl_delta_r*vehicle.delta_r;
+			A_L_base = vehicle.Cl_delta_aL*vehicle.delta_aL  - vehicle.Cl_delta_aL_Cmu*(vehicle.delta_aL*vehicle.Cmu);
+			A_R_base = vehicle.Cl_delta_aR*vehicle.delta_aR  + vehicle.Cl_delta_aR_Cmu*(vehicle.delta_aR*vehicle.Cmu);
+			R_att    = vehicle.Cl_0 + vehicle.Cl_beta * vehicle.beta + vehicle.Cl_delta_r*vehicle.delta_r;
 
 			vehicle.Cl = R_att + A_L_base + A_R_base; 
 			vehicle.Cl = -vehicle.Cl;
@@ -210,18 +211,18 @@ void v_calculate_aero_pitch_moment()
 			break;
 
 			case 1:
-			    float alpha_stall;
-				float alpha_eff;
+			    float alpha_stall=0;
+				float alpha_eff=0;
 				float W=0,num=0,den=0;
 
 				alpha_stall = 12.0 + 10.0*vehicle.Cmu;
-				alpha_eff = vehicle.alpha*(180.0/pi) + 67.323356*vehicle.delta_f - 33.462394*vehicle.delta_aL - 34.046741*vehicle.delta_aR + 0.185774*vehicle.Cmu;
+				alpha_eff = vehicle.alpha*R2D + 67.323356*vehicle.delta_f*R2D - 33.462394*vehicle.delta_aL*R2D - 34.046741*vehicle.delta_aR*R2D + 0.185774*vehicle.Cmu;
 
-				alpha_stall = alpha_stall*(pi/180.0f);
-				alpha_eff = alpha_eff*(pi/180.0f);
+				alpha_stall = alpha_stall*D2R;
+				alpha_eff = alpha_eff*D2R;
 				
-				num = 1.0 + expf(-8.001719*(alpha_eff - alpha_stall)) + expf(8.001719**(alpha_eff - alpha_stall));
-				den = (1.0 + expf(-8.001719*(alpha_eff - alpha_stall))) * (1.0 + expf(8.001719*(alpha_eff - alpha_stall)));
+				num = 1.0 + expf(-8.001719*(alpha_eff - alpha_stall)) + expf(8.001719**(alpha_eff + alpha_stall));
+				den = (1.0 + expf(-8.001719*(alpha_eff - alpha_stall))) * (1.0 + expf(8.001719*(alpha_eff + alpha_stall)));
 				if (den < 0.00000001)
 				{ 
 					den = 0.00000001
@@ -242,7 +243,7 @@ void v_calculate_aero_pitch_moment()
 				Cm_other = Cm_att - Cm_base;
 
 				float Cm_flat=0;
-				Cm_flat = -2.0*sign(alpha_eff)*(sin(alpha_eff)*sin(alpha_eff))*cos(alpha_eff);
+				Cm_flat = 2.0*sign_1(alpha_eff)*(sin(alpha_eff)*sin(alpha_eff))*cos(alpha_eff);
 
 				Vehicle.Cm = Cm_base * (1.0 - W) + (-0.052035)*Cm_flat * W + Cm_other;
 
@@ -270,27 +271,27 @@ void v_calculate_aero_yaw_moment()
 			float beta_stall =0, beta_eff=0;
 			Cn_att = vehicle.Cno + vehicle.Cn_beta*vehicle.beta + vehicle.Cn_delta_aL*vehicle.delta_aL + vehicle.Cn_delta_aR*vehicle.delta_aR +
 					 vehicle.Cn_delta_r*vehicle.delta_r + vehicle.Cn_delta_aL_Cmu*vehicle.Cmu*vehicle.delta_aL + vehicle.Cn_delta_aR_Cmu*vehicle.Cmu*vehicle.delta_aR
+                     + vehicle.Cn_beta_Cmu*vehicle.Cmu*vehicle.beta;
 
 			Cn_base = vehicle.Cn_beta*vehicle.beta;
 			Cn_other = Cn_att - Cn_base;
 
-			beta_stall = 14.999958 + 0.000001*(vehicle.delta_r) - 0.000001*((vehicle.delta_aL + vehicle.delta_aR)/2.0 + vehicle.delta_f ) + 0.000132*vehicle.Cmu; 
-			beta_stall = beta_stall / 57.3f;			
+			beta_stall = 14.999958 + 0.000001*R2D*(vehicle.delta_r) - 0.000001*R2D*((vehicle.delta_aL + vehicle.delta_aR)/2.0 + vehicle.delta_f ) + 0.000132*vehicle.Cmu; 
+			beta_stall = beta_stall*D2R;			
 
-			beta_eff = vehicle.beta - 0.050785*vehicle.delta_r;
-			beta_eff = beta_eff/57.3;
+			beta_eff = vehicle.beta - 0.050785*R2D*vehicle.delta_r;
 			float W=0,num=0,den=0;
-			num = 1 + expf(-8.001719*(beta_eff - beta_stall)) + expf(8.001719*(beta_eff + beta_stall));
-			den = (1 + expf(-8.001719*(beta_eff - beta_stall))) * (1 + expf(8.001719*(beta_eff + beta_stall)));
+			num = 1.0 + expf(-8.001719*(beta_eff - beta_stall)) + expf(8.001719*(beta_eff + beta_stall));
+			den = (1.0 + expf(-8.001719*(beta_eff - beta_stall))) * (1.0 + expf(8.001719*(beta_eff + beta_stall)));
 			if (den < 0.00000001)
 			{ 
 				den = 0.00000001
 			}
 			W = num/(den);
 			float Cn_flat=0;
-			Cn_flat = -2.0*sign(beta_eff)*(sin(beta_eff)*sin(beta_eff))*cos(beta_eff);	
+			Cn_flat = -2.0*sign_1(beta_eff)*(sin(beta_eff)*sin(beta_eff))*cos(beta_eff);	
 
-			vehicle.Cn = Cn_base * (1 - W) + (-0.096281)*Cn_flat * W + Cn_other;	
+			vehicle.Cn = Cn_base * (1.0 - W) + (-0.096281)*Cn_flat * W + Cn_other;	
 
 			vehicle.Cn = -vehicle.Cn;
 		break;
