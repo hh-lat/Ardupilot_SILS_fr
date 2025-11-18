@@ -10,7 +10,7 @@
 
 #include "stdlib.h"
 
-#include "Earth_model.h"
+#include "LAT_SIM_Earth_model.h"
 
 /*
 void main()

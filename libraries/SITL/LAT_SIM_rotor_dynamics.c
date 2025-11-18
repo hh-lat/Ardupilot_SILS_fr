@@ -5,14 +5,11 @@
  *      Author: Rajat P.
  */
 
-
 #include "LAT_SIM_Runner.h"
 #include "math.h"
 #include "LAT_SIM_math_util.h"
 #include "LAT_SIM_rotor_dynamics.h"
 #include "LAT_SIM_battery_dynamics.h"
-#include "LAT_SIM_Forces_and_moments_rotors.h"
-
 
 float thrust_noise_old[28]={0.0};
 float thrust_noise[28]={0.0};
@@ -142,7 +139,7 @@ void input_noise_in_thrust()
 
 	int pp=1;
 	// Noise/bias in Thrust
-	for (i=0;i<(quad_num_motors + fwv_motors);i++)
+	for (i=0;i<(fwv_motors);i++)
 	{
 		thrust_noise[i] = 1.0*mass*9.81*noise_percent/4.0;//0.02 = 2 percent noise in thrust , 1.6 = T/w, /4 = 4 motors
 		thrust_noise[i] =thrust_noise_old[i] + ( (t_step_rot/(t_step_rot+TC_T_noise))*(thrust_noise[i] - thrust_noise_old[i]) );

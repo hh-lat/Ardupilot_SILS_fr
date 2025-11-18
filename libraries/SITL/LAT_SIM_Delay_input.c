@@ -32,7 +32,7 @@ float Delay_input_fn_T1(float new_value_T)
 }
 
 
-void pure_transport_delay_int(uint16_t out[],uint16_t new[],uint16_t bufferarray[][quad_num_motors + fwv_motors + num_actuator],int len, int delay_array_length)
+void pure_transport_delay_int(uint16_t out[],uint16_t new[],uint16_t bufferarray[][ fwv_motors + num_actuator],int len, int delay_array_length)
 {
 
 	memcpy(out, bufferarray[delay_array_length-1], len * sizeof(uint16_t) );
@@ -45,7 +45,7 @@ void pure_transport_delay_int(uint16_t out[],uint16_t new[],uint16_t bufferarray
 	memmove(bufferarray[0],new,len * sizeof(uint16_t));
 }
 
-void pure_transport_delay_float(float new[],float bufferarray[][quad_num_motors + fwv_motors + num_actuator],int len, int delay_array_length)
+void pure_transport_delay_float(float new[],float bufferarray[][ fwv_motors + num_actuator],int len, int delay_array_length)
 {
 	float arrtemp[len];
 

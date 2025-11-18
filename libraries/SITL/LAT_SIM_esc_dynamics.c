@@ -5,12 +5,10 @@
  */
 
 
-#include "esc_dynamics.h"
-#include "plant.h"
+#include "LAT_SIM_esc_dynamics.h"
+#include "LAT_SIM_Runner.h"
 #include <math.h>
-#include <math_util.h>
-#include <common_variable.h>
-#include "Forces_and_moments_rotors.h"
+#include "LAT_SIM_math_util.h"
 
 
 s_esc_dynamics s_esc;

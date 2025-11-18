@@ -948,7 +948,7 @@ matinv()
 */
 
 
-float constrain_float(float current_value, float low, float high)
+float constrain_float1(float current_value, float low, float high)
 {
     /* The check for NaN as a float prevents propagation of floating point
      * errors through any function that uses constrain_value(). The normal

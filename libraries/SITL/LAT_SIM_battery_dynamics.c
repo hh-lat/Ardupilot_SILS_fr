@@ -8,7 +8,6 @@
 
 #include "LAT_SIM_Runner.h"
 #include "LAT_SIM_math_util.h"
-#include "LAT_SIM_common_variable.h"
 #include "LAT_SIM_battery_dynamics.h"
 
 s_battery  batt;
@@ -53,23 +52,23 @@ void v_update_battery_dynamics()
 	float motor_current = 0.0f, norm_motor_current = 0.0f;
 	float norm_cap_rem = 1.0f, norm_batt_rem = 1.0f;
 
-	float norm_pwm[quad_num_motors + fwv_motors] = {0.0f};
-	uint16_t battery_pwm[quad_num_motors + fwv_motors] = {1000};
+	float norm_pwm[ fwv_motors] = {0.0f};
+	uint16_t battery_pwm[ fwv_motors] = {1000};
 
 	int i = 0;
 	/*current consumtion of battery based on motor PWM and battery voltage*/
 	/*taken from motor static test data*/
-	for(i = 0; i < (quad_num_motors + fwv_motors); i++)
+	for(i = 0; i < ( fwv_motors); i++)
 	{
-		battery_pwm[i] = constrain_float(pwm_out_esc[i], s_batt.zero_current_pwm, s_batt.max_current_pwm);
+		battery_pwm[i] = constrain_float1(pwm_out_esc[i], s_batt.zero_current_pwm, s_batt.max_current_pwm);
 
 		norm_pwm[i] = (float) (battery_pwm[i] - s_batt.zero_current_pwm)/(s_batt.max_current_pwm - s_batt.zero_current_pwm);
 
 		norm_motor_current = - 0.01034f - 0.01726*norm_pwm[i] + 1.0703f*powf(norm_pwm[i], 2); // Amphere
-		norm_motor_current = constrain_float(norm_motor_current, 0.0f, 1.0f);
+		norm_motor_current = constrain_float1(norm_motor_current, 0.0f, 1.0f);
 
 		s_batt.motor_current[i] = (norm_motor_current*(s_batt.current_max - s_batt.current_min)) + s_batt.current_min;
-		s_batt.motor_current[i] = constrain_float(s_batt.motor_current[i], s_batt.current_min, s_batt.current_max);
+		s_batt.motor_current[i] = constrain_float1(s_batt.motor_current[i], s_batt.current_min, s_batt.current_max);
 
 		motor_current = motor_current + s_batt.motor_current[i];
 	}
@@ -85,32 +84,32 @@ void v_update_battery_dynamics()
 
 	/*battery capacity remaining*/
 	s_batt.capacity_rem = s_batt.capacity_rem - s_batt.capacity_consumed;
-	s_batt.capacity_rem = constrain_float(s_batt.capacity_rem, 0.0f, s_batt.capacity_max);
+	s_batt.capacity_rem = constrain_float1(s_batt.capacity_rem, 0.0f, s_batt.capacity_max);
 
 	/*percentage of battery remaining*/
 	s_batt.state_of_charge = (s_batt.capacity_rem/s_batt.capacity_max)*100;
-	s_batt.state_of_charge = constrain_float(s_batt.state_of_charge, 0, 100);
+	s_batt.state_of_charge = constrain_float1(s_batt.state_of_charge, 0, 100);
 
 	if (s_batt.capacity_rem >= s_batt.capacity_cutoff)
 	{
 		/*normalizing the capacity remaining*/
 		norm_cap_rem = (float) (s_batt.capacity_rem - s_batt.capacity_cutoff)/(s_batt.capacity_max - s_batt.capacity_cutoff);
-		norm_cap_rem = constrain_float(norm_cap_rem, 0.0f, 1.0f);
+		norm_cap_rem = constrain_float1(norm_cap_rem, 0.0f, 1.0f);
 
 		/*normalized battery discharge curve for cruise [(voltage_measured + current_measured*internal_resistance) vs mAh_remaining)]*/
 		/*taken from battery discharge test data*/
 		norm_batt_rem = 0.01322f + 0.9409f*norm_cap_rem + 0.08534f*powf(norm_cap_rem, 2);
-		norm_batt_rem = constrain_float(norm_batt_rem, 0.0f, 1.0f);
+		norm_batt_rem = constrain_float1(norm_batt_rem, 0.0f, 1.0f);
 
 		/*battery voltage remaining*/
 		s_batt.voltage_rest_rem = (norm_batt_rem*(s_batt.voltage_max - s_batt.voltage_cutoff)) + s_batt.voltage_cutoff;
-		s_batt.voltage_rest_rem = constrain_float(s_batt.voltage_rest_rem, s_batt.voltage_cutoff, s_batt.voltage_max);
+		s_batt.voltage_rest_rem = constrain_float1(s_batt.voltage_rest_rem, s_batt.voltage_cutoff, s_batt.voltage_max);
 	}
 	else
 	{
 		/*if the mAh left in the battery is very less. then the resting voltage vs mAh remaining curve changes*/
 		norm_batt_rem = 0.0f + 0.0f*norm_cap_rem + 0.0f*powf(norm_cap_rem, 2);
-		norm_batt_rem = constrain_float(norm_batt_rem, 0.0, 1.0);
+		norm_batt_rem = constrain_float1(norm_batt_rem, 0.0, 1.0);
 
 		s_batt.voltage_rest_rem = 18.0f;
 	}

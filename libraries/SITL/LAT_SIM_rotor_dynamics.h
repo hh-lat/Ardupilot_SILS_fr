@@ -7,7 +7,6 @@
 
 #include "stdio.h"
 #include "LAT_SIM_Runner.h"
-#include "LAT_SIM_Forces_and_moments_rotors.h"
 
 extern float w_omega[28],zeta_omega[28],rotor_speed_dot_dot[28],factor;
 extern float rotor_speed_old[28],rotor_speed_dot[28];
@@ -30,7 +29,7 @@ typedef struct
  	float rotor_tilt[28][3];
  	float rotor_yaw_moment_b[28][3];
 
-extern float rotor_r_direction[28];
+    float rotor_r_direction[28];
 }S_motor;
 
 extern S_motor s_motor;

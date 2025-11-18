@@ -13,9 +13,9 @@ float AX,AY,AZ;//22_3_19//  used in pseudo_INS.c and INS_derivative
 
 
 
-float pseudo_ins_states[28]={0.0f};
-float bufferarray_pseudo_ins[2000][28]={0.0f};
-int delay_array_length_pseuso_ins=(int)(1000.0*0.005f) ;  // delay_array_length =  (int)(Plant_freq*delay_in_seconds);
+float pseudo_ins_states[28]={0.0};
+float bufferarray_pseudo_ins[2000][28]={0.0};
+int delay_array_length_pseuso_ins=(int)(1000.0*0.005) ;  // delay_array_length =  (int)(Plant_freq*delay_in_seconds);
 int buffer_filled_first_time=0;
 
 int  flag_sensor_input_delay=0, flag_sensor_input_inacc=0, flag_sensor_input_hfnoise=0;

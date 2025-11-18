@@ -1,11 +1,11 @@
 #ifndef MATH_UTIL_H
 #define MATH_UTIL_H
 #include<stdlib.h>
-#include "LAT_SIM_math_util.h"
+#include "math.h"
 #include <stdint.h>
 void array_initd(float * arr,int num);
 
-extern float constrain_float(float , float , float);
+extern float constrain_float1(float , float , float);
 
 //void angular_vel_tf(float*,float*,float*,float*,float*,float*,float*,float*,float*,float*);
 float sec(float);

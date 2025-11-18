@@ -44,7 +44,7 @@ extern s_battery batt;
 
 typedef struct
 {
-	float motor_current[quad_num_motors + fwv_motors];
+	float motor_current[ fwv_motors];
 	float avionics_current;
 
 	float current_max;

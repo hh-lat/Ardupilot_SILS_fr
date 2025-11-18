@@ -6,7 +6,7 @@
 
 
 #include "stdio.h"
-#include "plant.h"
+#include "stdint.h"
 
 
 typedef struct
@@ -16,7 +16,8 @@ typedef struct
 }s_esc_dynamics;
 extern s_esc_dynamics s_esc;
 
-
+extern uint16_t pwm_out_esc[28];
+extern uint16_t pwm_in[28];
 void v_param_init_esc_dynamics();
 
 void esc_dynamics();

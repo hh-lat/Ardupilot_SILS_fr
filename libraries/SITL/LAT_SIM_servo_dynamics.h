@@ -2,6 +2,15 @@
 #include <stdio.h>
 
 
+
+typedef struct 
+{
+    int num_servos;
+    /* data */
+}S_SERVO_MANAGER;
+
+extern S_SERVO_MANAGER s_servo_manager;
+
 typedef enum
 {
 	// do not use 0 as enum for anytype
@@ -19,20 +28,13 @@ typedef enum
 	FUSELAGE=12,
 	SPOILER=13,
     FLAP=14,
-}AKAP_CONTROL_SURFACE_TYPE;
-
+}CONTROL_SURFACE_TYPE;
 
 
 typedef struct
 {
-    float cL;
-    float cD;
-    float cY;
-    float cl;
-    float cm;
-    float cn;
-
-    float pwm;
+    float pwm_in;
+    float pwm_out;
     float angle;
     float angle_old;
 
@@ -48,20 +50,20 @@ typedef struct
     float omega;
     float zeta;
 
-    float max_rate;
-    float min_rate;
+    float angular_rate_max;
+    float angular_rate_min;
 
-    float max_accel;
-    float min_accel;
-    AKAP_CONTROL_SURFACE_TYPE type;
+    float angular_accel_max;
+    float angular_accel_min;
+    CONTROL_SURFACE_TYPE type;
 
-}Ctrl_srfc_actuator;
+}S_SERVO;
 
-extern Ctrl_srfc_actuator actuator[16];
-extern AKAP_CONTROL_SURFACE_TYPE csta[16];//control_surface_type_array
+extern S_SERVO s_servo[16];
+extern CONTROL_SURFACE_TYPE csta[16];//control_surface_type_array
 
 
-extern void v_actuator_dynamics(float t_step_act);
+extern void v_servo_dynamics(float t_step_act);
 extern void v_fill_pwm_in_csta();
 extern void v_apply_rate_limits_to_control_surfaces(float);
 

@@ -1,9 +1,10 @@
-#ifndef PLANT_H
-#define PLANT_H
+
 #include <stdio.h>
 #include "math.h"
 #include "LAT_SIM_math_util.h"
+#include "SITL_Input.h"
 #include "stdint.h"
+#include "string.h"
 
 
 #define PI 3.141592653589793
@@ -30,11 +31,11 @@ extern int delay_array_length_pwm_servo ;   // delay_array_length =  (int)(Plant
 extern uint16_t bufferarray_pwm_servo[2000][num_actuator] ;
 
 extern int delay_array_length_pwm;
-extern uint16_t bufferarray_pwm[][quad_num_motors + fwv_motors];
+extern uint16_t bufferarray_pwm[][fwv_motors];
 
-void pure_transport_delay_int(uint16_t out[],uint16_t new[],uint16_t bufferarray[][quad_num_motors + fwv_motors + num_actuator],int len, int delay_array_length);
+void pure_transport_delay_int(uint16_t out[],uint16_t new[],uint16_t bufferarray[][fwv_motors + num_actuator],int len, int delay_array_length);
 extern void pure_transport_delay_int_servo(float[],uint16_t[],float[][5],int, int);
-extern void pure_transport_delay_float(float[],float[][quad_num_motors + fwv_motors + num_actuator],int, int);
+extern void pure_transport_delay_float(float[],float[][fwv_motors + num_actuator],int, int);
 extern void  v_lat_fdm_init();
 extern void v_lat_fdm_run();
 extern void v_init_vehicle_states();
@@ -95,19 +96,9 @@ typedef struct
 	float beta;
 	float gamma;
 
-	float delta_e;
-	float delta_r;
-	float delta_a;
-
 	float wind_ned[3];
 
 	float CL,CD,CY,Cl,Cm,Cn;
-	float CLo, CL_alpha, CL_q;
-	float CDo, CD_alpha;
-	float CYo, CY_beta, CY_p, CY_r;
-	float Clo, Cl_beta, Cl_p, Cl_r;
-	float Cmo, Cm_alpha, Cm_q;
-	float Cno, Cn_beta, Cn_p, Cn_r;
 	float p, q, r;
 
     float Q;
@@ -154,17 +145,24 @@ typedef struct
     float Iyy;
     float Izz;
     float Ixz;
+	float Ixy;
+	float Iyz;
     float c;
     float b;
     float mass;
 
     float CL_0;
     float CL_delta_e;
+	float CL_alpha;
+	float CL_q;
+
 
     float CD_0;
     float CD_delta_e;
     float CD_delta_f;
     float CD_delta_e2;
+	float CD_alpha;
+	float CD_q;
 
     float CY_0;
     float CY_beta;
@@ -174,6 +172,9 @@ typedef struct
     float CY_delta_aL;
     float CY_delta_aR;
     float CY_beta_Cmu;
+	float CY_r;
+	float CY_p;
+
 
     float Cl_0;
     float Cl_beta;
@@ -182,6 +183,9 @@ typedef struct
     float Cl_delta_aR_Cmu;
     float Cl_delta_aL;
     float Cl_delta_aR;
+	float Cl_p;
+	float Cl_r;
+
 
     float Cm_0;
     float Cm_alpha;
@@ -193,6 +197,8 @@ typedef struct
     float Cm_delta_f;
     float Cm_beta2;
     float Cm_beta2_Cmu;
+	float Cm_q;
+	
 
     float Cn_0;
     float Cn_beta;
@@ -202,6 +208,22 @@ typedef struct
     float Cn_delta_aL;
     float Cn_delta_aR;
     float Cn_beta_Cmu;
+	float Cn_p;
+	float Cn_r;
+
+
+	float mlgL_x;
+	float mlgL_y;
+	float mlgL_z;
+	float mlgR_x;
+	float mlgR_y;
+	float mlgR_z;
+	float nlg_x;
+	float nlg_y;
+	float nlg_z;
+
+
+	float g ;
 	
 	struct_enum_dof dof;
 }VEHICLE_STATES;
@@ -210,6 +232,5 @@ extern VEHICLE_STATES vehicle;
 
 extern strct_home_states s_home_state;
 
-#endif
 
 

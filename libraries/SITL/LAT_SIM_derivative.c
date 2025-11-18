@@ -1,22 +1,21 @@
 
-#include <LAT_SIM_math_util.h>
+#include "LAT_SIM_math_util.h"
 #include "LAT_SIM_Runner.h"
-#include "LAT_SIM_Ground_model.h"
 #include "LAT_SIM_Forces_and_moments_ctrl_srfce.h"
 #include "LAT_SIM_Conversions_Frame_rotations.h"
 #include "LAT_SIM_derivative.h"
 
 
-void v_derivative(float Plane_state[],float t,float dydt[],float acc_real_plant[])
+void v_derivative(float Plane_state[],float t,float dydt[])
 {
 	float u,v,w,p,q,r,phi,theta,psi;
+	float Ix,Iy,Iz,Ixz,Ixy=0,Iyz=0;
 	float mass_inv;
 	float l,m,n;
 	float fx,fy,fz;
 	float V[3];
-	float mass;
+	float mass,g;
 
-	mass = vehicle.mass;
 
 	u = Plane_state[0];
 	v = Plane_state[1];
@@ -29,6 +28,16 @@ void v_derivative(float Plane_state[],float t,float dydt[],float acc_real_plant[
 	phi   = Plane_state[6];
 	theta = Plane_state[7];
 	psi   = Plane_state[8];
+
+
+	Ix=vehicle.Ixx;
+	Iy=vehicle.Iyy;
+	Iz=vehicle.Izz;
+	Ixz=vehicle.Ixz;
+	Iyz=vehicle.Iyz;
+	Ixy=vehicle.Ixy;
+	g= vehicle.g;
+	mass = vehicle.mass;
 
 	//calculate density using Indian atmosphere model
 	// if (Plane_state[11] > 0.0)
@@ -91,10 +100,6 @@ void v_derivative(float Plane_state[],float t,float dydt[],float acc_real_plant[
 	dydt[12] = 0.0f;
 	dydt[13] = 0.0f;
 	dydt[14] = 0.0f;
-
-	acc_real_plant[0] = (fx * mass_inv);//
-	acc_real_plant[1] = (fy * mass_inv);// true acceleration in m/sec^2 , sent to Pseudo Ins, 26 may 2021
-	acc_real_plant[2] = (fz * mass_inv);
 
 }
 

@@ -1,6 +1,6 @@
 
 #include "LAT_SIM_ardu_in_2_lat.h"
-#include "LAT_SIM_Actuator_dynamics.h"
+#include "LAT_SIM_servo_dynamics.h"
 #include "LAT_SIM_rotor_dynamics.h"
 #include "LAT_SIM_rk4.h"
 #include "LAT_SIM_Runner.h"
@@ -16,38 +16,62 @@ void v_lat_fdm_init()
     v_plane_param_define();
     vehicle.dof = DOF_ALL_MOTION;
     vehicle.aero_model_type = 0; // 0 for default simple model, 1 for equinox model
-    vehicle.alpha_stall = 14.0*D2R; // stall angle in rad
-    vehicle.s_blown = 0.216;
-    vehicle.s = 0.9;
-    vehicle.t_by_c = 0.15;
+	s_servo_manager.num_servos = 10; // number of servo channels
+}
 
-	vehicle.aero_model_type = 0.0; // 0 for default model , 1 for complex model
-	vehicle.delta_f =0.0;
-	vehicle.delta_e=0;
-	vehicle.delta_a=0;
-	vehicle.delta_r=0;
-	vehicle.delta_aL=0;
-	vehicle.delta_aR=0;
-	vehicle.AR =10;
-	vehicle.e =1;
-	vehicle.Cmu = 0;
-	vehicle.s = 0.9;
-	vehicle.s_blown =;
-	vehicle.t_by_c = 0.15;
-	vehicle.Ixx = 14.658;
-	vehicle.Iyy = 16.944;
-	vehicle.Izz = 27.412;
-	vehicle.Ixz = 0;
-	vehicle.c = 0.3;
-	vehicle.b = 3.0;
+
+void v_lat_fdm_run()
+{
+    static int init = 0;
+    float t_step = 0.001;
+    static float t=0;
+    float plane_state[12]={0};
+
+    v_actuator_dynamics(t_step); // converts servopwm to angles and applies rate limits
+   	v_motor_pwm_to_throttle(t_step); //update throttle from pwm with rate limiting on throttle
+
+    v_rk4(plane_state, t, t_step);
+}
+
+
+void v_plane_param_define()
+{
+    v_plane_param_define_equinox();
+}
+
+void v_plane_param_define_equinox()
+{
+    vehicle.mass = 65.0 ;
+	vehicle.g = 9.81; 
+    vehicle.Ixx = 14.658 ;
+    vehicle.Iyy = 16.944 ;
+    vehicle.Izz = 27.412 ;
+    vehicle.Ixz = 3.985 ;
+	vehicle.Iyz = 0.0 ;
+	vehicle.Ixy = 0.0 ;
+    vehicle.s = 0.9;
 	vehicle.s_blown = 0.216;
-	vehicle.mass = 65;
+    vehicle.b = 3.0;
+    vehicle.c = 0.3;
+	vehicle.e =1;
+	vehicle.AR =10;
+	vehicle.t_by_c = 0.15;
+    vehicle.rho = 1.15;
+    vehicle.mlgL_x = 0;
+    vehicle.mlgL_y = 0;
+    vehicle.mlgL_z = 0;
+    vehicle.mlgR_x = 0;
+    vehicle.mlgR_y = 0;
+    vehicle.mlgR_z = 0;
+    vehicle.nlg_x = 0;
+    vehicle.nlg_y = 0;
+    vehicle.nlg_z = 0;
+	vehicle.alpha_stall = 14.0*D2R; // stall angle in rad
 
 	vehicle.CL_0 = 0.29;
 	vehicle.CL_delta_e =1.175;
-	vehcile.CL_alpha = 5.0; // default
+	vehicle.CL_alpha = 5.0; // default
 	vehicle.CL_q =0; // default
-
 
 	vehicle.CD_0 = 0.2; 
 	vehicle.CD_delta_e = -0.355;
@@ -81,7 +105,7 @@ void v_lat_fdm_init()
 	vehicle.Cm_alpha_Cmu = 0.042538*R2D;
 	vehicle.Cm_delta_f = 0.006377*R2D;
 	vehicle.Cm_beta2 = -0.001099*R2D*R2D;
-	VEHICLE.Cm_beta2_Cmu = 0.001855*R2D;
+	vehicle.Cm_beta2_Cmu = 0.001855*R2D;
 
 	vehicle.Cn_0 = 0;
 	vehicle.Cn_beta = -0.000660*R2D;
@@ -91,49 +115,31 @@ void v_lat_fdm_init()
 	vehicle.Cn_delta_aL = -0.000118*R2D;
 	vehicle.Cn_delta_aR =  0.000119*R2D;
 	VEHICLE.Cn_beta_Cmu = -0.000829*R2D;
-
 }
 
 
-void v_lat_fdm_run()
+
+void v_plane_param_define_ardupilot_default()
 {
-    static int init = 0;
-    float t_step = 0.001;
-    static float t=0;
-    float plane_state[12]={0};
-
-    v_actuator_dynamics(t_step); // converts servopwm to angles and applies rate limits
-   	v_motor_pwm_to_throttle(t_step); //update throttle from pwm with rate limiting on throttle
-
-    v_rk4(plane_state, t, t_step);
-}
-
-
-void v_plane_param_define()
-{
-    v_plane_param_define_equinox();
-}
-
-void v_plane_param_define_equinox()
-{
-    vehicle.mass = 65.0 ; 
-    vehicle.Ixx = 14.658 ;
-    vehicle.Iyy = 16.944 ;
-    vehicle.Izz = 27.412 ;
-    vehicle.Ixz = 3.985 ;
-    vehicle.s = 0.9;
-    vehicle.b = 3.0;
-    vehicle.c = 0.3;
-    vehicle.rho = 1.15;
-    vehicle.mlgL_x = 0;
-    vehicle.mlgL_y = 0;
-    vehicle.mlgL_z = 0;
-    vehicle.mlgR_x = 0;
-    vehicle.mlgR_y = 0;
-    vehicle.mlgR_z = 0;
-    vehicle.nlg_x = 0;
-    vehicle.nlg_y = 0;
-    vehicle.nlg_z = 0;
+	vehicle.mass = 2.0 ; // kg
+	vehicle.Ixx = 0.0342 ;
+	vehicle.Iyy = 0.0454 ;
+	vehicle.Izz = 0.0977 ;
+	vehicle.Ixz = 0.0002 ;
+	vehicle.s = 0.2589;
+	vehicle.b = 1.4224;
+	vehicle.c = 0.3302;
+	vehicle.rho = 1.225;
+	vehicle.mlgL_x = -0.16;
+	vehicle.mlgL_y = -0.08;
+	vehicle.mlgL_z = 0;
+	vehicle.mlgR_x = -0.16;
+	vehicle.mlgR_y = 0.08;
+	vehicle.mlgR_z = 0;
+	vehicle.nlg_x = 0.85;
+	vehicle.nlg_y = 0;
+	vehicle.nlg_z = 0;
+	
 }
 
 
@@ -181,7 +187,7 @@ void v_update_vehicle_states(float state[])
 		vehicle.alpha = atan2f(vehicle.V_b_tas[2], vehicle.V_b_tas[0]);
 	}
 
-	vehicle.alpha = constrain_float(vehicle.alpha,-20.0f/57.3f,20.0f/57.3f);
+	vehicle.alpha = constrain_float1(vehicle.alpha,-20.0f/57.3f,20.0f/57.3f);
 
 
 	if(vehicle.tas < 3.0)
@@ -193,7 +199,7 @@ void v_update_vehicle_states(float state[])
 		vehicle.beta = asinf(vehicle.V_b_tas[1]/sqrtf(powf(vehicle.V_b_tas[0],2) + powf(vehicle.V_b_tas[1],2) + powf(vehicle.V_b_tas[2],2)));
 	}
 
-	vehicle.beta = constrain_float(vehicle.beta,-20.0/57.3f,20.0/57.3f);
+	vehicle.beta = constrain_float1(vehicle.beta,-20.0/57.3f,20.0/57.3f);
 
 	/*vehicle.gamma = vehicle.vert_gnd_vel/vehicle.hrz_gnd_speed*/
 
