@@ -224,7 +224,7 @@ void v_magnetic_model_run(float lat, float longt, float alt_msl, float year, flo
 			br = br+(s_earth_mm_fn[n+1-1]*temp1*par);
 
 			//%   Special Case:  North/South geographic poles
-			if (st == 0.0 && m == 1)
+			if (fabsf(st) <=0.0001 && m == 1)
 			{
 				if (n == 1)
 				{
@@ -241,7 +241,7 @@ void v_magnetic_model_run(float lat, float longt, float alt_msl, float year, flo
 		}
 	}
 
-	if (st == 0.0)
+	if (fabsf(st) <=0.0001)
 	{
 		bp = bpp;
 	}

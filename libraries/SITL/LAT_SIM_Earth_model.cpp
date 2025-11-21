@@ -40,10 +40,9 @@ void v_lla2ned(float lla_pos[3], float lla_0[3], int flag_earth_model, float ned
 
 	switch (flag_earth_model)
 	{
-	case 0: /*ELLIPSOID*/
-
-		/*lla2ECEF*/
-		v_lla2ecef( lla_pos,  ecef_pos);
+	case 0:
+	{
+		v_lla2ecef( lla_pos,  ecef_pos); /*ELLIPSOID*/
 		v_lla2ecef( lla_0,  ecef_0);
 
 		float ecefPosWithENUOrigin[3] = {0.0f};
@@ -70,12 +69,12 @@ void v_lla2ned(float lla_pos[3], float lla_0[3], int flag_earth_model, float ned
 		nedPos[2] = -wUp;
 
 		break;
+	}
 
 
-	case 1:/*FLAT*/
-		/*empty statement to allow for declaring variable below label, here label is case 1: line and c doesnt allow declaring variable below label*/;
-
-		float f1  = 0.00335281066474748f;
+	case 1:
+	{
+		float f1  = 0.00335281066474748f; /*FLAT*/
 		/**equatorial radius*/
 		float R =  6378137.0f;
 
@@ -98,7 +97,7 @@ void v_lla2ned(float lla_pos[3], float lla_0[3], int flag_earth_model, float ned
 
 
 		break;
-
+	}
 	}
 
 
@@ -112,11 +111,8 @@ void v_lla2ecef(float lla_pos[3], float ecef_pos[3])
 {
 	float a = 6378137.0f; /*semi major axis*/
 	float f = 1.0f/ 298.257223563; /*flattening*/
-	float mu = 398600500000000.0f;/*Gravitational Constant(m3/s2)*/
-	float w = 0.000072921151467f;/*Angular speed of earth*/
-
-
-
+	//float mu = 398600500000000.0f;/*Gravitational Constant(m3/s2)*/
+	//float w = 0.000072921151467f;/*Angular speed of earth*/
 	/*geodetic to cylindrical*/
 	float sinphi = sin(lla_pos[0] / 57.2957795130823f);
 	float cosphi = cos(lla_pos[0] / 57.2957795130823f);

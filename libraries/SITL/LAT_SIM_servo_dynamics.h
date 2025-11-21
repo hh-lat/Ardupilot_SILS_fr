@@ -1,7 +1,7 @@
 
 #include <stdio.h>
 
-
+#include "stdint.h"
 
 typedef struct 
 {
@@ -14,6 +14,7 @@ extern S_SERVO_MANAGER s_servo_manager;
 typedef enum
 {
 	// do not use 0 as enum for anytype
+    NOT_ASSIGNED=0,
 	AILERON_LEFT=1,
 	AILERON_RIGHT=2,
 	AILERON_COMMON=3,
@@ -28,6 +29,7 @@ typedef enum
 	FUSELAGE=12,
 	SPOILER=13,
     FLAP=14,
+    NOSE_LG_SERVO=15,
 }CONTROL_SURFACE_TYPE;
 
 
@@ -64,7 +66,9 @@ extern CONTROL_SURFACE_TYPE csta[16];//control_surface_type_array
 
 
 extern void v_servo_dynamics(float t_step_act);
-extern void v_fill_pwm_in_csta();
 extern void v_apply_rate_limits_to_control_surfaces(float);
 
-
+extern void v_set_servo_params(float pwm_min, float pwm_max, float angle_min, float angle_max,
+		float omega, float zeta, float min_rate, float max_rate,
+		float min_accel, float max_accel,CONTROL_SURFACE_TYPE type);
+extern void v_pwm_out_servo_to_angles();

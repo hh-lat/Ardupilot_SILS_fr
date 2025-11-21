@@ -3,23 +3,11 @@
 #include "LAT_SIM_pseudo_ins.h"
 #include "time.h"
 
-#define NUM_STATEVARS_INS 9
-
-float p_o,q_o,r_o;
-
 //==================INS_variable=========================================//
 float AX,AY,AZ;//22_3_19//  used in pseudo_INS.c and INS_derivative
 //=====================================================================//
 
-
-
-float pseudo_ins_states[28]={0.0};
-float bufferarray_pseudo_ins[2000][28]={0.0};
-int delay_array_length_pseuso_ins=(int)(1000.0*0.005) ;  // delay_array_length =  (int)(Plant_freq*delay_in_seconds);
-int buffer_filled_first_time=0;
-
-int  flag_sensor_input_delay=0, flag_sensor_input_inacc=0, flag_sensor_input_hfnoise=0;
-
+int  flag_sensor_input_inacc=0, flag_sensor_input_hfnoise=0;
 
 float noise_part[15]={0.0};
 float noise_sign[15]={1};
@@ -37,22 +25,9 @@ void pseudo_INS(float t,float ideal_plane_state[],float Ins_states[],float acc_r
 	}
 	float p = 0.0f, q = 0.0f, r = 0.0f;
 	float phi=0.0f, theta = 0.0f, psi = 0.0f;
-	static float p_o_dot, q_o_dot, r_o_dot;
-	static float ax_o_dot, ay_o_dot, az_o_dot, ax_o, ay_o, az_o;
 	
-	float ax_o_dot_dot = 0.0f, ay_o_dot_dot = 0.0f, az_o_dot_dot = 0.0f;
-	float p_o_dot_dot = 0.0f, q_o_dot_dot = 0.0f, r_o_dot_dot = 0.0f;
 	float temp3X3_1[3][3], temp3X1_2[3][1], temp3X3_2[3][3], R_v_v1[3][3], R_v1_v2[3][3], R_v2_b[3][3], R_v_b[3][3], temp3X1_1[3][1];
 	float Acc_in[3][1];
-
-	float zeta_p = 0.5, zeta_ax = 0.5;
-	float zeta_q = 0.5, zeta_ay = 0.5;
-	float zeta_r = 0.5, zeta_az = 0.5;
-	int i = 0;
-
-	float w_p = 2.0 * 3.14 * 190.0, w_ax = 2.0 * 3.14 * 190.0;
-	float w_q = 2.0 * 3.14 * 190.0, w_ay = 2.0 * 3.14 * 190.0;
-	float w_r = 2.0 * 3.14 * 190.0, w_az = 2.0 * 3.14 * 190.0;
 
 	float R = 6374049; //% Radius of earth at local ground level
 	float X = 0.0f, Y = 0.0f, Z = 0.0f;
@@ -61,7 +36,7 @@ void pseudo_INS(float t,float ideal_plane_state[],float Ins_states[],float acc_r
 
 	float R_ned_ecef[3][3], R_ecef_ned[3][3];
 	float Point_from_ned_to_ecef_just_rotation_no_translation[3][1], ned_frame_origin_wrt_Ecef[3][1];
-	float point_wrt_ecef[3][1], Point_from_ned_to_ecef[3][1], point_wrt_ned[3][1];
+	float point_wrt_ecef[3][1], Point_from_ned_to_ecef[3][1];
 	
 	array_initd((float*)temp3X3_1, 9);
 	array_initd((float*)temp3X3_2, 9);
@@ -84,186 +59,6 @@ void pseudo_INS(float t,float ideal_plane_state[],float Ins_states[],float acc_r
 	q = ideal_plane_state[4];
 	r = ideal_plane_state[5];
 
-    if ( delayed_ins_use  == 1)
-    {
-    	phi   = Ins_states[3];
-    	theta = Ins_states[4];
-    	psi   = Ins_states[5];
-
-    	R_v_v1[0][0]= cosf(psi);
-    	R_v_v1[0][1]= sinf(psi);
-    	R_v_v1[0][2]= 0.0;
-    	R_v_v1[1][0]= (-sinf(psi));
-    	R_v_v1[1][1]= cosf(psi);
-    	R_v_v1[1][2]= 0.0;
-    	R_v_v1[2][0]= 0.0;
-    	R_v_v1[2][1]= 0.0;
-    	R_v_v1[2][2]= 1.0;
-
-    	R_v1_v2[0][0]= cosf(theta);
-    	R_v1_v2[0][1]= 0.0;
-    	R_v1_v2[0][2]= (-sinf(theta));
-    	R_v1_v2[1][0]= 0.0;
-    	R_v1_v2[1][1]= 1.0;
-    	R_v1_v2[1][2]= 0.0;
-    	R_v1_v2[2][0]= sinf(theta);
-    	R_v1_v2[2][1]= 0.0;
-    	R_v1_v2[2][2]= cosf(theta);
-
-    	R_v2_b[0][0]=1.0;
-    	R_v2_b[0][1]=0.0;
-    	R_v2_b[0][2]=0.0;
-    	R_v2_b[1][0]=0.0;
-    	R_v2_b[1][1]=cosf(phi);
-    	R_v2_b[1][2]=sinf(phi);
-    	R_v2_b[2][0]=0.0;
-    	R_v2_b[2][1]= (-sinf(phi));
-    	R_v2_b[2][2]=cosf(phi);
-
-    	MatrixMultiply_old(R_v1_v2,3,3,R_v_v1,3,3,temp3X3_1);
-    	MatrixMultiply_old(R_v2_b,3,3,temp3X3_1,3,3,R_v_b);
-
-	p_o_dot_dot = p*w_p*w_p - 2*zeta_p*w_p*p_o_dot - p_o*w_p*w_p;  
-	q_o_dot_dot = q*w_q*w_q - 2*zeta_q*w_q*q_o_dot - q_o*w_q*w_q;  
-	r_o_dot_dot = r*w_r*w_r - 2*zeta_r*w_r*r_o_dot - r_o*w_r*w_r; 
-	
-	for(i=0;i<4;i++)
-	{
-		p_o_dot = p_o_dot_dot*(t_step_ins/4) + p_o_dot;
-		q_o_dot = q_o_dot_dot*(t_step_ins/4) + q_o_dot;
-		r_o_dot = r_o_dot_dot*(t_step_ins/4) + r_o_dot;
-	}
-	
-	for(i=0;i<4;i++)
-	{
-		p_o = p_o_dot*(t_step_ins/4) + p_o;
-		q_o = q_o_dot*(t_step_ins/4) + q_o;
-		r_o = r_o_dot*(t_step_ins/4) + r_o;
-	}
-	
-	ax_o_dot_dot = acc_real_plant[0]*w_ax*w_ax - 2*zeta_ax*w_ax*ax_o_dot - ax_o*w_ax*w_ax;  
-	ay_o_dot_dot = acc_real_plant[1]*w_ay*w_ay - 2*zeta_ay*w_ay*ay_o_dot - ay_o*w_ay*w_ay;  
-	az_o_dot_dot = acc_real_plant[2]*w_az*w_az - 2*zeta_az*w_az*az_o_dot - az_o*w_az*w_az;
-	
-	for(i=0;i<4;i++)
-	{
-		ax_o_dot = ax_o_dot_dot*(t_step_ins/4) + ax_o_dot;
-		ay_o_dot = ay_o_dot_dot*(t_step_ins/4) + ay_o_dot;
-		az_o_dot = az_o_dot_dot*(t_step_ins/4) + az_o_dot;
-	}
-	for(i=0;i<4;i++)
-	{
-		ax_o = ax_o_dot*(t_step_ins/4) + ax_o;
-		ay_o = ay_o_dot*(t_step_ins/4) + ay_o;
-		az_o = az_o_dot*(t_step_ins/4) + az_o;
-	}
-	
-	transposedmxnAToB(3,3,R_v_b,temp3X3_1);
-	temp3X1_1[0][0]=ax_o;
-	temp3X1_1[1][0]=ay_o;
-	temp3X1_1[2][0]=az_o;
-	
-	MatrixMultiply_old(temp3X3_1,3,3,temp3X1_1,3,1,Acc_in);// True acceleration expressed in NED frame wrt NED frame
-
-	AX=Acc_in[0][0];
-	AY=Acc_in[1][0];
-	AZ=Acc_in[2][0]; // these accelerations go to INS_derivative to evaluate Velocities in NED frame
-	
-
-	rk4_ins(Ins_states,t,t_step_ins);
-
-	V_ned_ins[0] = Ins_states[0]; //% body velocity in ned frame , unit will out in m/sec
-	V_ned_ins[1] = Ins_states[1];
-	V_ned_ins[2] = Ins_states[2];
-
-	Ins_states[3] = Angle_Ranges(Ins_states[3]*57.2958)/57.2958;// limiting phi <0 -- -180, 0 -- 180>
-	Ins_states[4] = Angle_Ranges(Ins_states[4]*57.2958)/57.2958;// limiting theta <0 - -180, 0 -- 180>
-	Ins_states[5] = Angle_Ranges(Ins_states[5]*57.2958)/57.2958;// limiting psi <0 -- -180, 0 -- 180>
-
-	X=Ins_states[6];  //  % Coordinates of point wrt to NED frame
-	Y=Ins_states[7];
-	Z=Ins_states[8];
-
-	Body_rate_bf_ins[0]=p_o;
-	Body_rate_bf_ins[1]=q_o;
-	Body_rate_bf_ins[2]=r_o;
-
-
-
-	*Alt=s_home_state.alt_msl+Ins_states[8];
-
-
-	 // srand(time(0));
-	 phi   = Ins_states[3] ;//+ 0.0/57.3 ;//+ (powf(-1.0,rand())*(0.1/57.3));//(0.01/57.3)
-		//srand(time(0));
-    theta = Ins_states[4] ;//+ 0.0/57.3 ;//+ (powf(-1.0,rand())*(0.1/57.3));//(0.01/57.3);//(powf(-1.0,rand())*(0.2/57.3));
-		//srand(time(0));
-	 psi   = Ins_states[5] ;//+ 0.0/57.3 ;//+ (powf(-1.0,rand())*(0.1/57.3));//(0.01/57.3);//(powf(-1.0,rand())*(1.0/57.3));
-
-	R_v_v1[0][0]= cosf(psi);
-	R_v_v1[0][1]= sinf(psi);
-	R_v_v1[0][2]= 0.0;
-	R_v_v1[1][0]= (-sinf(psi));
-	R_v_v1[1][1]= cosf(psi);
-	R_v_v1[1][2]= 0.0;
-	R_v_v1[2][0]= 0.0;
-	R_v_v1[2][1]= 0.0;
-	R_v_v1[2][2]= 1.0;
-
-	R_v1_v2[0][0]= cosf(theta);
-	R_v1_v2[0][1]= 0.0;
-	R_v1_v2[0][2]= (-sinf(theta));
-	R_v1_v2[1][0]= 0.0;
-	R_v1_v2[1][1]= 1.0;
-	R_v1_v2[1][2]= 0.0;
-	R_v1_v2[2][0]= sinf(theta);
-	R_v1_v2[2][1]= 0.0;
-	R_v1_v2[2][2]= cosf(theta);
-
-	R_v2_b[0][0]=1.0;
-	R_v2_b[0][1]=0.0;
-	R_v2_b[0][2]=0.0;
-	R_v2_b[1][0]=0.0;
-	R_v2_b[1][1]=cosf(phi);
-	R_v2_b[1][2]=sinf(phi);
-	R_v2_b[2][0]=0.0;
-	R_v2_b[2][1]= (-sinf(phi));
-	R_v2_b[2][2]=cosf(phi);
-
-	MatrixMultiply_old(R_v1_v2,3,3,R_v_v1,3,3,temp3X3_1);
-	MatrixMultiply_old(R_v2_b,3,3,temp3X3_1,3,3,R_v_b);
-
-	temp3X1_1[0][0]=V_ned_ins[0];
-	temp3X1_1[1][0]=V_ned_ins[1];
-	temp3X1_1[2][0]=V_ned_ins[2];
-
-	MatrixMultiply_old(R_v_b,3,3,temp3X1_1,3,1,V_bd_ins);//% body velocity in body frame , unit will out in m/sec
-
-	temp3X1_1[0][0]=Acc_in[0][0];
-	temp3X1_1[1][0]=Acc_in[1][0];
-	temp3X1_1[2][0]=Acc_in[2][0];// True Acceleration in NED frame
-
-	MatrixMultiply_old(R_v_b,3,3,temp3X1_1,3,1,temp3X1_2);
-	ax_bd_ins[0]=temp3X1_2[0][0];  // True Acceleration expressed in body frame and measured in NED frame in m/sec^2(i.e no coriolis force and centrifugal term here)   ,, accelerometers measure - Basically A=f/M), where f includes all forces including gravity
-	ax_bd_ins[1]=temp3X1_2[1][0];  // True acceleration means here is that if plane is free falling , acceleration will be 9.81, if plane is stable then it is zero
-	ax_bd_ins[2]=temp3X1_2[2][0];
-
-
-
-	   // srand(time(0));
-	phi   = Ins_states[3] ; //+ 1.0/57.3 + (powf(-1.0,rand())*(0.1/57.3));//(0.01/57.3)
-		//srand(time(0));
-	theta = Ins_states[4] ;//+ 1.0/57.3 + (powf(-1.0,rand())*(0.1/57.3));//(0.01/57.3);//(powf(-1.0,rand())*(0.2/57.3));
-		//srand(time(0));
-	psi   = Ins_states[5] ;//+ 1.0/57.3 + (powf(-1.0,rand())*(0.1/57.3));//(0.01/57.3);//(powf(-1.0,rand())*(1.0/57.3));
-
-	attitude[0]=phi; //% Euler angles between ned and body frame, unit will go out in rad
-	attitude[1]=theta; //% Euler angles between ned and body frame, unit will go out in rad
-	attitude[2]=psi; //% Euler angles between ned and body frame, unit will go out in rad
-	//////////////////////////////////////////////////////////////////
-    }
-    else
-    {
     	phi= ideal_plane_state[6];
     	theta= ideal_plane_state[7];
     	psi= ideal_plane_state[8];
@@ -298,20 +93,20 @@ void pseudo_INS(float t,float ideal_plane_state[],float Ins_states[],float acc_r
     	R_v2_b[2][1]= (-sinf(phi));
     	R_v2_b[2][2]=cosf(phi);
 
-    	MatrixMultiply_old(R_v1_v2,3,3,R_v_v1,3,3,temp3X3_1);
-    	MatrixMultiply_old(R_v2_b,3,3,temp3X3_1,3,3,R_v_b);
+    	MatrixMultiply(3,3,&R_v1_v2[0][0],3,3,&R_v_v1[0][0],&temp3X3_1[0][0]);
+    	MatrixMultiply(3,3,	&R_v2_b[0][0],3,3,&temp3X3_1[0][0],&R_v_b[0][0]);
 
     V_bd_ins[0] =ideal_plane_state[0];
     V_bd_ins[1] =ideal_plane_state[1];
     V_bd_ins[2] =ideal_plane_state[2];
 
 
-	transposedmxnAToB(3,3,R_v_b,temp3X3_1);
+	transposedmxnAToB(3,3,&R_v_b[0][0],&temp3X3_1[0][0]);
 	temp3X1_1[0][0]=V_bd_ins[0];
 	temp3X1_1[1][0]=V_bd_ins[1];
 	temp3X1_1[2][0]=V_bd_ins[2];
 
-	MatrixMultiply_old(temp3X3_1,3,3,temp3X1_1,3,1,V_ned_ins);// Ned frame velocities
+	MatrixMultiply(3,3,&temp3X3_1[0][0],3,1,&temp3X1_1[0][0],&V_ned_ins[0]);// Ned frame velocities
 
     ax_bd_ins[0]	=  acc_real_plant[0];// True Acceleration expressed in body frame and measured in NED frame in m/sec^2(i.e no coriolis force and centrifugal term here)   ,, accelerometers measure - Basically A=f/M), where f includes all forces including gravity
     ax_bd_ins[1]	=  acc_real_plant[1];
@@ -349,8 +144,6 @@ void pseudo_INS(float t,float ideal_plane_state[],float Ins_states[],float acc_r
 	attitude[1]=theta; //% Euler angles between ned and body frame, unit will go out in rad
 	attitude[2]=psi; //% Euler angles between ned and body frame, unit will go out in rad
 
-    }
-
 
 	lat   =  s_home_state.lat/57.2958f;
     longt =  s_home_state.longt/57.2958f;
@@ -378,14 +171,14 @@ void pseudo_INS(float t,float ideal_plane_state[],float Ins_states[],float acc_r
 	temp3X3_2[2][1]=0;
 	temp3X3_2[2][2]=1;
 	
-	MatrixMultiply_old(temp3X3_1,3,3,temp3X3_2,3,3,R_ned_ecef);
-	transposedmxnAToB(3,3,R_ned_ecef,R_ecef_ned);
+	MatrixMultiply(3,3,&temp3X3_1[0][0],3,3,&temp3X3_2[0][0],&R_ned_ecef[0][0]);
+	transposedmxnAToB(3,3,&R_ned_ecef[0][0],&R_ecef_ned[0][0]);
 	
 	temp3X1_1[0][0]=X;
 	temp3X1_1[1][0]=Y;
 	temp3X1_1[2][0]=Z;
 	
-	MatrixMultiply_old(R_ecef_ned,3,3,temp3X1_1,3,1,Point_from_ned_to_ecef_just_rotation_no_translation);
+	MatrixMultiply(3,3,&R_ecef_ned[0][0],3,1,&temp3X1_1[0][0],&Point_from_ned_to_ecef_just_rotation_no_translation[0][0]);
 	
 	ned_frame_origin_wrt_Ecef[0][0]=(R-Z_ned_frame)*cosf(lat)*cosf(longt);
 	ned_frame_origin_wrt_Ecef[1][0]=(R-Z_ned_frame)*cosf(lat)*sinf(longt);
@@ -407,62 +200,6 @@ void pseudo_INS(float t,float ideal_plane_state[],float Ins_states[],float acc_r
 	//*latitude_point=(int)(*latitude_point)*100+((*latitude_point)-(int)(*latitude_point))*60 ;
 	//*longitude_point=(int)(*longitude_point)*100+((*longitude_point)-(int)(*longitude_point))*60 ;
 
-
-	pseudo_ins_states[0] = attitude[0];
-	pseudo_ins_states[1] = attitude[1];
-	pseudo_ins_states[2] = attitude[2];
-	pseudo_ins_states[3] = Body_rate_bf_ins[0];
-	pseudo_ins_states[4] = Body_rate_bf_ins[1];
-	pseudo_ins_states[5] = Body_rate_bf_ins[2];
-	pseudo_ins_states[6] = *latitude_point;
-	pseudo_ins_states[7] = *longitude_point;
-	pseudo_ins_states[8] = *Alt;
-	pseudo_ins_states[9] = V_ned_ins[0];
-
-	pseudo_ins_states[10] = V_ned_ins[1];
-	pseudo_ins_states[11] = V_ned_ins[2];
-	pseudo_ins_states[12] = V_bd_ins[0];
-	pseudo_ins_states[13] = V_bd_ins[1];
-	pseudo_ins_states[14] = V_bd_ins[2];
-	pseudo_ins_states[15] = ax_bd_ins[0];
-	pseudo_ins_states[16] = ax_bd_ins[1];
-	pseudo_ins_states[17] = ax_bd_ins[2];
-
-
-///////////////////////////////// DELAY IN SENSOR MODELLING //////////////////////////////////////////////////////////////////////////////////////////
-
-	if (flag_sensor_input_delay ==1)
-	{
-        fn_sensor_delay_input();
-	}
-
-	buffer_filled_first_time= buffer_filled_first_time+1;// this ensures that initial states of plant are sent without any delay, thus buffer array is allowed to fill till delayed length and then delay is started
-
-	if (buffer_filled_first_time>delay_array_length_pseuso_ins)
-	{
-
-	buffer_filled_first_time=2000;
-
-	attitude[0]=pseudo_ins_states[0] ;
-	attitude[1]=pseudo_ins_states[1] ;
-	attitude[2]=pseudo_ins_states[2] ;
-	Body_rate_bf_ins[0]=pseudo_ins_states[3];
-	Body_rate_bf_ins[1]=pseudo_ins_states[4];
-	Body_rate_bf_ins[2]=pseudo_ins_states[5];
-	*latitude_point=pseudo_ins_states[6];
-	*longitude_point=pseudo_ins_states[7];
-	*Alt=pseudo_ins_states[8];
-	V_ned_ins[0]=pseudo_ins_states[9];
-	V_ned_ins[1]=pseudo_ins_states[10];
-	V_ned_ins[2]=pseudo_ins_states[11];
-	V_bd_ins[0]=pseudo_ins_states[12];
-	V_bd_ins[1]=pseudo_ins_states[13];
-	V_bd_ins[2]=pseudo_ins_states[14];
-	ax_bd_ins[0]=pseudo_ins_states[15];
-	ax_bd_ins[1]=pseudo_ins_states[16];
-	ax_bd_ins[2]=pseudo_ins_states[17];
-
-	}
 
 if (flag_sensor_input_inacc ==1)
 {
@@ -503,71 +240,6 @@ if (flag_sensor_input_hfnoise==1)
 //
 }
 
-void ins_derivative(float y[],float t,float dydt[])
-{
-	float phi = 0.0, theta = 0.0, psi = 0.0;  //ins_derivative
-	phi   = y[3];						  //ins_derivative
-	theta = y[4];					//ins_derivative
-	psi   = y[5];						//ins_derivative
-	//% V_X_s=Ins_states(7);
-	//% V_Y_s=Ins_states(8);
-	//% V_Z_s=Ins_states(9);
-	
-	dydt[0] = AX;				//ins_derivative
-	dydt[1] = AY;				//ins_derivative
-	dydt[2] = AZ;				//ins_derivative
-	dydt[3] = (p_o + q_o * sinf(phi) * tanf(theta) + r_o * cosf(phi) * tanf(theta));//%phi_dot //ins_derivative
-	dydt[4] = q_o * cosf(phi) - r_o * sinf(phi);//%theta_dot							   //ins_derivative
-	dydt[5] = (q_o * sinf(phi) * sec(theta) + r_o * cosf(phi) * sec(theta));//%psi_dot		//ins_derivative
-	dydt[6] = y[0];//%inertial velocity X  //ins_derivative
-	dydt[7] = y[1];//%inertial velocity Y	 //ins_derivative
-	dydt[8] = y[2];//%inertial velocity Z  //ins_derivative
-}
-
-void rk4_ins(float y[],float t,float h)
-{
-	float hh = 0.0f,h6 = 0.0f,th = 0.0f;
-	int i = 0;
-	float dydt[NUM_STATEVARS_INS],dyt[NUM_STATEVARS_INS],dym[NUM_STATEVARS_INS]; // differential value of y wrt t
-	float yt[NUM_STATEVARS_INS];
-
-	array_initd(yt, NUM_STATEVARS_INS);
-	array_initd(dydt, NUM_STATEVARS_INS);
-	array_initd(dyt, NUM_STATEVARS_INS);
-	array_initd(dym, NUM_STATEVARS_INS);
-	
-	hh = 0.5*h;
-	h6 = h/6.0;
-	
-	ins_derivative(y, t, dydt);
-	for(i = 0; i < NUM_STATEVARS_INS; i++)
-	{
-		yt[i] = y[i]+ (hh * dydt[i]);
-	}
-
-	th = t+hh;
-	ins_derivative(yt, th, dyt);
-	for(i = 0; i < NUM_STATEVARS_INS; i++)
-	{
-		yt[i] = y[i] + (hh * dyt[i]);
-	}
-
-	ins_derivative(yt, th, dym);
-	for(i = 0; i < NUM_STATEVARS_INS; i++)
-	{
-		yt[i] = y[i] + h * dym[i];
-	}
-	for(i = 0; i < NUM_STATEVARS_INS; i++)
-	{
-		dym[i] = dym[i] + dyt[i];
-	}
-	ins_derivative(yt, t + h, dyt);
-	for(i = 0; i < NUM_STATEVARS_INS; i++)
-	{
-		y[i] = y[i] + h6 * (dydt[i] + dyt[i] + (2.0 * dym[i]));
-	}
-
-}
 
 float Angle_Ranges(float p)
 {
@@ -584,24 +256,8 @@ float Angle_Ranges(float p)
 	p= 180 - fmodf(abs(p),180);
 
 
-
-
-/*	if (p>15.0)
-	p = 15.0 ;//+ fmodf(p,5);
-
-	if (p<-15.0)
-	p = -15.0 ;//+ fmodf(p,5);*/
-
 	return p;
 }
-
-
-
-void fn_sensor_delay_input()
-{
-    pure_transport_delay_float( pseudo_ins_states, bufferarray_pseudo_ins, sizeof(pseudo_ins_states)/sizeof(float),  delay_array_length_pseuso_ins);
-}
-
 
 
 void fn_high_frequency_sensor_noise_modeler(float t_step_ins)
@@ -767,8 +423,6 @@ void lat_long_to_xy(float latitude_point,float longitude_point,float Alt,float* 
 	float point_wrt_ned[3][1]  = {{0.0},{0.0},{0.0}};
     float lat_ned=0, long_ned=0, Z_ned_frame=0;
 
-
-
 		lat_ned     = s_home_state.lat/57.2957802; 	/* latitude of Ned origin */
 		long_ned    = s_home_state.longt/57.2957802; /* longitude of Ned origin */
 		Z_ned_frame = s_home_state.alt_msl ;
@@ -793,7 +447,7 @@ void lat_long_to_xy(float latitude_point,float longitude_point,float Alt,float* 
 		temp3X3_2[2][1] = 0.0;
 		temp3X3_2[2][2] = 1.0;
 
-		MatrixMultiply_old(temp3X3_1,3,3,temp3X3_2,3,3,R_ned_ecef);
+		MatrixMultiply(3,3,&temp3X3_1[0][0],3,3,&temp3X3_2[0][0],&R_ned_ecef[0][0]);
 
 		ned_frame_origin_wrt_Ecef[0][0] = (R-Z_ned_frame)*cosf(lat_ned)*cosf(long_ned);
 		ned_frame_origin_wrt_Ecef[1][0] = (R-Z_ned_frame)*cosf(lat_ned)*sinf(long_ned);
@@ -813,8 +467,7 @@ void lat_long_to_xy(float latitude_point,float longitude_point,float Alt,float* 
 	temp3X1_1[1][0] = point_wrt_ecef[1][0]-ned_frame_origin_wrt_Ecef[1][0];
 	temp3X1_1[2][0] = point_wrt_ecef[2][0]-ned_frame_origin_wrt_Ecef[2][0];
 
-	MatrixMultiply_old(R_ned_ecef,3,3,temp3X1_1,3,1,point_wrt_ned);
-
+	MatrixMultiply(3,3,&R_ned_ecef[0][0],3,1,&temp3X1_1[0][0],&point_wrt_ned[0][0]);
 
 	*pos = point_wrt_ned[0][0];
 	*(pos+1) = point_wrt_ned[1][0];

@@ -18,12 +18,16 @@
 */
 
 #include "SIM_Plane.h"
-#include "LAT_SIM_Runner.h"
 
 
 #include <stdio.h>
 #include <AP_Filesystem/AP_Filesystem_config.h>
 #include <AP_Filesystem/AP_Filesystem.h>
+
+#include "LAT_SIM_ardu_in_2_lat.h"
+
+#include "LAT_SIM_Runner.h"
+
 
 using namespace SITL;
 

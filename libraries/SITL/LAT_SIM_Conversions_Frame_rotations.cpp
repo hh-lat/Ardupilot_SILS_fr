@@ -14,12 +14,12 @@ float Vector_original_2d_3X3[3][3], Vector_rotated_2d_3X3[3][3];
 // does not allow more than 90 degree to enter the autopilot computation
 void Euler_angle_singularity_checker(float *phi, float *theta)
 {
-	if((fabsf(*phi) > 89.0/57.3) && (fabsf(*phi < 91.0/57.3)))
+	if((fabsf(*phi) > 89.0/57.3) && (fabsf(*phi) < 91.0/57.3))
 	{
 		*phi = (89.0/57.3) * sign_1(*phi);
 	}
 
-	if((fabsf(*theta)> 89.0/57.3) && (fabsf(*theta < 91.0/57.3)))
+	if((fabsf(*theta)> 89.0/57.3) && (fabsf(*theta) < 91.0/57.3))
 	{
 		*theta = (89.0/57.3) * sign_1(*theta);
 	}
@@ -43,12 +43,12 @@ void deg_2_rad(float *angle_)
 // updates rotation matrices between different frames based on euler angles and wind angles (alpha , beta)
 void v_rotation_matrices_update(float phi, float theta, float psi, float alpha, float beta)
 {
-	if((fabsf(phi)>89.0/57.3) && (fabsf(phi<91.0/57.3)))
+	if((fabsf(phi)>89.0/57.3) && (fabsf(phi)<91.0/57.3))
 	{
 		phi = (fabsf(phi)/phi)*89/57.3;
 	}
 
-	if((fabsf(theta)>89.0/57.3) && (fabsf(theta<91.0/57.3)))
+	if((fabsf(theta)>89.0/57.3) && (fabsf(theta)<91.0/57.3))
 	{
 		theta = (fabsf(theta)/theta)*89/57.3;
 	}
@@ -104,16 +104,16 @@ void v_rotation_matrices_update(float phi, float theta, float psi, float alpha, 
 	R_s_w[2][2] = 1.0;
 
 //	MatrixMultiply(R_v1_v2,3,3,R_v_v1,3,3,temp3X3_1);
-	MatrixMultiply(3,3,R_v1_v2,3,3,R_v_v1,temp3X3_1);
+	MatrixMultiply(3,3,&R_v1_v2[0][0],3,3,&R_v_v1[0][0],&temp3X3_1[0][0]);
 
 //	MatrixMultiply(R_v2_b,3,3,temp3X3_1,3,3,R_v_b);
-    MatrixMultiply(3,3,R_v2_b,3,3,temp3X3_1,R_v_b);
+    MatrixMultiply(3,3,&R_v2_b[0][0],3,3,&temp3X3_1[0][0],&R_v_b[0][0]);
 
-    transposedmxnAToB(3,3,R_b_s, temp3X3_1);
-	transposedmxnAToB(3,3,R_s_w, temp3X3_2);
+    transposedmxnAToB(3,3,&R_b_s[0][0], &temp3X3_1[0][0]);
+	transposedmxnAToB(3,3,&R_s_w[0][0], &temp3X3_2[0][0]);
 
 //	MatrixMultiply(temp3X3_1,3,3,temp3X3_2,3,3,R_w_b);
-	MatrixMultiply(3,3,temp3X3_1,3,3,temp3X3_2,R_w_b);
+	MatrixMultiply(3,3,&temp3X3_1[0][0],3,3,&temp3X3_2[0][0],&R_w_b[0][0]);
 
 }
 
@@ -125,7 +125,7 @@ void NED_to_body(float Vector_original[], float  Vector_rotated[] )
 	oned_to_2d_3X1(Vector_original, Vector_rotated);
 
 //	MatrixMultiply(R_v_b,3,3,Vector_original,3,1,Vector_rotated);
-    MatrixMultiply(3,3,R_v_b,3,1,Vector_original_2d_3X1,Vector_rotated_2d_3X1);
+    MatrixMultiply(3,3,&R_v_b[0][0],3,1,&Vector_original_2d_3X1[0][0],&Vector_rotated_2d_3X1[0][0]);
 
    *(Vector_rotated)     = Vector_rotated_2d_3X1[0][0];
    *(Vector_rotated + 1) = Vector_rotated_2d_3X1[1][0];
@@ -141,10 +141,10 @@ void NED_to_body(float Vector_original[], float  Vector_rotated[] )
 void body_to_NED(float Vector_original[], float Vector_rotated[])
 {
 	oned_to_2d_3X1(Vector_original, Vector_rotated);
-	transposedmxnAToB(3,3,R_v_b,temp3X3_1);
+	transposedmxnAToB(3,3,&R_v_b[0][0],&temp3X3_1[0][0]);
 
 //	MatrixMultiply(temp3X3_1,3,3,Vector_original,3,1,Vector_rotated);
-    MatrixMultiply(3,3,temp3X3_1,3,1,Vector_original_2d_3X1,Vector_rotated_2d_3X1);
+    MatrixMultiply(3,3,&temp3X3_1[0][0],3,1,&Vector_original_2d_3X1[0][0],&Vector_rotated_2d_3X1[0][0]);
 
     *(Vector_rotated)     = Vector_rotated_2d_3X1[0][0];
     *(Vector_rotated + 1) = Vector_rotated_2d_3X1[1][0];
@@ -161,7 +161,7 @@ void windframe_to_body(float Vector_original[], float Vector_rotated[])
 	oned_to_2d_3X1(Vector_original, Vector_rotated);
 
 //	MatrixMultiply(R_w_b,3,3,Vector_original,3,1,Vector_rotated);
-    MatrixMultiply(3,3,R_w_b,3,1,Vector_original_2d_3X1,Vector_rotated_2d_3X1);
+    MatrixMultiply(3,3,&R_w_b[0][0],3,1,&Vector_original_2d_3X1[0][0],&Vector_rotated_2d_3X1[0][0]);
 
     *(Vector_rotated)     = Vector_rotated_2d_3X1[0][0];
     *(Vector_rotated + 1) = Vector_rotated_2d_3X1[1][0];
@@ -178,7 +178,7 @@ void NED_to_frame1(float Vector_original[], float Vector_rotated[])
 	oned_to_2d_3X1(Vector_original, Vector_rotated);
 
 //	MatrixMultiply(R_v_v1,3,3,Vector_original,3,1,Vector_rotated);
-    MatrixMultiply(3,3,R_v_v1,3,1,Vector_original_2d_3X1,Vector_rotated_2d_3X1);
+    MatrixMultiply(3,3,&R_v_v1[0][0],3,1,&Vector_original_2d_3X1[0][0],&Vector_rotated_2d_3X1[0][0]);
 
     *(Vector_rotated)     = Vector_rotated_2d_3X1[0][0];
     *(Vector_rotated + 1) = Vector_rotated_2d_3X1[1][0];
@@ -193,10 +193,10 @@ void NED_to_frame1(float Vector_original[], float Vector_rotated[])
 void frame1_to_NED(float Vector_original[], float Vector_rotated[])
 {
 	oned_to_2d_3X1(Vector_original, Vector_rotated);
-	transposedmxnAToB(3,3,R_v_v1,temp3X3_1);
+	transposedmxnAToB(3,3,&R_v_v1[0][0],&temp3X3_1[0][0]);
 
 //	MatrixMultiply(temp3X3_1,3,3,Vector_original,3,1,Vector_rotated);
-    MatrixMultiply(3,3,temp3X3_1,3,1,Vector_original_2d_3X1,Vector_rotated_2d_3X1);
+    MatrixMultiply(3,3,&temp3X3_1[0][0],3,1,&Vector_original_2d_3X1[0][0],&Vector_rotated_2d_3X1[0][0]);
 
     *(Vector_rotated)     = Vector_rotated_2d_3X1[0][0];
     *(Vector_rotated + 1) = Vector_rotated_2d_3X1[1][0];
@@ -213,7 +213,7 @@ void frame1_to_frame2(float Vector_original[], float Vector_rotated[])
 	oned_to_2d_3X1(Vector_original, Vector_rotated);
 
 //	MatrixMultiply(R_v1_v2,3,3,Vector_original,3,1,Vector_rotated);
-    MatrixMultiply(3,3,R_v1_v2,3,1,Vector_original_2d_3X1,Vector_rotated_2d_3X1);
+    MatrixMultiply(3,3,&R_v1_v2[0][0],3,1,&Vector_original_2d_3X1[0][0],&Vector_rotated_2d_3X1[0][0]);
 
     *(Vector_rotated)     = Vector_rotated_2d_3X1[0][0];
     *(Vector_rotated + 1) = Vector_rotated_2d_3X1[1][0];
@@ -228,10 +228,10 @@ void frame1_to_frame2(float Vector_original[], float Vector_rotated[])
 void frame2_to_frame1(float Vector_original[], float Vector_rotated[])
 {
 	oned_to_2d_3X1(Vector_original, Vector_rotated);
-	transposedmxnAToB(3,3,R_v1_v2,temp3X3_1);
+	transposedmxnAToB(3,3,&R_v1_v2[0][0],&temp3X3_1[0][0]);
 
 //	MatrixMultiply(temp3X3_1,3,3,Vector_original,3,1,Vector_rotated);
-    MatrixMultiply(3,3,temp3X3_1,3,1,Vector_original_2d_3X1,Vector_rotated_2d_3X1);
+    MatrixMultiply(3,3,&temp3X3_1[0][0],3,1,&Vector_original_2d_3X1[0][0],&Vector_rotated_2d_3X1[0][0]);
 
     *(Vector_rotated)     = Vector_rotated_2d_3X1[0][0];
     *(Vector_rotated + 1) = Vector_rotated_2d_3X1[1][0];
@@ -281,10 +281,10 @@ void NED_to_frame2(float Vector_original[], float Vector_rotated[])
 	oned_to_2d_3X1(Vector_original, Vector_rotated);
 
 //	MatrixMultiply(R_v1_v2,3,3,R_v_v1,3,3,temp3X3_1);
-	MatrixMultiply(3,3,R_v1_v2,3,3,R_v_v1,temp3X3_1);
+	MatrixMultiply(3,3,&R_v1_v2[0][0],3,3,&R_v_v1[0][0],&temp3X3_1[0][0]);
 
 //	MatrixMultiply(temp3X3_1,3,3,Vector_original,3,3,Vector_rotated);
-	MatrixMultiply(3,3,temp3X3_1,3,3,Vector_original_2d_3X1,Vector_rotated_2d_3X1);
+	MatrixMultiply(3,3,&temp3X3_1[0][0],3,3,&Vector_original_2d_3X1[0][0],&Vector_rotated_2d_3X1[0][0]);
 
 	*(Vector_rotated)     = Vector_rotated_2d_3X1[0][0];
 	*(Vector_rotated + 1) = Vector_rotated_2d_3X1[1][0];
@@ -324,64 +324,3 @@ void oned_to_2d_3X3(float Vector_original[], float Vector_rotated[])
 		}
 	}
 }
-
-
-
-// used to input transport delay in delay_array_T array
-// the delay will be given by delay_array_length
-/*float Delay_input_fn_T(float new_value_T)
-{
-	float temp_old_T = delay_array_T[delay_array_length-1];
-
-	for (int id = delay_array_length-1 ; id > 0;  id = id-1)
-	{
-		delay_array_T[id] = delay_array_T[id-1];
-	}
-
-	delay_array_T[0] = new_value_T;
-
-	return temp_old_T;
-}
-
-// used to input transport delay in delay_array_T1 array
-// the delay will be given by delay_array_length
-float Delay_input_fn_T1(float new_value_T)
-{
-	float temp_old_T = delay_array_T1[delay_array_length-1];
-
-	for (int id = delay_array_length-1; id > 0 ; id = id-1)
-	{
-		delay_array_T1[id] = delay_array_T1[id-1];
-	}
-	delay_array_T1[0] = new_value_T;
-
-	return temp_old_T;
-}
-*/
-
-// wraps angle between -180 to 180
-// used in heading wrapping
-// returns wrapped angle
-/*float Angle_Ranges(float p)
-{
-	if ( p > 360)
-		p =	fmodf(p,360);
-
-	if (p > 180)
-		p = -180.0 + fmodf(p,180);
-
-	if (p < -360)
-		p = -fmodf(fabsf(p),360);
-
-	if (p < -180)
-		p= 180.0 - fmodf(fabsf(p),180);
-
-/*	if (p>15.0)
-	p = 15.0 ;//+ fmodf(p,5);
-
-	if (p<-15.0)
-	p = -15.0 ;//+ fmodf(p,5);*/
-/*
-	return p;
-}
-*/

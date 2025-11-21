@@ -4,11 +4,13 @@
 #include "LAT_SIM_Forces_and_moments_ctrl_srfce.h"
 #include "LAT_SIM_Conversions_Frame_rotations.h"
 #include "LAT_SIM_derivative.h"
+#include "LAT_SIM_rotor_dynamics.h"
+#include "LAT_SIM_servo_dynamics.h"
 
 
 void v_derivative(float Plane_state[],float t,float dydt[])
 {
-	float u,v,w,p,q,r,phi,theta,psi;
+	float u,v,w,p,q,r,phi,theta;
 	float Ix,Iy,Iz,Ixz,Ixy=0,Iyz=0;
 	float mass_inv;
 	float l,m,n;
@@ -27,33 +29,31 @@ void v_derivative(float Plane_state[],float t,float dydt[])
 
 	phi   = Plane_state[6];
 	theta = Plane_state[7];
-	psi   = Plane_state[8];
 
-
-	Ix=vehicle.Ixx;
-	Iy=vehicle.Iyy;
-	Iz=vehicle.Izz;
-	Ixz=vehicle.Ixz;
-	Iyz=vehicle.Iyz;
-	Ixy=vehicle.Ixy;
-	g= vehicle.g;
-	mass = vehicle.mass;
+	Ix=vehcle.Ixx;
+	Iy=vehcle.Iyy;
+	Iz=vehcle.Izz;
+	Ixz=vehcle.Ixz;
+	Iyz=vehcle.Iyz;
+	Ixy=vehcle.Ixy;
+	g= vehcle.g;
+	mass = vehcle.mass;
 
 	//calculate density using Indian atmosphere model
 	// if (Plane_state[11] > 0.0)
 	// {
-	// 	atmind(1.0f, &vehicle.pressure, &vehicle.sound_speed, &vehicle.rho); //for positive z component, which means going below the ground directly cosider z as '1'
+	// 	atmind(1.0f, &vehcle.pressure, &vehcle.sound_speed, &vehcle.rho); //for positive z component, which means going below the ground directly cosider z as '1'
 	// }
 	// else
 	// {
-	// 	atmind(fabsf(Plane_state[11]), &vehicle.pressure, &vehicle.sound_speed, &vehicle.rho); //atmind function call. Use of fabsf inplace of norm
+	// 	atmind(fabsf(Plane_state[11]), &vehcle.pressure, &vehcle.sound_speed, &vehcle.rho); //atmind function call. Use of fabsf inplace of norm
 	// }
 	
-	vehicle.rho = 1.15;
+	vehcle.rho = 1.15;
 
-	v_rotation_matrices_update( vehicle.phi,  vehicle.theta,  vehicle.psi,  vehicle.alpha,  vehicle.beta);
+	v_rotation_matrices_update( vehcle.phi,  vehcle.theta,  vehcle.psi,  vehcle.alpha,  vehcle.beta);
 
-	v_update_vehicle_states(Plane_state);
+	v_update_vehcle_states(Plane_state);
 
 	v_aero_force_and_moments(); //located in Forces_and_moments_ctrl_srfce.c line:89
 
@@ -61,19 +61,19 @@ void v_derivative(float Plane_state[],float t,float dydt[])
 
 	mass_inv = 1.0f/mass;
 
-	vehicle.mg_b[0] = -mass*g*sinf(vehicle.theta);
-	vehicle.mg_b[1] =  mass*g*cosf(vehicle.theta)*sinf(vehicle.phi);
-	vehicle.mg_b[2] =  mass*g*cosf(vehicle.theta)*cosf(vehicle.phi);
+	vehcle.mg_b[0] = -mass*g*sinf(vehcle.theta);
+	vehcle.mg_b[1] =  mass*g*cosf(vehcle.theta)*sinf(vehcle.phi);
+	vehcle.mg_b[2] =  mass*g*cosf(vehcle.theta)*cosf(vehcle.phi);
 
-	l = vehicle.all_aero_moment[0] + vehicle.all_rotors_moment[0] +  0.0*vehicle.all_payload_moment[0];
-	m = vehicle.all_aero_moment[1] + vehicle.all_rotors_moment[1] +  0.0*vehicle.all_payload_moment[1];
-	n = vehicle.all_aero_moment[2] + vehicle.all_rotors_moment[2] +  0.0*vehicle.all_payload_moment[2];    //optimization
+	l = vehcle.all_aero_moment[0] + vehcle.all_rotors_moment[0] +  0.0*vehcle.all_payload_moment[0];
+	m = vehcle.all_aero_moment[1] + vehcle.all_rotors_moment[1] +  0.0*vehcle.all_payload_moment[1];
+	n = vehcle.all_aero_moment[2] + vehcle.all_rotors_moment[2] +  0.0*vehcle.all_payload_moment[2];    //optimization
 
-	fx = vehicle.all_rotors_force[0] + vehicle.all_aero_force[0] + vehicle.mg_b[0]  + 0.0*vehicle.all_payload_force[0];
+	fx = vehcle.all_rotors_force[0] + vehcle.all_aero_force[0] + vehcle.mg_b[0]  + 0.0*vehcle.all_payload_force[0];
 	//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-	fy = vehicle.all_rotors_force[1] + vehicle.all_aero_force[1] + vehicle.mg_b[1]  + 0.0*vehicle.all_payload_force[1];
+	fy = vehcle.all_rotors_force[1] + vehcle.all_aero_force[1] + vehcle.mg_b[1]  + 0.0*vehcle.all_payload_force[1];
 	//	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-	fz = vehicle.all_rotors_force[2] + vehicle.all_aero_force[2] + vehicle.mg_b[2]  + 0.0*vehicle.all_payload_force[2];
+	fz = vehcle.all_rotors_force[2] + vehcle.all_aero_force[2] + vehcle.mg_b[2]  + 0.0*vehcle.all_payload_force[2];
 
 	dydt[0] = ((fx * mass_inv) + (r * v) - (q * w));//%u_dot//optimization
 	dydt[1] = ((fy * mass_inv) + (p * w) - (r * u));//%v_dot
@@ -91,7 +91,7 @@ void v_derivative(float Plane_state[],float t,float dydt[])
 	dydt[7] = (q * cosf(phi)) - (r * sinf(phi));//%theta_dot
 	dydt[8] = ((q * sinf(phi) * sec(theta)) + (r * cosf(phi) * sec(theta)));//%psi_dot
 
-	body_to_NED(vehicle.V_b_gnd,  V);
+	body_to_NED(vehcle.V_b_gnd,  V);
 
 	dydt[9]  = V[0];//%inertial velocity X
 	dydt[10] = V[1];//%inertial velocity Y

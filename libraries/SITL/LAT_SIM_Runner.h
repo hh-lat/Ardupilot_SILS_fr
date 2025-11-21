@@ -1,10 +1,14 @@
 
+#ifndef LAT_SIM_RUNNER_H_
+#define LAT_SIM_RUNNER_H_
+
 #include <stdio.h>
 #include "math.h"
 #include "LAT_SIM_math_util.h"
 #include "SITL_Input.h"
 #include "stdint.h"
 #include "string.h"
+#include "LAT_SIM_Conversions_Frame_rotations.h"
 
 
 #define PI 3.141592653589793
@@ -33,14 +37,7 @@ extern uint16_t bufferarray_pwm_servo[2000][num_actuator] ;
 extern int delay_array_length_pwm;
 extern uint16_t bufferarray_pwm[][fwv_motors];
 
-void pure_transport_delay_int(uint16_t out[],uint16_t new[],uint16_t bufferarray[][fwv_motors + num_actuator],int len, int delay_array_length);
-extern void pure_transport_delay_int_servo(float[],uint16_t[],float[][5],int, int);
-extern void pure_transport_delay_float(float[],float[][fwv_motors + num_actuator],int, int);
-extern void  v_lat_fdm_init();
-extern void v_lat_fdm_run();
-extern void v_init_vehicle_states();
-extern void v_update_vehicle_states(float state[]);
-extern void v_fill_lla_to_vehicle_state(float, float , float );
+
 
 typedef struct
 {
@@ -49,6 +46,12 @@ typedef struct
 	float alt_msl;
 	float alt_agl;
 }strct_home_states;
+
+typedef enum
+{
+	PLANE_ARDU_DEFAULT = 0,
+	PLANE_EQX = 1,
+}struct_enum_plane_model;
 
 typedef enum
 {
@@ -126,7 +129,6 @@ typedef struct
 	float all_aero_force[3], all_aero_moment[3], all_payload_moment[3];
 	float all_rotors_force[3], all_rotors_moment[3],all_payload_force[3];
 
-	int aero_model_type;
 	float alpha_stall;
 
     float delta_f;
@@ -153,6 +155,9 @@ typedef struct
 
     float CL_0;
     float CL_delta_e;
+	float CL_delta_a;
+	float CL_flap;
+	float CL_delta_r;
 	float CL_alpha;
 	float CL_q;
 
@@ -160,6 +165,8 @@ typedef struct
     float CD_0;
     float CD_delta_e;
     float CD_delta_f;
+	float CD_delta_r;
+	float CD_delta_a;
     float CD_delta_e2;
 	float CD_alpha;
 	float CD_q;
@@ -167,6 +174,7 @@ typedef struct
     float CY_0;
     float CY_beta;
     float CY_delta_r;
+	float CY_delta_a;
     float CY_delta_aL_Cmu;
     float CY_delta_aR_Cmu;
     float CY_delta_aL;
@@ -181,6 +189,7 @@ typedef struct
     float Cl_delta_r;
     float Cl_delta_aL_Cmu;
     float Cl_delta_aR_Cmu;
+	float Cl_delta_a;
     float Cl_delta_aL;
     float Cl_delta_aR;
 	float Cl_p;
@@ -193,6 +202,7 @@ typedef struct
     float Cm_delta_aL;
     float Cm_delta_aR;
     float Cm_Cmu;
+	float Cm_delta_a;
     float Cm_alpha_Cmu;
     float Cm_delta_f;
     float Cm_beta2;
@@ -203,6 +213,7 @@ typedef struct
     float Cn_0;
     float Cn_beta;
     float Cn_delta_r;
+	float Cn_delta_a;
     float Cn_delta_aL_Cmu;
     float Cn_delta_aR_Cmu;
     float Cn_delta_aL;
@@ -224,13 +235,25 @@ typedef struct
 
 
 	float g ;
+
+	int plane_on_ground;
+	int flag_sensor_input_delay;
+	struct_enum_plane_model plane_model;
 	
 	struct_enum_dof dof;
-}VEHICLE_STATES;
+}vehcle_STATES;
 
-extern VEHICLE_STATES vehicle;
+extern vehcle_STATES vehcle;
 
 extern strct_home_states s_home_state;
 
+extern void v_lat_fdm_init();
+extern void v_lat_fdm_run();
+extern void v_init_vehcle_states();
+extern void v_update_vehcle_states(float state[]);
+extern void v_fill_lla_to_vehcle_state(float, float , float );
+extern void v_plane_param_define();
+extern void v_plane_param_define_equinox();
+extern void v_plane_param_define_ardupilot_default();
 
-
+#endif

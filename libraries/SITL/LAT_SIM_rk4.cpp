@@ -12,6 +12,10 @@ void v_rk4(float y[],float t,float h)
 	float AX=0,AY=0,AZ=0;
 	float phi=0, theta=0, psi=0;
 
+	AX=AX;AY=AY;AZ=AZ;
+	phi=phi;theta=theta;psi=psi;
+	VX=VX;VY=VY;VZ=VZ;
+
 	float h2 = 0.0, h6 = 0.0, th = 0.0;
 
 	float k1[NUM_STATEVARS], k2[NUM_STATEVARS], k3[NUM_STATEVARS], k4[NUM_STATEVARS]; // differential value of y wrt t
@@ -54,11 +58,11 @@ void v_rk4(float y[],float t,float h)
 	v_derivative(yt, t+h, k4); // now supply yt to get k4
 
 
-	switch(vehicle.dof)
+	switch(vehcle.dof)
 	{
 	case DOF_ALL_MOTION:
 	{
-		if (s_grnd_model.plane_on_ground == 1)
+		if (vehcle.plane_on_ground == 1)
 		{
 			y[0] = 0.0;   // u
 			y[1] = 0.0;   // v
@@ -73,10 +77,6 @@ void v_rk4(float y[],float t,float h)
 			y[10]= y[10]; // y
 			y[11]= y[11]; // z
 
-			// send true accelerations, which is force/mass , where force is total force including gravity
-			acc_real_plant[0] = (0.0);//
-			acc_real_plant[1] = (0.0);// true acceleration in m/sec^2 , sent to Pseudo Ins, 26 may 2021
-			acc_real_plant[2] = (0.0);
 		}
 		else // Plane in air
 		{
@@ -104,11 +104,6 @@ void v_rk4(float y[],float t,float h)
 		y[10] = y[10] + h6 * (k1[10] + k4[10] + 2.0f*(k2[10] + k3[10]))*0;//y
 		y[11] = y[11] + h6 * (k1[11] + k4[11] + 2.0f*(k2[11] + k3[11]))*0;//z
 
-		// send true accelerations, which is force/mass , where force is total force including gravity
-		acc_real_plant[0] = (0.0);//
-		acc_real_plant[1] = (0.0);
-		acc_real_plant[2] = (0.0);
-
 		break;
 	}
 
@@ -127,10 +122,7 @@ void v_rk4(float y[],float t,float h)
 		y[10] = y[10] + h6 * (k1[10] + k4[10] + 2.0f*(k2[10] + k3[10]))*0;//y
 		y[11] = y[11] + h6 * (k1[11] + k4[11] + 2.0f*(k2[11] + k3[11]))*0;//z
 
-		// send true accelerations, which is force/mass , where force is total force including gravity
-		acc_real_plant[0] = (0.0);//
-		acc_real_plant[1] = (0.0);
-		acc_real_plant[2] = (0.0);
+
 		break;
 	}
 
@@ -149,10 +141,6 @@ void v_rk4(float y[],float t,float h)
 		y[10] = y[10] + h6 * (k1[10] + k4[10] + 2.0f*(k2[10] + k3[10]))*0;//y
 		y[11] = y[11] + h6 * (k1[11] + k4[11] + 2.0f*(k2[11] + k3[11]))*0;//z
 
-		// send true accelerations, which is force/mass , where force is total force including gravity
-		acc_real_plant[0] = (0.0);//
-		acc_real_plant[1] = (0.0);
-		acc_real_plant[2] = (0.0);
 		break;
 	}
 
@@ -171,10 +159,6 @@ void v_rk4(float y[],float t,float h)
 		y[10] = y[10] + h6 * (k1[10] + k4[10] + 2.0f*(k2[10] + k3[10]))*0;//y
 		y[11] = y[11] + h6 * (k1[11] + k4[11] + 2.0f*(k2[11] + k3[11]))*0;//z
 
-		// send true accelerations, which is force/mass , where force is total force including gravity
-		acc_real_plant[0] = (0.0);//
-		acc_real_plant[1] = (0.0);
-		acc_real_plant[2] = (0.0);
 		break;
 	}
 
@@ -193,10 +177,6 @@ void v_rk4(float y[],float t,float h)
 		y[10] = y[10] + h6 * (k1[10] + k4[10] + 2.0f*(k2[10] + k3[10]))*0;//y
 		y[11] = y[11] + h6 * (k1[11] + k4[11] + 2.0f*(k2[11] + k3[11]))*0;//z
 
-		// send true accelerations, which is force/mass , where force is total force including gravity
-		acc_real_plant[0] = (0.0);//
-		acc_real_plant[1] = (0.0);
-		acc_real_plant[2] = (0.0);
 		break;
 	}
 
@@ -216,10 +196,6 @@ void v_rk4(float y[],float t,float h)
 		y[10] = y[10] + h6 * (k1[10] + k4[10] + 2.0f*(k2[10] + k3[10]))*0;//y
 		y[11] = y[11] + h6 * (k1[11] + k4[11] + 2.0f*(k2[11] + k3[11]))*0;//z
 
-		// send true accelerations, which is force/mass , where force is total force including gravity
-		acc_real_plant[0] = (0.0);//
-		acc_real_plant[1] = (0.0);
-		acc_real_plant[2] = (0.0);
 		break;
 	}
 
@@ -238,10 +214,6 @@ void v_rk4(float y[],float t,float h)
 		y[10] = y[10] + h6 * (k1[10] + k4[10] + 2.0f*(k2[10] + k3[10]))*0;//y
 		y[11] = y[11] + h6 * (k1[11] + k4[11] + 2.0f*(k2[11] + k3[11]))*0;//z
 
-		// send true accelerations, which is force/mass , where force is total force including gravity
-		acc_real_plant[0] = (0.0);//
-		acc_real_plant[1] = (0.0);
-		acc_real_plant[2] = (0.0);
 		break;
 	}
 
@@ -276,14 +248,9 @@ void v_rk4(float y[],float t,float h)
 
 
 		// converting to NED frame and making Z true acceleration zero
-		AX = acc_real_plant[2]*(sin(phi)*sin(psi) + cos(phi)*cos(psi)*sin(theta)) - acc_real_plant[1]*(cos(phi)*sin(psi) - cos(psi)*sin(phi)*sin(theta)) + cos(psi)*cos(theta)*acc_real_plant[0];
-		AY = acc_real_plant[1]*(cos(phi)*cos(psi) + sin(phi)*sin(psi)*sin(theta)) - acc_real_plant[2]*(cos(psi)*sin(phi) - cos(phi)*sin(psi)*sin(theta)) + cos(theta)*sin(psi)*acc_real_plant[0];
+		AX = 0;//acc_real_plant[2]*(sin(phi)*sin(psi) + cos(phi)*cos(psi)*sin(theta)) - acc_real_plant[1]*(cos(phi)*sin(psi) - cos(psi)*sin(phi)*sin(theta)) + cos(psi)*cos(theta)*acc_real_plant[0];
+		AY = 0;//acc_real_plant[1]*(cos(phi)*cos(psi) + sin(phi)*sin(psi)*sin(theta)) - acc_real_plant[2]*(cos(psi)*sin(phi) - cos(phi)*sin(psi)*sin(theta)) + cos(theta)*sin(psi)*acc_real_plant[0];
 		AZ = 0;
-
-		// converting to body frame again with AZ =0
-		acc_real_plant[0] = AX*cos(psi)*cos(theta) - AZ*sin(theta) + AY*cos(theta)*sin(psi);
-		acc_real_plant[1] = AY*(cos(phi)*cos(psi) + sin(phi)*sin(psi)*sin(theta)) - AX*(cos(phi)*sin(psi) - cos(psi)*sin(phi)*sin(theta)) + AZ*cos(theta)*sin(phi);
-		acc_real_plant[2] = AX*(sin(phi)*sin(psi) + cos(phi)*cos(psi)*sin(theta)) - AY*(cos(psi)*sin(phi) - cos(phi)*sin(psi)*sin(theta)) + AZ*cos(phi)*cos(theta);
 		break;
 	}
 
@@ -319,12 +286,7 @@ void v_rk4(float y[],float t,float h)
 		// converting to NED frame and making X,y acc_real_plant acceleration zero
 		AX = 0;//acc_real_plant[2]*(sin(phi)*sin(psi) + cos(phi)*cos(psi)*sin(theta)) - acc_real_plant[1]*(cos(phi)*sin(psi) - cos(psi)*sin(phi)*sin(theta)) + cos(psi)*cos(theta)*acc_real_plant[0];
 		AY = 0;//acc_real_plant[1]*(cos(phi)*cos(psi) + sin(phi)*sin(psi)*sin(theta)) - acc_real_plant[2]*(cos(psi)*sin(phi) - cos(phi)*sin(psi)*sin(theta)) + cos(theta)*sin(psi)*acc_real_plant[0];
-		AZ = cos(phi)*cos(theta)*acc_real_plant[2] - sin(theta)*acc_real_plant[0] + cos(theta)*sin(phi)*acc_real_plant[1];
-
-		// converting to body frame again with AX,AY =0
-		acc_real_plant[0] = AX*cos(psi)*cos(theta) - AZ*sin(theta) + AY*cos(theta)*sin(psi);
-		acc_real_plant[1] = AY*(cos(phi)*cos(psi) + sin(phi)*sin(psi)*sin(theta)) - AX*(cos(phi)*sin(psi) - cos(psi)*sin(phi)*sin(theta)) + AZ*cos(theta)*sin(phi);
-		acc_real_plant[2] = AX*(sin(phi)*sin(psi) + cos(phi)*cos(psi)*sin(theta)) - AY*(cos(psi)*sin(phi) - cos(phi)*sin(psi)*sin(theta)) + AZ*cos(phi)*cos(theta);
+		AZ = 0;//cos(phi)*cos(theta)*acc_real_plant[2] - sin(theta)*acc_real_plant[0] + cos(theta)*sin(phi)*acc_real_plant[1];
 
 		break;
 	}
