@@ -40,6 +40,9 @@ public:
         return NEW_NOTHROW Plane(frame_str);
     }
 
+    void v_update_accel_body(float *p);
+
+
 protected:
     const float hover_throttle = 0.7f;
     float angle_of_attack;

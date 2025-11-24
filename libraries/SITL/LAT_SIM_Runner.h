@@ -10,6 +10,11 @@
 #include "string.h"
 #include "LAT_SIM_Conversions_Frame_rotations.h"
 
+// Forward declaration
+namespace SITL {
+    class Aircraft;
+}
+
 
 #define PI 3.141592653589793
 
@@ -235,6 +240,7 @@ typedef struct
 
 
 	float g ;
+	float lift_stall_M;
 
 	int plane_on_ground;
 	int flag_sensor_input_delay;
@@ -248,12 +254,14 @@ extern vehcle_STATES vehcle;
 extern strct_home_states s_home_state;
 
 extern void v_lat_fdm_init();
-extern void v_lat_fdm_run();
+extern void v_lat_fdm_run(const struct sitl_input &input);
+extern void v_set_aircraft_instance(SITL::Aircraft* aircraft);
 extern void v_init_vehcle_states();
 extern void v_update_vehcle_states(float state[]);
 extern void v_fill_lla_to_vehcle_state(float, float , float );
 extern void v_plane_param_define();
 extern void v_plane_param_define_equinox();
 extern void v_plane_param_define_ardupilot_default();
+extern void v_update_vehcle_state_from_ardu_ekf();
 
 #endif

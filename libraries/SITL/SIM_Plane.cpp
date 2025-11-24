@@ -404,6 +404,16 @@ Vector3f Plane::getForce(float inputAileron, float inputElevator, float inputRud
     return Vector3f(ax, ay, az);
 }
 
+
+
+void Plane::v_update_accel_body(float *p)
+{
+    accel_body.x = *p;
+    accel_body.y = *(p+1);
+    accel_body.z = *(p+2);
+}
+
+
 void Plane::calculate_forces(const struct sitl_input &input, Vector3f &rot_accel)
 {
     float aileron  = filtered_servo_angle(input, 0);
@@ -535,17 +545,27 @@ void Plane::update(const struct sitl_input &input)
 
     update_wind(input);
 
-
     if (1)
     {
         if (lat_fdm_init ==0)
         {
             v_lat_fdm_init(); // initialises fdm for Equinox
+            v_set_aircraft_instance(this); // Pass this aircraft instance
             lat_fdm_init=1;
         }
         
-        v_ardu_input_to_lat_input(input);
-        v_lat_fdm_run();
+        v_lat_fdm_run(input);
+
+        float p[3];
+        p[0] = vehcle.Accel_b[0];
+        p[1] = vehcle.Accel_b[1];
+        p[2] = vehcle.Accel_b[2];
+        v_update_accel_body(&p[0]);
+
+        rot_accel.x = vehcle.p;
+        rot_accel.y = vehcle.q;
+        rot_accel.z = vehcle.r;
+        update_dynamics(rot_accel);
     }
     else
     {        

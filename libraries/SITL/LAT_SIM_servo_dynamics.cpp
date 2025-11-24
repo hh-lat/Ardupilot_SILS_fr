@@ -61,7 +61,20 @@ void v_servo_dynamics(float t_step_act)
 {
 	v_pwm_out_servo_to_angles();
 	v_apply_rate_limits_to_control_surfaces(t_step_act);
+	v_fill_vehcle_angles();
 }
+
+
+void v_fill_vehcle_angles()
+{
+	vehcle.delta_a = s_servo[AILERON_COMMON].angle;
+	vehcle.delta_e = s_servo[ELEVATOR_COMMON].angle;
+	vehcle.delta_r = s_servo[RUDDER_COMMON].angle;
+
+	vehcle.delta_aL = s_servo[AILERON_LEFT].angle;
+	vehcle.delta_aR = s_servo[AILERON_LEFT].angle;
+}
+
 
 
 void v_apply_rate_limits_to_control_surfaces(float t_step_act)

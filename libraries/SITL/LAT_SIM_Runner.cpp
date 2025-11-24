@@ -4,31 +4,85 @@
 #include "LAT_SIM_rotor_dynamics.h"
 #include "LAT_SIM_rk4.h"
 #include "LAT_SIM_Runner.h"
-
+#include <AP_Math/AP_Math.h>
+#include "SIM_Aircraft.h"
 
 vehcle_STATES vehcle;
 
 strct_home_states s_home_state;
 
+// Pointer to the Aircraft instance (set from SIM_Plane)
+static SITL::Aircraft* g_aircraft_instance = nullptr;
+
+void v_set_aircraft_instance(SITL::Aircraft* aircraft) {
+    g_aircraft_instance = aircraft;
+}
+
 void v_lat_fdm_init()
-{
-    v_plane_param_define();
+{	
 	vehcle.plane_model = PLANE_ARDU_DEFAULT; // 0 for default simple model, 1 for equinox model
     vehcle.dof = DOF_ALL_MOTION;
 	vehcle.plane_on_ground = 1;
+    v_plane_param_define();
 }
 
+void v_update_vehcle_state_from_ardu_ekf()
+{
+	// Get Euler angles (phi, theta, psi) from DCM, ardupilot dcm- body to NED
+	if (g_aircraft_instance != nullptr) 
+	{
+		// phi, theta , psi via dcm
+		const Matrix3f &dcm_matrix = g_aircraft_instance->get_dcm();
 
-void v_lat_fdm_run()
+		float phi = atan2f(dcm_matrix.b.z, dcm_matrix.c.z);      // roll
+		float theta = -asinf(dcm_matrix.a.z);                     // pitch
+		float psi = atan2f(dcm_matrix.a.y, dcm_matrix.a.x);      // yaw
+		
+		vehcle.phi = phi;
+		vehcle.theta = theta;
+		vehcle.psi = psi;
+
+		// aoa & beta via air velcity components
+		const Vector3f &velocity_air_bf = g_aircraft_instance->get_velocity_air_bf();
+		
+		float angle_of_attack = atan2f(velocity_air_bf.z, velocity_air_bf.x);
+		float beta = atan2f(velocity_air_bf.y, velocity_air_bf.x);
+		
+		// Store in vehicle state
+		vehcle.alpha = angle_of_attack;
+		vehcle.beta = beta;
+		
+		// Also fill V_b_tas for other calculations
+		vehcle.V_b_tas[0] = velocity_air_bf.x;
+		vehcle.V_b_tas[1] = velocity_air_bf.y;
+		vehcle.V_b_tas[2] = velocity_air_bf.z;
+
+		vehcle.tas = sqrtf( vehcle.V_b_tas[0]*vehcle.V_b_tas[0]  + vehcle.V_b_tas[1]*vehcle.V_b_tas[1] + 
+							vehcle.V_b_tas[2]*vehcle.V_b_tas[2] );
+
+		vehcle.Q = 0.5*vehcle.rho*vehcle.tas*vehcle.tas;
+	}
+}
+
+void v_lat_fdm_run(const struct sitl_input &input)
 {
     float t_step = 0.001;
     static float t=0;
     float plane_state[12]={0};
 
+	v_update_vehcle_state_from_ardu_ekf();
+	plane_state[6] = vehcle.phi;
+	plane_state[7] = vehcle.theta;
+	plane_state[8] = vehcle.psi;
+
+    v_ardu_input_to_lat_input(input); // fills servo_channels from ardupilot to control surface and motor pwms
     v_servo_dynamics(t_step); // converts servopwm to angles and applies rate limits
    	v_motor_pwm_to_throttle(t_step); //update throttle from pwm with rate limiting on throttle
-
     v_rk4(plane_state, t, t_step);
+
+	vehcle.p = plane_state[3];
+	vehcle.q = plane_state[4];
+	vehcle.r = plane_state[5];
 }
 
 
@@ -48,7 +102,6 @@ void v_plane_param_define()
 			 break;
 		}
 	}
-
 }
 
 void v_plane_param_define_equinox()
@@ -56,14 +109,17 @@ void v_plane_param_define_equinox()
 	s_servo_manager.num_servos = 10; //  put max servo enum that is used
 	s_motor_manager.num_motors = 8;
 
-   //v_set_servo_params(pwm_min, pwm_max, angle_min, angle_max,omega, zeta, min_rate, max_rate, min_accel, max_accel,  type)
-	v_set_servo_params(1000,2000,-30*D2R,30*D2R, 10.0, 0.7, -360*D2R, 360*D2R, -720*D2R, 720*D2R, AILERON_LEFT);
-	v_set_servo_params(1000,2000,-30*D2R,30*D2R, 10.0, 0.7, -360*D2R, 360*D2R, -720*D2R, 720*D2R, AILERON_RIGHT);
-	v_set_servo_params(1000,2000,-30*D2R,30*D2R, 10.0, 0.7, -360*D2R, 360*D2R, -720*D2R, 720*D2R, ELEVATOR_COMMON);
+   //v_set_servo_params(pwm_min, pwm_max, angle_pwm_min, angle_pwm_max,omega, zeta, min_rate, max_rate, min_accel, max_accel,  type)
+	v_set_servo_params(1100,1900,-30*D2R,30*D2R, 10.0, 0.7, -360*D2R, 360*D2R, -720*D2R, 720*D2R, AILERON_COMMON);
+	v_set_servo_params(1100,1900,-30*D2R,30*D2R, 10.0, 0.7, -360*D2R, 360*D2R, -720*D2R, 720*D2R, ELEVATOR_COMMON);
+	v_set_servo_params(1100,1900, 30*D2R,-30*D2R, 10.0, 0.7, -360*D2R, 360*D2R, -720*D2R, 720*D2R, RUDDER_COMMON);
 
-	v_set_servo_params(1000,2000,-30*D2R,30*D2R, 10.0, 0.7, -360*D2R, 360*D2R, -720*D2R, 720*D2R, RUDDER_COMMON);
-	v_set_servo_params(1000,2000,-30*D2R,30*D2R, 10.0, 0.7, -360*D2R, 360*D2R, -720*D2R, 720*D2R, FLAP);	
-	v_set_servo_params(1000,2000,-30*D2R,30*D2R, 10.0, 0.7, -360*D2R, 360*D2R, -720*D2R, 720*D2R, NOSE_LG_SERVO);
+	v_set_servo_params(1100,1900, 30*D2R,-30*D2R, 10.0, 0.7, -360*D2R, 360*D2R, -720*D2R, 720*D2R, AILERON_LEFT);
+	v_set_servo_params(1100,1900,-30*D2R,30*D2R, 10.0, 0.7, -360*D2R, 360*D2R, -720*D2R, 720*D2R, AILERON_RIGHT);
+
+	v_set_servo_params(1100,1900,-40*D2R,40*D2R, 10.0, 0.7, -360*D2R, 360*D2R, -720*D2R, 720*D2R, FLAP);
+
+	v_set_servo_params(1100,1900,-30*D2R,30*D2R, 10.0, 0.7, -360*D2R, 360*D2R, -720*D2R, 720*D2R, NOSE_LG_SERVO);
 	
     vehcle.mass = 65.0 ;
 	vehcle.g = 9.81; 
@@ -78,7 +134,7 @@ void v_plane_param_define_equinox()
     vehcle.b = 3.0;
     vehcle.c = 0.3;
 	vehcle.e =1;
-	vehcle.AR =10;
+	vehcle.AR =vehcle.b*vehcle.b/vehcle.s;
 	vehcle.t_by_c = 0.15;
     vehcle.rho = 1.15;
     vehcle.mlgL_x = 0;
@@ -184,15 +240,37 @@ void v_plane_param_define_equinox()
 
 void v_plane_param_define_ardupilot_default()
 {
-	vehcle.mass = 2.0 ; // kg
-	vehcle.Ixx = 0.0342 ;
-	vehcle.Iyy = 0.0454 ;
-	vehcle.Izz = 0.0977 ;
-	vehcle.Ixz = 0.0002 ;
-	vehcle.s = 0.2589;
-	vehcle.b = 1.4224;
-	vehcle.c = 0.3302;
+
+	//v_set_servo_params(pwm_min, pwm_max, angle_pwm_min, angle_pwm_max,omega, zeta, min_rate, max_rate, min_accel, max_accel,  type)
+	v_set_servo_params(1100,1900,-30*D2R,30*D2R, 10.0, 0.7, -360*D2R, 360*D2R, -720*D2R, 720*D2R, AILERON_COMMON);
+	v_set_servo_params(1100,1900,-30*D2R,30*D2R, 10.0, 0.7, -360*D2R, 360*D2R, -720*D2R, 720*D2R, ELEVATOR_COMMON);
+	v_set_servo_params(1100,1900, 30*D2R,-30*D2R, 10.0, 0.7, -360*D2R, 360*D2R, -720*D2R, 720*D2R, RUDDER_COMMON);
+
+	v_set_servo_params(1100,1900, 30*D2R,-30*D2R, 10.0, 0.7, -360*D2R, 360*D2R, -720*D2R, 720*D2R, AILERON_LEFT);
+	v_set_servo_params(1100,1900,-30*D2R,30*D2R, 10.0, 0.7, -360*D2R, 360*D2R, -720*D2R, 720*D2R, AILERON_RIGHT);
+
+	v_set_servo_params(1100,1900,-40*D2R,40*D2R, 10.0, 0.7, -360*D2R, 360*D2R, -720*D2R, 720*D2R, FLAP);
+		
+	v_set_servo_params(1100,1900,-30*D2R,30*D2R, 10.0, 0.7, -360*D2R, 360*D2R, -720*D2R, 720*D2R, NOSE_LG_SERVO);
+
+
+	// Ensure coffecient signs are compatible with aerospace sign convention for elevator, aileron, rudder
+	vehcle.s = 0.45;
+	vehcle.b = 1.88;
+	vehcle.c = 0.24;
 	vehcle.rho = 1.225;
+	vehcle.alpha_stall = 0.4712; // 27 degrees
+	vehcle.e = 0.9;
+	vehcle.g=9.81;
+	vehcle.lift_stall_M = 50.0;
+	vehcle.AR = (vehcle.b*vehcle.b)/vehcle.s;
+
+	vehcle.mass = 2.0 ; // kg
+	vehcle.Ixx = 1.0 ;
+	vehcle.Iyy = 1.0 ;
+	vehcle.Izz = 1.0 ;
+	vehcle.Ixz = 0.0 ;
+
 	vehcle.mlgL_x = -0.16;
 	vehcle.mlgL_y = -0.08;
 	vehcle.mlgL_z = 0;
@@ -203,6 +281,58 @@ void v_plane_param_define_ardupilot_default()
 	vehcle.nlg_y = 0;
 	vehcle.nlg_z = 0;
 	
+	vehcle.CL_0 = 0.56;
+	vehcle.CL_delta_e = 0;
+	vehcle.CL_alpha = 6.9;
+	vehcle.CL_q = 0;
+	vehcle.CD_0 = 0.1;
+	vehcle.CD_delta_e = 0;
+	vehcle.CD_delta_f = 0;
+	vehcle.CD_delta_e2 = 0;
+	vehcle.CD_alpha = 0.3;
+	vehcle.CY_0 = 0;
+	vehcle.CY_beta = -0.98;
+	vehcle.CY_p = 0;
+	vehcle.CY_r = 0;
+	vehcle.CY_delta_r = 0.2;
+	vehcle.CY_delta_a = 0;
+	vehcle.CY_delta_aL_Cmu = 0;
+	vehcle.CY_delta_aR_Cmu = 0;
+	vehcle.CY_delta_aL = 0;
+	vehcle.CY_delta_aR = 0;
+	vehcle.CY_beta_Cmu = 0;
+	vehcle.Cl_0 = 0;
+	vehcle.Cl_beta = -0.12;
+	vehcle.Cl_delta_r = 0.037;
+	vehcle.Cl_delta_aL_Cmu = 0;
+	vehcle.Cl_delta_aR_Cmu = 0;
+	vehcle.Cl_delta_aL = 0;
+	vehcle.Cl_delta_a = 0.25;
+	vehcle.Cl_delta_aR = 0;
+	vehcle.Cl_p = -1.0;
+	vehcle.Cl_r = 0.14;
+	vehcle.Cm_0 = 0.045;
+	vehcle.Cm_alpha = -0.7;
+	vehcle.Cm_q = -20;
+	vehcle.Cm_delta_e = -1.0;
+	vehcle.Cm_delta_aL = 0;
+	vehcle.Cm_delta_aR = 0;
+	vehcle.Cm_Cmu = 0;
+	vehcle.Cm_alpha_Cmu = 0;
+	vehcle.Cm_delta_f = 0;
+	vehcle.Cm_beta2 = 0;
+	vehcle.Cm_beta2_Cmu = 0;
+	vehcle.Cn_0 = 0;
+	vehcle.Cn_beta = 0.25;
+	vehcle.Cn_p = 0.022;
+	vehcle.Cn_r = -1;
+	vehcle.Cn_delta_a = 0;
+	vehcle.Cn_delta_r = -0.1;
+	vehcle.Cn_delta_aL_Cmu = 0;
+	vehcle.Cn_delta_aR_Cmu = 0;
+	vehcle.Cn_delta_aL = 0;
+	vehcle.Cn_delta_aR = 0;
+	vehcle.Cn_beta_Cmu = 0;	
 }
 
 

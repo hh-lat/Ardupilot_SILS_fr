@@ -734,7 +734,7 @@ void Aircraft::update_dynamics(const Vector3f &rot_accel)
     dcm.rotate(gyro * delta_time);
     dcm.normalize();
 
-    Vector3f accel_earth = dcm * accel_body;
+    Vector3f accel_earth = dcm *  accel_body  ;
     accel_earth += Vector3f(0.0f, 0.0f, GRAVITY_MSS);
 
     // if we're on the ground, then our vertical acceleration is limited

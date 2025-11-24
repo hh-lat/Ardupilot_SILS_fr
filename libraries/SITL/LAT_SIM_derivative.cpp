@@ -18,7 +18,6 @@ void v_derivative(float Plane_state[],float t,float dydt[])
 	float V[3];
 	float mass,g;
 
-
 	u = Plane_state[0];
 	v = Plane_state[1];
 	w = Plane_state[2];
@@ -53,11 +52,11 @@ void v_derivative(float Plane_state[],float t,float dydt[])
 
 	v_rotation_matrices_update( vehcle.phi,  vehcle.theta,  vehcle.psi,  vehcle.alpha,  vehcle.beta);
 
-	v_update_vehcle_states(Plane_state);
+	//v_update_vehcle_states(Plane_state);
+	v_rotors_force_and_moments(); //located in rotor_dynamics
 
 	v_aero_force_and_moments(); //located in Forces_and_moments_ctrl_srfce.c line:89
 
-	v_rotors_force_and_moments(); //located in rotor_dynamics
 
 	mass_inv = 1.0f/mass;
 
@@ -97,9 +96,9 @@ void v_derivative(float Plane_state[],float t,float dydt[])
 	dydt[10] = V[1];//%inertial velocity Y
 	dydt[11] = V[2];//%inertial velocity Z
 
-	dydt[12] = 0.0f;
-	dydt[13] = 0.0f;
-	dydt[14] = 0.0f;
+	vehcle.Accel_b[0] = fx - vehcle.mg_b[0];// for ardupilot update_dynamics
+	vehcle.Accel_b[1] = fy - vehcle.mg_b[1];
+	vehcle.Accel_b[2] = fz - vehcle.mg_b[2];
 
 }
 
