@@ -55,10 +55,31 @@ void v_pwm_out_servo_to_angles()
 	}
 }
 
+void v_pwm_in_2_out_servo()
+{
+	uint8_t i = 0;
+
+	for(i=0;i<s_servo_manager.num_servos;i++)
+	{
+		if (s_servo[i].pwm_in <= s_servo[i].pwm_min)
+		{
+			s_servo[i].pwm_out = s_servo[i].pwm_min;
+		}
+		else if (s_servo[i].pwm_in >= s_servo[i].pwm_max)
+		{
+			s_servo[i].pwm_out = s_servo[i].pwm_max;
+		}
+		else if ( (s_servo[i].pwm_in > s_servo[i].pwm_min) && (s_servo[i].pwm_in < s_servo[i].pwm_max) )
+		{
+			s_servo[i].pwm_out = s_servo[i].pwm_in;
+		}
+	}
+}
 
 
 void v_servo_dynamics(float t_step_act)
 {
+	v_pwm_in_2_out_servo();
 	v_pwm_out_servo_to_angles();
 	v_apply_rate_limits_to_control_surfaces(t_step_act);
 	v_fill_vehcle_angles();

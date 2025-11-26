@@ -42,7 +42,13 @@ extern uint16_t bufferarray_pwm_servo[2000][num_actuator] ;
 extern int delay_array_length_pwm;
 extern uint16_t bufferarray_pwm[][fwv_motors];
 
-
+typedef enum
+{
+	STATIONARY=0,
+	CT_RUNWAY_MOVING=1,
+	CT_RUNWAY_ROTATING=2,
+	IN_AIR=3,	
+}enum_plane_moving_state;
 
 typedef struct
 {
@@ -244,7 +250,11 @@ typedef struct
 
 	int plane_on_ground;
 	int flag_sensor_input_delay;
+
+	float aero_zero_speed;
+	float CL_alpha_tot;
 	struct_enum_plane_model plane_model;
+	enum_plane_moving_state plane_moving_state;
 	
 	struct_enum_dof dof;
 }vehcle_STATES;

@@ -50,13 +50,15 @@ void v_derivative(float Plane_state[],float t,float dydt[])
 	
 	vehcle.rho = 1.15;
 
-	v_rotation_matrices_update( vehcle.phi,  vehcle.theta,  vehcle.psi,  vehcle.alpha,  vehcle.beta);
+	v_rotation_matrices_update(vehcle.phi,  vehcle.theta,  vehcle.psi,  vehcle.alpha,  vehcle.beta);
 
-	//v_update_vehcle_states(Plane_state);
-	v_rotors_force_and_moments(); //located in rotor_dynamics
+	 //updates J, RPM, Cmu based on throttle inputs & V_inf
+	 //updates vehcle.all_rotors_force[] and vehcle.all_rotors_moment[] in body frame
+	v_rotor_dynamics(0.001);
 
-	v_aero_force_and_moments(); //located in Forces_and_moments_ctrl_srfce.c line:89
+	v_update_vehcle_Cmu();
 
+	v_aero_force_and_moments();// updates vehcle.all_aero_force[] and vehcle.all_aero_moment[]
 
 	mass_inv = 1.0f/mass;
 
@@ -74,6 +76,65 @@ void v_derivative(float Plane_state[],float t,float dydt[])
 	//	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 	fz = vehcle.all_rotors_force[2] + vehcle.all_aero_force[2] + vehcle.mg_b[2]  + 0.0*vehcle.all_payload_force[2];
 
+	
+
+	switch (vehcle.plane_moving_state)
+	{
+		case STATIONARY:
+		{
+
+				dydt[0] = 0.0f;
+				dydt[1] = 0.0f;
+				dydt[2] = 0.0f;
+				dydt[3] = 0.0f;
+				dydt[4] = 0.0f;
+				dydt[5] = 0.0f;
+				dydt[6] = 0.0f;
+				dydt[7] = 0.0f;
+				dydt[8] = 0.0f;
+				dydt[9] = 0.0f;
+				dydt[10] = 0.0f;
+				dydt[11] = 0.0f;
+
+				vehcle.Accel_b[0] =  vehcle.mg_b[0];// for ardupilot update_dynamics
+				vehcle.Accel_b[1] = -vehcle.mg_b[1];
+				vehcle.Accel_b[2] = -vehcle.mg_b[2];
+
+				vehcle.FLG_NR = vehcle.mass*vehcle.g / (1.0 + fabsf(vehcle.FLG_x/vehcle.MLG_x))
+				vehcle.MLG_NR = vehcle.mass*vehcle.g - vehcle.FLG_NR;
+
+		break;
+		}
+		case CT_RUNWAY_MOVING:
+		{
+			vehcle.plane_on_ground = 0;
+
+			vehcle.MLG_NR = (vehcle.mass*vehcle.g*vehcle.MLG_x + m)/(vehcle.FLG_x + vehcle.MLG_x);
+			
+			
+
+
+			// to be implemented
+			break;
+		}
+		case CT_RUNWAY_ROTATING:
+		{
+			// to be implemented
+			break;	
+		}
+		case IN_AIR:
+		{
+			// normal in air condition
+			break;	
+		}
+		default:
+		{
+			// normal in air condition
+			break;		
+		}
+
+
+	}
 	dydt[0] = ((fx * mass_inv) + (r * v) - (q * w));//%u_dot//optimization
 	dydt[1] = ((fy * mass_inv) + (p * w) - (r * u));//%v_dot
 	dydt[2] = ((fz * mass_inv) + (q * u) - (p * v));  //%w_dot

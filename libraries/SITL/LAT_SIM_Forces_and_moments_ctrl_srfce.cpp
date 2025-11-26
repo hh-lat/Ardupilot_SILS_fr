@@ -12,11 +12,17 @@ void v_calculate_lift_force()
 {
 	vehcle.all_lift_force=0.0;
 
+	if (vehcle.tas < vehcle.aero_zero_speed)
+	{
+		vehcle.CL = 0.0;
+		vehcle.all_lift_force = 0.0;
+		return;
+	}
+
 	switch (vehcle.plane_model)
 	{
 		case PLANE_ARDU_DEFAULT:
 		{
-
 			//linear lift model
 			vehcle.all_lift_force = vehcle.Q*vehcle.s*(vehcle.CL_0 + vehcle.CL_alpha*vehcle.alpha + vehcle.CL_delta_e*vehcle.delta_e) +
 					(0.5*vehcle.rho*vehcle.tas)*vehcle.CL_q*vehcle.q*vehcle.c/2.0f ;
@@ -42,7 +48,6 @@ void v_calculate_lift_force()
 
 		case PLANE_EQX:
 		{
-
 			float Lambda = 0;
 			float CL =0;
 			Lambda = vehcle.s_blown / vehcle.s;
@@ -70,16 +75,17 @@ void v_calculate_lift_force()
 			float nu=0;
 			nu = (vehcle.s_blown * dCl_dalpha + (vehcle.s  - vehcle.s_blown) * 2.0*pi) / (vehcle.s * dCl_dalpha);
 
-			//float CL_alpha_tot=0;
-			//CL_alpha_tot = (vehcle.s_blown * dCl_dalpha + (vehcle.s  - vehcle.s_blown) * 2.0*pi) / (vehcle.s);
+			// used in Clp, Cnp derivation
+			vehcle.CL_alpha_tot = (vehcle.s_blown * dCl_dalpha + (vehcle.s  - vehcle.s_blown) * 2.0*pi) / (vehcle.s);
 
 			CL = vehcle.CL_0
 				+ F * (1.0 + vehcle.t_by_c) * (Lambda * theta_rad * dCl_dtheta + nu * vehcle.alpha * dCl_dalpha)
 				- vehcle.t_by_c * Cmu_S * (theta_rad + vehcle.alpha)
 				+ vehcle.CL_delta_e*vehcle.delta_e;
 
-			vehcle.CL = CL;
-			vehcle.all_lift_force = vehcle.all_lift_force + vehcle.Q*vehcle.s*CL;
+
+			vehcle.CL = CL  + vehcle.CL_q * (vehcle.q * vehcle.c / (2.0f * vehcle.tas));
+			vehcle.all_lift_force = vehcle.Q*vehcle.s*vehcle.CL;
 			
 		break;
 		}
@@ -91,6 +97,13 @@ void v_calculate_lift_force()
 void v_calculate_drag_force()
 {
 	vehcle.all_drag_force=0.0;
+
+	if (vehcle.tas < vehcle.aero_zero_speed)
+	{
+		vehcle.CD = 0.0;
+		vehcle.all_drag_force = 0.0;
+		return;
+	}
 
 	switch (vehcle.plane_model)
 	{
@@ -130,6 +143,13 @@ void v_calculate_drag_force()
 void v_calculate_side_force()
 {
 	vehcle.all_side_force = 0.0;
+
+	if (vehcle.tas < vehcle.aero_zero_speed)
+	{
+		vehcle.CY = 0.0;
+		vehcle.all_side_force = 0.0;
+		return;
+	}
 
 	switch (vehcle.plane_model)
 	{
@@ -172,7 +192,10 @@ void v_calculate_side_force()
 
 		CY = CY_base * (1.0 - W) + W*1.351782*CY_flat + CY_other;
 
-		vehcle.CY = -CY;
+		CY = -CY;
+
+		vehcle.CY = CY + vehcle.CY_p*vehcle.p*vehcle.b/(2.0f*vehcle.tas) +
+					 vehcle.CY_r*vehcle.r*vehcle.b/(2.0f*vehcle.tas);
 
 		vehcle.all_side_force = vehcle.Q*vehcle.s*vehcle.CY;
 		break;
@@ -183,6 +206,13 @@ void v_calculate_side_force()
 void v_calculate_aero_roll_moment()
 {
 	vehcle.all_aero_moment[0]=0.0;
+
+	if (vehcle.tas < vehcle.aero_zero_speed)
+	{
+		vehcle.Cl = 0.0;
+		vehcle.all_aero_moment[0] = 0.0;
+		return;
+	}
 
 	switch (vehcle.plane_model)
 	{
@@ -203,6 +233,13 @@ void v_calculate_aero_roll_moment()
 			vehcle.Cl = R_att + A_L_base + A_R_base; 
 			vehcle.Cl = -vehcle.Cl;
 
+			vehcle.Cl_p = -vehcle.CL_alpha_tot / 6.0f; 
+
+			vehcle.Cl_r = (1.0/3.0)*vehcle.CL + 0.0399;
+			
+			vehcle.Cl = vehcle.Cl + vehcle.Cl_p*vehcle.p*vehcle.b/(2.0f*vehcle.tas) +
+							vehcle.Cl_r*vehcle.r*vehcle.b/(2.0f*vehcle.tas);
+
 			vehcle.all_aero_moment[0] = vehcle.Q*vehcle.s*vehcle.b*vehcle.Cl;
 		break;
 		}
@@ -212,6 +249,14 @@ void v_calculate_aero_roll_moment()
 void v_calculate_aero_pitch_moment()
 {
 	vehcle.all_aero_moment[1]=0.0;
+
+	if (vehcle.tas < vehcle.aero_zero_speed)
+	{
+		vehcle.Cm = 0.0;
+		vehcle.all_aero_moment[1] = 0.0;
+		return;
+	}
+
 	switch (vehcle.plane_model)
 	{
 		case PLANE_ARDU_DEFAULT:
@@ -259,6 +304,8 @@ void v_calculate_aero_pitch_moment()
 				Cm_flat = 2.0*sign_1(alpha_eff)*(sin(alpha_eff)*sin(alpha_eff))*cos(alpha_eff);
 
 				vehcle.Cm = Cm_base * (1.0 - W) + (-0.052035)*Cm_flat * W + Cm_other;
+				vehcle.Cm = vehcle.Cm + vehcle.Cm_q*vehcle.q*vehcle.c/(2.0f*vehcle.tas) ;
+
 				vehcle.all_aero_moment[1] = vehcle.Q*vehcle.s*vehcle.c*vehcle.Cm;
 
 			break;
@@ -269,6 +316,14 @@ void v_calculate_aero_pitch_moment()
 void v_calculate_aero_yaw_moment()
 {
 	vehcle.all_aero_moment[2]=0.0;
+
+	if (vehcle.tas < vehcle.aero_zero_speed)
+	{
+		vehcle.Cn = 0.0;
+		vehcle.all_aero_moment[2] = 0.0;
+		return;
+	}
+
 	switch (vehcle.plane_model)
 	{
 		case PLANE_ARDU_DEFAULT:
@@ -306,8 +361,14 @@ void v_calculate_aero_yaw_moment()
 			Cn_flat = -2.0*sign_1(beta_eff)*(sin(beta_eff)*sin(beta_eff))*cos(beta_eff);	
 
 			vehcle.Cn = Cn_base * (1.0 - W) + (-0.096281)*Cn_flat * W + Cn_other;	
-
 			vehcle.Cn = -vehcle.Cn;
+
+			vehcle.Cn_p = (-1.0/6.0)*(1.0-0.5*vehcle.CL_alpha_tot/(pi*0.7*vehcle.AR))*vehcle.CL;
+			vehcle.Cn_r = (-1.0/3.0)*vehcle.CD - 0.7979;
+			
+			vehcle.Cn = vehcle.Cn + vehcle.Cn_p*vehcle.p*vehcle.b/(2.0f*vehcle.tas) +
+							vehcle.Cn_r*vehcle.r*vehcle.b/(2.0f*vehcle.tas);
+							
 			vehcle.all_aero_moment[2] = vehcle.Q*vehcle.s*vehcle.b*vehcle.Cn;
 		break;
 		}

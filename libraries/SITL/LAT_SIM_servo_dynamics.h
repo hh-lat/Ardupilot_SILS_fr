@@ -73,4 +73,5 @@ extern void v_set_servo_params(float pwm_min, float pwm_max, float angle_min, fl
 		float min_accel, float max_accel,CONTROL_SURFACE_TYPE type);
 extern void v_pwm_out_servo_to_angles();
 extern void v_fill_vehcle_angles();
+extern void v_pwm_in_2_out_servo();
 
