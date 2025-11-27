@@ -54,7 +54,7 @@ void v_derivative(float Plane_state[],float t,float dydt[])
 
 	 //updates J, RPM, Cmu based on throttle inputs & V_inf
 	 //updates vehcle.all_rotors_force[] and vehcle.all_rotors_moment[] in body frame
-	v_rotor_dynamics(0.001);
+	v_rotor_dynamics(vehcle.step_dt);
 
 	v_update_vehcle_Cmu();
 
@@ -76,13 +76,10 @@ void v_derivative(float Plane_state[],float t,float dydt[])
 	//	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 	fz = vehcle.all_rotors_force[2] + vehcle.all_aero_force[2] + vehcle.mg_b[2]  + 0.0*vehcle.all_payload_force[2];
 
-	
-
 	switch (vehcle.plane_moving_state)
 	{
 		case STATIONARY:
 		{
-
 				dydt[0] = 0.0f;
 				dydt[1] = 0.0f;
 				dydt[2] = 0.0f;
@@ -96,35 +93,171 @@ void v_derivative(float Plane_state[],float t,float dydt[])
 				dydt[10] = 0.0f;
 				dydt[11] = 0.0f;
 
-				vehcle.Accel_b[0] =  vehcle.mg_b[0];// for ardupilot update_dynamics
-				vehcle.Accel_b[1] = -vehcle.mg_b[1];
-				vehcle.Accel_b[2] = -vehcle.mg_b[2];
-
-				vehcle.FLG_NR = vehcle.mass*vehcle.g / (1.0 + fabsf(vehcle.FLG_x/vehcle.MLG_x))
+				vehcle.FLG_NR = vehcle.mass*vehcle.g / (1.0 + fabsf(vehcle.FLG_x/vehcle.MLG_x));
 				vehcle.MLG_NR = vehcle.mass*vehcle.g - vehcle.FLG_NR;
+
+				vehcle.total_force_bd[0] = 0;
+				vehcle.total_force_bd[1] = 0;
+				vehcle.total_force_bd[2] = 0;
+				vehcle.total_moment_bd[0] = 0;
+				vehcle.total_moment_bd[1] = 0;
+				vehcle.total_moment_bd[2] = 0;
 
 		break;
 		}
 		case CT_RUNWAY_MOVING:
-		{
+		{		
 			vehcle.plane_on_ground = 0;
-
 			vehcle.MLG_NR = (vehcle.mass*vehcle.g*vehcle.MLG_x + m)/(vehcle.FLG_x + vehcle.MLG_x);
-			
-			
+			vehcle.FLG_NR = vehcle.mass*vehcle.g - vehcle.MLG_NR;
 
+			if (vehcle.MLG_NR < 0.0f && vehcle.FLG_NR < 0.0f)
+			{
+				vehcle.FLG_NR = 0.0f;
+				vehcle.plane_moving_state = IN_AIR;
+			}
+			else if (vehcle.FLG_NR < 0.0f && vehcle.MLG_NR>0.0f)
+			{
+				vehcle.FLG_NR = 0.0f;
+				vehcle.plane_moving_state = CT_RUNWAY_ROTATING;
+			}
 
-			// to be implemented
+			m = 0;//m + vehcle.FLG_NR*vehcle.FLG_x - vehcle.MLG_NR*vehcle.MLG_x;
+
+			dydt[0] = ((fx * mass_inv) + (r * v) - (q * w));//%u_dot//optimization
+			dydt[1] = 0*((fy * mass_inv) + (p * w) - (r * u));//%v_dot
+			dydt[2] = 0*((fz * mass_inv) + (q * u) - (p * v));  //%w_dot
+
+			dydt[3] = 0*((Iyz * Iyz - Iy * Iz) * (l + q * (Ixz * p + Iyz * q - Iz * r) - r * (Ixy * p - Iy * q + Iyz * r)))/(Iz * Ixy * Ixy + 2 * Ixy * Ixz * Iyz + Iy * Ixz * Ixz + Ix * Iyz * Iyz - Ix*Iy*Iz) - ((Ixz*Iy + Ixy*Iyz)*(n + p*(Ixy*p - Iy*q + Iyz*r) - q*(Ixy*q - Ix*p + Ixz*r)))/(Iz*Ixy*Ixy + 2*Ixy*Ixz*Iyz + Iy*Ixz*Ixz + Ix*Iyz*Iyz - Ix*Iy*Iz) - ((Ixz*Iyz + Ixy*Iz)*(m - p*(Ixz*p + Iyz*q - Iz*r) + r*(Ixy*q - Ix*p + Ixz*r)))/(Iz*Ixy*Ixy + 2*Ixy*Ixz*Iyz + Iy*Ixz*Ixz + Ix*Iyz*Iyz - Ix*Iy*Iz);
+			dydt[4] = 0*((Ixz * Ixz - Ix * Iz) * (m - p * (Ixz * p + Iyz * q - Iz * r) + r * (Ixy * q - Ix * p + Ixz * r)))/(Iz * Ixy * Ixy + 2 * Ixy * Ixz * Iyz + Iy * Ixz * Ixz + Ix * Iyz * Iyz - Ix*Iy*Iz) - ((Ixy*Ixz + Ix*Iyz)*(n + p*(Ixy*p - Iy*q + Iyz*r) - q*(Ixy*q - Ix*p + Ixz*r)))/(Iz*Ixy*Ixy + 2*Ixy*Ixz*Iyz + Iy*Ixz*Ixz + Ix*Iyz*Iyz - Ix*Iy*Iz) - ((Ixz*Iyz + Ixy*Iz)*(l + q*(Ixz*p + Iyz*q - Iz*r) - r*(Ixy*p - Iy*q + Iyz*r)))/(Iz*Ixy*Ixy + 2*Ixy*Ixz*Iyz + Iy*Ixz*Ixz + Ix*Iyz*Iyz - Ix*Iy*Iz);
+			dydt[5] = 0*((Ixy * Ixy - Ix * Iy) * (n + p * (Ixy * p - Iy * q + Iyz * r) - q * (Ixy * q - Ix * p + Ixz * r)))/(Iz * Ixy * Ixy + 2 * Ixy * Ixz * Iyz + Iy * Ixz * Ixz + Ix * Iyz * Iyz - Ix*Iy*Iz) - ((Ixy*Ixz + Ix*Iyz)*(m - p*(Ixz*p + Iyz*q - Iz*r) + r*(Ixy*q - Ix*p + Ixz*r)))/(Iz*Ixy*Ixy + 2*Ixy*Ixz*Iyz + Iy*Ixz*Ixz + Ix*Iyz*Iyz - Ix*Iy*Iz) - ((Ixz*Iy + Ixy*Iyz)*(l + q*(Ixz*p + Iyz*q - Iz*r) - r*(Ixy*p - Iy*q + Iyz*r)))/(Iz*Ixy*Ixy + 2*Ixy*Ixz*Iyz + Iy*Ixz*Ixz + Ix*Iyz*Iyz - Ix*Iy*Iz);
+			
+			dydt[6] = 0*(p + (q * sinf(phi) * tanf(theta)) + (r * cosf(phi) * tanf(theta)));//%phi_dot
+			dydt[7] = 0*((q * cosf(phi)) - (r * sinf(phi)));//%theta_dot
+			dydt[8] = 0*((q * sinf(phi) * sec(theta)) + (r * cosf(phi) * sec(theta)));//%psi_dot
+
+			body_to_NED(vehcle.V_b_gnd,  V);
+
+			dydt[9]  = V[0];//%inertial velocity X
+			dydt[10] = V[1];//%inertial velocity Y
+			dydt[11] = V[2];//%inertial velocity Z
+
+			vehcle.total_force_bd[0] = fx;
+			vehcle.total_force_bd[1] = 0;
+			vehcle.total_force_bd[2] = 0;
+			vehcle.total_moment_bd[0] = 0;
+			vehcle.total_moment_bd[1] = m;
+			vehcle.total_moment_bd[2] = 0;
+			
 			break;
 		}
 		case CT_RUNWAY_ROTATING:
 		{
-			// to be implemented
+			vehcle.plane_on_ground = 0;
+
+			float fz_mmg=0,fx_mmg=0;
+			float A=0,B=0,C=0;
+
+			A = vehcle.MLG_x*cosf(theta) - vehcle.MLG_z*sinf(theta);
+			B = vehcle.MLG_x*sinf(theta) + vehcle.MLG_z*cosf(theta);
+
+			C = 1 - (vehcle.mass*A*vehcle.MLG_x)/(Iy);
+			if (fabsf(C)<0.0001)
+			{
+				C=0.0001; // to avoid division by zero
+			}
+
+			vehcle.MLG_NR = (vehcle.mass*vehcle.g + fz_mmg*cosf(theta) - fx_mmg*sinf(theta) +
+							 vehcle.mass*((A*m/Iy) - B*q*q))/(C); 
+			vehcle.FLG_NR = 0;
+
+			if (vehcle.MLG_NR < 0.0f)
+			{
+				vehcle.MLG_NR = 0.0f;
+				vehcle.plane_moving_state = IN_AIR;
+			}
+			else if (vehcle.MLG_NR > 0.0f && vehcle.theta < vehcle.theta_tolerance_for_ground)
+			{
+				vehcle.MLG_NR = 0.0f;
+				vehcle.plane_moving_state = CT_RUNWAY_MOVING;
+			}
+
+			fx = fx + vehcle.MLG_NR*sinf(theta);
+			fz = fz - vehcle.MLG_NR*cosf(theta);
+
+			m = m + vehcle.FLG_NR*vehcle.FLG_x - vehcle.MLG_NR*vehcle.MLG_x;
+
+			dydt[0] = ((fx * mass_inv) + (r * v) - (q * w));//%u_dot//optimization
+			dydt[1] = 0*((fy * mass_inv) + (p * w) - (r * u));//%v_dot
+			dydt[2] = ((fz * mass_inv) + (q * u) - (p * v));  //%w_dot
+
+			dydt[3] = 0*((Iyz * Iyz - Iy * Iz) * (l + q * (Ixz * p + Iyz * q - Iz * r) - r * (Ixy * p - Iy * q + Iyz * r)))/(Iz * Ixy * Ixy + 2 * Ixy * Ixz * Iyz + Iy * Ixz * Ixz + Ix * Iyz * Iyz - Ix*Iy*Iz) - ((Ixz*Iy + Ixy*Iyz)*(n + p*(Ixy*p - Iy*q + Iyz*r) - q*(Ixy*q - Ix*p + Ixz*r)))/(Iz*Ixy*Ixy + 2*Ixy*Ixz*Iyz + Iy*Ixz*Ixz + Ix*Iyz*Iyz - Ix*Iy*Iz) - ((Ixz*Iyz + Ixy*Iz)*(m - p*(Ixz*p + Iyz*q - Iz*r) + r*(Ixy*q - Ix*p + Ixz*r)))/(Iz*Ixy*Ixy + 2*Ixy*Ixz*Iyz + Iy*Ixz*Ixz + Ix*Iyz*Iyz - Ix*Iy*Iz);
+			dydt[4] =  ((Ixz * Ixz - Ix * Iz) * (m - p * (Ixz * p + Iyz * q - Iz * r) + r * (Ixy * q - Ix * p + Ixz * r)))/(Iz * Ixy * Ixy + 2 * Ixy * Ixz * Iyz + Iy * Ixz * Ixz + Ix * Iyz * Iyz - Ix*Iy*Iz) - ((Ixy*Ixz + Ix*Iyz)*(n + p*(Ixy*p - Iy*q + Iyz*r) - q*(Ixy*q - Ix*p + Ixz*r)))/(Iz*Ixy*Ixy + 2*Ixy*Ixz*Iyz + Iy*Ixz*Ixz + Ix*Iyz*Iyz - Ix*Iy*Iz) - ((Ixz*Iyz + Ixy*Iz)*(l + q*(Ixz*p + Iyz*q - Iz*r) - r*(Ixy*p - Iy*q + Iyz*r)))/(Iz*Ixy*Ixy + 2*Ixy*Ixz*Iyz + Iy*Ixz*Ixz + Ix*Iyz*Iyz - Ix*Iy*Iz);
+
+			dydt[5] = 0*((Ixy * Ixy - Ix * Iy) * (n + p * (Ixy * p - Iy * q + Iyz * r) - q * (Ixy * q - Ix * p + Ixz * r)))/(Iz * Ixy * Ixy + 2 * Ixy * Ixz * Iyz + Iy * Ixz * Ixz + Ix * Iyz * Iyz - Ix*Iy*Iz) - ((Ixy*Ixz + Ix*Iyz)*(m - p*(Ixz*p + Iyz*q - Iz*r) + r*(Ixy*q - Ix*p + Ixz*r)))/(Iz*Ixy*Ixy + 2*Ixy*Ixz*Iyz + Iy*Ixz*Ixz + Ix*Iyz*Iyz - Ix*Iy*Iz) - ((Ixz*Iy + Ixy*Iyz)*(l + q*(Ixz*p + Iyz*q - Iz*r) - r*(Ixy*p - Iy*q + Iyz*r)))/(Iz*Ixy*Ixy + 2*Ixy*Ixz*Iyz + Iy*Ixz*Ixz + Ix*Iyz*Iyz - Ix*Iy*Iz);
+			
+			dydt[6] = 0*(p + (q * sinf(phi) * tanf(theta)) + (r * cosf(phi) * tanf(theta)));//%phi_dot
+			dydt[7] = ((q * cosf(phi)) - (r * sinf(phi)));//%theta_dot
+			dydt[8] = 0*((q * sinf(phi) * sec(theta)) + (r * cosf(phi) * sec(theta)));//%psi_dot
+
+			body_to_NED(vehcle.V_b_gnd,  V);
+
+			dydt[9]  = V[0];//%inertial velocity X
+			dydt[10] = V[1];//%inertial velocity Y
+			dydt[11] = V[2];//%inertial velocity Z
+
+			vehcle.total_force_bd[0] = fx;
+			vehcle.total_force_bd[1] = 0;
+			vehcle.total_force_bd[2] = fz;
+			vehcle.total_moment_bd[0] = 0;
+			vehcle.total_moment_bd[1] = m;
+			vehcle.total_moment_bd[2] = 0;
+
 			break;	
 		}
 		case IN_AIR:
 		{
-			// normal in air condition
+			vehcle.plane_on_ground = 0;
+
+			vehcle.MLG_NR = 0;
+			vehcle.FLG_NR = 0;
+
+			m = m + vehcle.FLG_NR*vehcle.FLG_x - vehcle.MLG_NR*vehcle.MLG_x;
+
+			if (vehcle.alt_agl < vehcle.altitude_tolerance_for_ground && vehcle.theta < vehcle.theta_tolerance_for_ground)
+			{
+				vehcle.plane_moving_state = CT_RUNWAY_MOVING;
+			}
+			else if (vehcle.alt_agl < vehcle.altitude_tolerance_for_ground)
+			{
+				vehcle.plane_moving_state = CT_RUNWAY_ROTATING;
+			}
+
+			dydt[0] = ((fx * mass_inv) + (r * v) - (q * w));//%u_dot//optimization
+			dydt[1] = ((fy * mass_inv) + (p * w) - (r * u));//%v_dot
+			dydt[2] = ((fz * mass_inv) + (q * u) - (p * v));  //%w_dot
+
+			dydt[3] = ((Iyz * Iyz - Iy * Iz) * (l + q * (Ixz * p + Iyz * q - Iz * r) - r * (Ixy * p - Iy * q + Iyz * r)))/(Iz * Ixy * Ixy + 2 * Ixy * Ixz * Iyz + Iy * Ixz * Ixz + Ix * Iyz * Iyz - Ix*Iy*Iz) - ((Ixz*Iy + Ixy*Iyz)*(n + p*(Ixy*p - Iy*q + Iyz*r) - q*(Ixy*q - Ix*p + Ixz*r)))/(Iz*Ixy*Ixy + 2*Ixy*Ixz*Iyz + Iy*Ixz*Ixz + Ix*Iyz*Iyz - Ix*Iy*Iz) - ((Ixz*Iyz + Ixy*Iz)*(m - p*(Ixz*p + Iyz*q - Iz*r) + r*(Ixy*q - Ix*p + Ixz*r)))/(Iz*Ixy*Ixy + 2*Ixy*Ixz*Iyz + Iy*Ixz*Ixz + Ix*Iyz*Iyz - Ix*Iy*Iz);
+			dydt[4] = ((Ixz * Ixz - Ix * Iz) * (m - p * (Ixz * p + Iyz * q - Iz * r) + r * (Ixy * q - Ix * p + Ixz * r)))/(Iz * Ixy * Ixy + 2 * Ixy * Ixz * Iyz + Iy * Ixz * Ixz + Ix * Iyz * Iyz - Ix*Iy*Iz) - ((Ixy*Ixz + Ix*Iyz)*(n + p*(Ixy*p - Iy*q + Iyz*r) - q*(Ixy*q - Ix*p + Ixz*r)))/(Iz*Ixy*Ixy + 2*Ixy*Ixz*Iyz + Iy*Ixz*Ixz + Ix*Iyz*Iyz - Ix*Iy*Iz) - ((Ixz*Iyz + Ixy*Iz)*(l + q*(Ixz*p + Iyz*q - Iz*r) - r*(Ixy*p - Iy*q + Iyz*r)))/(Iz*Ixy*Ixy + 2*Ixy*Ixz*Iyz + Iy*Ixz*Ixz + Ix*Iyz*Iyz - Ix*Iy*Iz);
+
+			dydt[5] = ((Ixy * Ixy - Ix * Iy) * (n + p * (Ixy * p - Iy * q + Iyz * r) - q * (Ixy * q - Ix * p + Ixz * r)))/(Iz * Ixy * Ixy + 2 * Ixy * Ixz * Iyz + Iy * Ixz * Ixz + Ix * Iyz * Iyz - Ix*Iy*Iz) - ((Ixy*Ixz + Ix*Iyz)*(m - p*(Ixz*p + Iyz*q - Iz*r) + r*(Ixy*q - Ix*p + Ixz*r)))/(Iz*Ixy*Ixy + 2*Ixy*Ixz*Iyz + Iy*Ixz*Ixz + Ix*Iyz*Iyz - Ix*Iy*Iz) - ((Ixz*Iy + Ixy*Iyz)*(l + q*(Ixz*p + Iyz*q - Iz*r) - r*(Ixy*p - Iy*q + Iyz*r)))/(Iz*Ixy*Ixy + 2*Ixy*Ixz*Iyz + Iy*Ixz*Ixz + Ix*Iyz*Iyz - Ix*Iy*Iz);
+			
+			dydt[6] = (p + (q * sinf(phi) * tanf(theta)) + (r * cosf(phi) * tanf(theta)));//%phi_dot
+			dydt[7] = ((q * cosf(phi)) - (r * sinf(phi)));//%theta_dot
+			dydt[8] = ((q * sinf(phi) * sec(theta)) + (r * cosf(phi) * sec(theta)));//%psi_dot
+
+			body_to_NED(vehcle.V_b_gnd,  V);
+
+			dydt[9]  = V[0];//%inertial velocity X
+			dydt[10] = V[1];//%inertial velocity Y
+			dydt[11] = V[2];//%inertial velocity Z
+
+			vehcle.total_force_bd[0] = fx;
+			vehcle.total_force_bd[1] = fy;
+			vehcle.total_force_bd[2] = fz;
+			vehcle.total_moment_bd[0] = l;
+			vehcle.total_moment_bd[1] = m;
+			vehcle.total_moment_bd[2] = n;
 			break;	
 		}
 		default:
@@ -132,34 +265,6 @@ void v_derivative(float Plane_state[],float t,float dydt[])
 			// normal in air condition
 			break;		
 		}
-
-
 	}
-	dydt[0] = ((fx * mass_inv) + (r * v) - (q * w));//%u_dot//optimization
-	dydt[1] = ((fy * mass_inv) + (p * w) - (r * u));//%v_dot
-	dydt[2] = ((fz * mass_inv) + (q * u) - (p * v));  //%w_dot
-
-	//	dydt[3] = ((c1*p*q) - (c2*q*r) + (c3*l) + (c4*n));  //%p_dot   % valid for Plane symmetric abt xz plane, i.e Iyz=0, Ixy=0;
-	//	dydt[4] = (c5*p*r) - (c6*((p*p)-(r*r)))  + (m/Iy);  //%q_dot
-	//  dydt[5] = ((c7*p*q) - (c1*q*r) + (c4*l) + (c8*n));  //%r_dot
-
-	dydt[3] = ((Iyz * Iyz - Iy * Iz) * (l + q * (Ixz * p + Iyz * q - Iz * r) - r * (Ixy * p - Iy * q + Iyz * r)))/(Iz * Ixy * Ixy + 2 * Ixy * Ixz * Iyz + Iy * Ixz * Ixz + Ix * Iyz * Iyz - Ix*Iy*Iz) - ((Ixz*Iy + Ixy*Iyz)*(n + p*(Ixy*p - Iy*q + Iyz*r) - q*(Ixy*q - Ix*p + Ixz*r)))/(Iz*Ixy*Ixy + 2*Ixy*Ixz*Iyz + Iy*Ixz*Ixz + Ix*Iyz*Iyz - Ix*Iy*Iz) - ((Ixz*Iyz + Ixy*Iz)*(m - p*(Ixz*p + Iyz*q - Iz*r) + r*(Ixy*q - Ix*p + Ixz*r)))/(Iz*Ixy*Ixy + 2*Ixy*Ixz*Iyz + Iy*Ixz*Ixz + Ix*Iyz*Iyz - Ix*Iy*Iz);
-	dydt[4] = ((Ixz * Ixz - Ix * Iz) * (m - p * (Ixz * p + Iyz * q - Iz * r) + r * (Ixy * q - Ix * p + Ixz * r)))/(Iz * Ixy * Ixy + 2 * Ixy * Ixz * Iyz + Iy * Ixz * Ixz + Ix * Iyz * Iyz - Ix*Iy*Iz) - ((Ixy*Ixz + Ix*Iyz)*(n + p*(Ixy*p - Iy*q + Iyz*r) - q*(Ixy*q - Ix*p + Ixz*r)))/(Iz*Ixy*Ixy + 2*Ixy*Ixz*Iyz + Iy*Ixz*Ixz + Ix*Iyz*Iyz - Ix*Iy*Iz) - ((Ixz*Iyz + Ixy*Iz)*(l + q*(Ixz*p + Iyz*q - Iz*r) - r*(Ixy*p - Iy*q + Iyz*r)))/(Iz*Ixy*Ixy + 2*Ixy*Ixz*Iyz + Iy*Ixz*Ixz + Ix*Iyz*Iyz - Ix*Iy*Iz);
-	dydt[5] = ((Ixy * Ixy - Ix * Iy) * (n + p * (Ixy * p - Iy * q + Iyz * r) - q * (Ixy * q - Ix * p + Ixz * r)))/(Iz * Ixy * Ixy + 2 * Ixy * Ixz * Iyz + Iy * Ixz * Ixz + Ix * Iyz * Iyz - Ix*Iy*Iz) - ((Ixy*Ixz + Ix*Iyz)*(m - p*(Ixz*p + Iyz*q - Iz*r) + r*(Ixy*q - Ix*p + Ixz*r)))/(Iz*Ixy*Ixy + 2*Ixy*Ixz*Iyz + Iy*Ixz*Ixz + Ix*Iyz*Iyz - Ix*Iy*Iz) - ((Ixz*Iy + Ixy*Iyz)*(l + q*(Ixz*p + Iyz*q - Iz*r) - r*(Ixy*p - Iy*q + Iyz*r)))/(Iz*Ixy*Ixy + 2*Ixy*Ixz*Iyz + Iy*Ixz*Ixz + Ix*Iyz*Iyz - Ix*Iy*Iz);
-
-	dydt[6] = (p + (q * sinf(phi) * tanf(theta)) + (r * cosf(phi) * tanf(theta)));//%phi_dot
-	dydt[7] = (q * cosf(phi)) - (r * sinf(phi));//%theta_dot
-	dydt[8] = ((q * sinf(phi) * sec(theta)) + (r * cosf(phi) * sec(theta)));//%psi_dot
-
-	body_to_NED(vehcle.V_b_gnd,  V);
-
-	dydt[9]  = V[0];//%inertial velocity X
-	dydt[10] = V[1];//%inertial velocity Y
-	dydt[11] = V[2];//%inertial velocity Z
-
-	vehcle.Accel_b[0] = fx - vehcle.mg_b[0];// for ardupilot update_dynamics
-	vehcle.Accel_b[1] = fy - vehcle.mg_b[1];
-	vehcle.Accel_b[2] = fz - vehcle.mg_b[2];
-
 }
 

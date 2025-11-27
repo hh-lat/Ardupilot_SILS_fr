@@ -66,7 +66,6 @@ void v_update_vehcle_state_from_ardu_ekf()
 
 void v_lat_fdm_run(const struct sitl_input &input)
 {
-    float t_step = 0.001;
     static float t=0;
     float plane_state[12]={0};
 
@@ -76,13 +75,51 @@ void v_lat_fdm_run(const struct sitl_input &input)
 	plane_state[8] = vehcle.psi;
 
     v_ardu_input_to_lat_input(input); // fills servo_channels from ardupilot to control surface and motor pwms
-    v_servo_dynamics(t_step); // converts servopwm to angles and applies rate limits
-	v_rotor_esc_dynamics(t_step); // converts motor pwm to throttle with rate limiting
-    v_rk4(plane_state, t, t_step);
+    v_servo_dynamics(vehcle.step_dt); // converts servopwm to angles and applies rate limits
+	v_rotor_esc_dynamics(vehcle.step_dt); // converts motor pwm to throttle with rate limiting
+    v_rk4(plane_state, t, vehcle.step_dt);
 
-	vehcle.p = plane_state[3];
-	vehcle.q = plane_state[4];
-	vehcle.r = plane_state[5];
+
+    // For Ardupilot
+	switch (vehcle.plane_moving_state)
+	{
+		case STATIONARY:
+		{
+			vehcle.Accel_b[0]= vehcle.total_force_bd[0] -vehcle.mg_b[0];
+			vehcle.Accel_b[1]= vehcle.total_force_bd[1] -vehcle.mg_b[1];
+			vehcle.Accel_b[2]= vehcle.total_force_bd[2] -vehcle.mg_b[2];
+
+			vehcle.p = 0;
+			vehcle.q = 0;	
+			vehcle.r = 0;		
+			break;
+		}
+
+		case CT_RUNWAY_MOVING:
+		case CT_RUNWAY_ROTATING:
+		{
+			vehcle.Accel_b[0]= vehcle.total_force_bd[0] -vehcle.mg_b[0];
+			vehcle.Accel_b[1]= vehcle.total_force_bd[1] -vehcle.mg_b[1];
+			vehcle.Accel_b[2]= vehcle.total_force_bd[2] -vehcle.mg_b[2];
+
+			vehcle.p = plane_state[3];
+			vehcle.q = plane_state[4];
+			vehcle.r = 0.5*vehcle.rho*powf(vehcle.tas-vehcle.aero_zero_speed,2)*(vehcle.delta_r*vehcle.ground_yaw_gain);
+			break;	
+		}
+
+		case IN_AIR:
+		{
+			vehcle.Accel_b[0]= vehcle.total_force_bd[0] -vehcle.mg_b[0];
+			vehcle.Accel_b[1]= vehcle.total_force_bd[1] -vehcle.mg_b[1];
+			vehcle.Accel_b[2]= vehcle.total_force_bd[2] -vehcle.mg_b[2];
+
+			vehcle.p = plane_state[3];
+			vehcle.q = plane_state[4];
+			vehcle.r = plane_state[5];
+			break;	
+		}
+	}
 }
 
 
@@ -199,6 +236,17 @@ void v_plane_param_define_equinox()
 
 	v_set_servo_params(1100,1900,-30*D2R,30*D2R, 10.0, 0.7, -360*D2R, 360*D2R, -720*D2R, 720*D2R, NOSE_LG_SERVO);
 	
+	vehcle.ground_yaw_gain = 0.05; 
+	vehcle.cg_x = 1070.0/1000.0; // from nose center, put positve number
+	vehcle.cg_z = 43.0/1000.0;// from nose center, 43 mm above  nose center
+	vehcle.MLG_x = fabsf( (1319.2/1000.0) - vehcle.cg_x); // put all positive
+	vehcle.MLG_z = fabsf(319.6/1000.0 + vehcle.cg_z); // put all positive
+	vehcle.FLG_x = fabsf((339.2/1000.0) - vehcle.cg_x);
+	vehcle.FLG_z = vehcle.MLG_z;
+    vehcle.delta_r_deadzone = 3.0*D2R; // 5 degree deadzone for rudder on ground
+	vehcle.theta_tolerance_for_ground = -1.0*D2R; // pitch angle below which plane is shifted to runway moving state
+	vehcle.altitude_tolerance_for_ground = -0.1; // altitude below which plane is considered on ground
+
 	vehcle.aero_zero_speed = 5.0; // m/s
     vehcle.mass = 65.0 ;
 	vehcle.g = 9.81; 

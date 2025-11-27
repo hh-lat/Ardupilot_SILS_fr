@@ -233,7 +233,6 @@ typedef struct
 	float Cn_p;
 	float Cn_r;
 
-
 	float mlgL_x;
 	float mlgL_y;
 	float mlgL_z;
@@ -244,8 +243,22 @@ typedef struct
 	float nlg_y;
 	float nlg_z;
 
+	float cg_x;
+	float cg_y;
+	float cg_z;
+	float ground_yaw_gain;
+	float MLG_x;
+	float MLG_z;
+	float FLG_x;
+	float FLG_z;
+	float MLG_NR;
+	float FLG_NR;
+	float delta_r_deadzone;
 
-	float g ;
+	float total_force_bd[3] = {0, 0, 0};
+	float total_moment_bd[3] = {0, 0, 0};
+
+	float g;
 	float lift_stall_M;
 
 	int plane_on_ground;
@@ -253,6 +266,10 @@ typedef struct
 
 	float aero_zero_speed;
 	float CL_alpha_tot;
+	float theta_tolerance_for_ground;
+	float altitude_tolerance_for_ground;
+	float step_dt;
+
 	struct_enum_plane_model plane_model;
 	enum_plane_moving_state plane_moving_state;
 	
