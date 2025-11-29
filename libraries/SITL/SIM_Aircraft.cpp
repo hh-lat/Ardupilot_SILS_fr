@@ -34,6 +34,7 @@
 #include <AP_AHRS/AP_AHRS.h>
 #include <AP_HAL_SITL/HAL_SITL_Class.h>
 #include <AP_Vehicle/AP_Vehicle_Type.h>
+#include "LAT_SIM_Runner.h"
 
 using namespace SITL;
 
@@ -713,6 +714,8 @@ void Aircraft::update_dynamics(const Vector3f &rot_accel)
 
     const float delta_time = frame_time_us * 1.0e-6f;
 
+    vehcle.step_dt = delta_time;
+
     // update eas2tas and air density
     eas2tas = AP_Baro::get_EAS2TAS_for_alt_amsl(location.alt*0.01);
     air_density = AP_Baro::get_air_density_for_alt_amsl(location.alt*0.01);
@@ -724,6 +727,9 @@ void Aircraft::update_dynamics(const Vector3f &rot_accel)
     gyro.y = constrain_float(gyro.y, -radians(2000.0f), radians(2000.0f));
     gyro.z = constrain_float(gyro.z, -radians(2000.0f), radians(2000.0f));
 
+    vehcle.p = gyro.x;
+    vehcle.q = gyro.y;
+    vehcle.r = gyro.z;
     // limit body accel to 64G
     const float accel_limit = 64*GRAVITY_MSS;
     accel_body.x = constrain_float(accel_body.x, -accel_limit, accel_limit);
@@ -734,6 +740,8 @@ void Aircraft::update_dynamics(const Vector3f &rot_accel)
     dcm.rotate(gyro * delta_time);
     dcm.normalize();
 
+    dcm.to_euler(&vehcle.phi, &vehcle.theta, &vehcle.psi);
+		
     Vector3f accel_earth = dcm *  accel_body  ;
     accel_earth += Vector3f(0.0f, 0.0f, GRAVITY_MSS);
 
@@ -759,6 +767,11 @@ void Aircraft::update_dynamics(const Vector3f &rot_accel)
 
     // velocity relative to airmass in body frame
     velocity_air_bf = dcm.transposed() * velocity_air_ef;
+
+	vehcle.V_b_tas[0] = velocity_air_bf.x;
+	vehcle.V_b_tas[1] = velocity_air_bf.y;
+	vehcle.V_b_tas[2] = velocity_air_bf.z;
+
 
     // airspeed
     update_eas_airspeed();

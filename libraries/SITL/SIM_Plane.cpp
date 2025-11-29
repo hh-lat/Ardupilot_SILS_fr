@@ -337,7 +337,12 @@ Vector3f Plane::getTorque(float inputAileron, float inputElevator, float inputRu
 		la = qbar*b*(c_l_0 + c_l_b*beta + c_l_p*b*p/(2*effective_airspeed) + c_l_r*b*r/(2*effective_airspeed) + c_l_deltaa*inputAileron + c_l_deltar*inputRudder);
 		ma = qbar*c*(c_m_0 + c_m_a*alpha + c_m_q*c*q/(2*effective_airspeed) + c_m_deltae*inputElevator);
 		na = qbar*b*(c_n_0 + c_n_b*beta + c_n_p*b*p/(2*effective_airspeed) + c_n_r*b*r/(2*effective_airspeed) + c_n_deltaa*inputAileron + c_n_deltar*inputRudder);
-	}
+        
+        // la = vehcle.all_aero_moment[0];// LAT
+        // ma = vehcle.all_aero_moment[1];
+        // na = vehcle.all_aero_moment[2];
+    
+    }
 
 
 	// Add torque to force misalignment with CG
@@ -372,6 +377,9 @@ Vector3f Plane::getForce(float inputAileron, float inputElevator, float inputRud
 	//request lift and drag alpha-coefficients from the corresponding functions
 	double c_lift_a = liftCoeff(alpha);
 	double c_drag_a = dragCoeff(alpha);
+
+    // c_lift_a = vehcle.CL; // LAT
+    // c_drag_a = vehcle.CD;
 
 	//convert coefficients to the body frame
 	double c_x_a = -c_drag_a*cos(alpha)+c_lift_a*sin(alpha);
@@ -490,6 +498,8 @@ void Plane::calculate_forces(const struct sitl_input &input, Vector3f &rot_accel
         elevator *= 4;
         rudder *= 4;
     }
+
+    thrust = vehcle.all_rotors_force[0];
     
     Vector3f force = getForce(aileron, elevator, rudder);
     rot_accel = getTorque(aileron, elevator, rudder, thrust, force);
@@ -543,10 +553,31 @@ void Plane::update(const struct sitl_input &input)
     Vector3f rot_accel;
     static int lat_fdm_init =0;
 
+    static bool flag_arm_first_time = true;
+
+    bool is_armed = AP_HAL::get_HAL().util->get_soft_armed();
+    
     update_wind(input);
+
 
     if (1)
     {
+        if (is_armed == false)
+        {
+            vehcle.plane_moving_state = STATIONARY;
+            vehcle.plane_on_ground = 1;
+            flag_arm_first_time = true;
+        }
+
+        if (is_armed == true && flag_arm_first_time == true )
+        {
+            vehcle.plane_moving_state = CT_RUNWAY_MOVING;
+            vehcle.plane_on_ground = 1;
+            flag_arm_first_time = false;
+        }
+
+
+
         if (lat_fdm_init ==0)
         {
             v_lat_fdm_init(); // initialises fdm for Equinox
@@ -556,34 +587,52 @@ void Plane::update(const struct sitl_input &input)
         
         v_lat_fdm_run(input);
 
-        float p[3];
-        p[0] = vehcle.Accel_b[0];
-        p[1] = vehcle.Accel_b[1];
-        p[2] = vehcle.Accel_b[2];
-        v_update_accel_body(&p[0]);
+        // float p[3];
+        // p[0] = vehcle.Accel_b[0];
+        // p[1] = vehcle.Accel_b[1];
+        // p[2] = vehcle.Accel_b[2];
+        // v_update_accel_body(&p[0]);
 
-        rot_accel.x = vehcle.p;
-        rot_accel.y = vehcle.q;
-        rot_accel.z = vehcle.r;
+        // rot_accel.x = vehcle.p_dot;
+        // rot_accel.y = vehcle.q_dot;
+        // rot_accel.z = vehcle.r_dot;
+        // update_dynamics(rot_accel);
+
+
+        calculate_forces(input, rot_accel);
         update_dynamics(rot_accel);
+            /*
+      add in ground steering, this should be replaced with a proper
+      calculation of a nose wheel effect
+    */
+        if (have_steering && on_ground()) {
+            const float steering = filtered_servo_angle(input, 4);
+            const Vector3f velocity_bf = dcm.transposed() * velocity_ef;
+            const float steer_scale = radians(5);
+            gyro.z += steering * velocity_bf.x * steer_scale;
+        }
+
+
     }
     else
     {        
         calculate_forces(input, rot_accel);
         update_dynamics(rot_accel);
-    }
-
-
-    /*
+            /*
       add in ground steering, this should be replaced with a proper
       calculation of a nose wheel effect
     */
-    if (have_steering && on_ground()) {
-        const float steering = filtered_servo_angle(input, 4);
-        const Vector3f velocity_bf = dcm.transposed() * velocity_ef;
-        const float steer_scale = radians(5);
-        gyro.z += steering * velocity_bf.x * steer_scale;
+        if (have_steering && on_ground()) {
+            const float steering = filtered_servo_angle(input, 4);
+            const Vector3f velocity_bf = dcm.transposed() * velocity_ef;
+            const float steer_scale = radians(5);
+            gyro.z += steering * velocity_bf.x * steer_scale;
+        }
+        
     }
+
+
+
 
     update_external_payload(input);
 

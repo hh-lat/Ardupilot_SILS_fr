@@ -24,8 +24,8 @@ void v_calculate_lift_force()
 		case PLANE_ARDU_DEFAULT:
 		{
 			//linear lift model
-			vehcle.all_lift_force = vehcle.Q*vehcle.s*(vehcle.CL_0 + vehcle.CL_alpha*vehcle.alpha + vehcle.CL_delta_e*vehcle.delta_e) +
-					(0.5*vehcle.rho*vehcle.tas)*vehcle.CL_q*vehcle.q*vehcle.c/2.0f ;
+			vehcle.CL = vehcle.CL_0 + vehcle.CL_alpha*vehcle.alpha + vehcle.CL_delta_e*vehcle.delta_e +
+					vehcle.CL_q*vehcle.q*vehcle.c/(2.0f*vehcle.tas);
 
 			// Stall lift model
 			float sigma = 0.0f;
@@ -40,7 +40,7 @@ void v_calculate_lift_force()
 					((1 + powf(2.7182,-M*(vehcle.alpha-alpha_stall)))*(1 + powf(2.7182,M*(vehcle.alpha+alpha_stall))));
 			sigma = constrain_float1(sigma, 0, 1);
 
-			vehcle.all_lift_force = vehcle.all_lift_force + vehcle.Q*vehcle.s*((1-sigma)*(vehcle.CL_0 + vehcle.CL_alpha*vehcle.alpha) +
+			vehcle.all_lift_force = vehcle.Q*vehcle.s*( (1-sigma)*(vehcle.CL) +
 					sigma*(2.0f*sign_1(vehcle.alpha)*sinf(vehcle.alpha)*sinf(vehcle.alpha)*cosf(vehcle.alpha)));
 		break;
 		}
@@ -112,14 +112,17 @@ void v_calculate_drag_force()
 			if (0)
 			{
 				//linear drag model
-				vehcle.all_drag_force = vehcle.Q*vehcle.s*(vehcle.CD_0 + vehcle.CD_alpha*fabsf(vehcle.alpha)
-					+ vehcle.CD_delta_e*fabsf(vehcle.delta_e) + vehcle.CD_delta_f*vehcle.delta_f) +
-					(0.5*vehcle.rho*vehcle.tas)*vehcle.CD_q*vehcle.q*vehcle.c/2.0f;
+				vehcle.CD = vehcle.CD_0 + vehcle.CD_alpha*fabsf(vehcle.alpha)
+					+ vehcle.CD_delta_e*fabsf(vehcle.delta_e) + vehcle.CD_delta_f*vehcle.delta_f +
+					vehcle.CD_q*vehcle.q*vehcle.c/(2.0f*vehcle.tas);
+
+				vehcle.all_drag_force = vehcle.Q*vehcle.s*(vehcle.CD);
 			}
 			else
 			{
+				vehcle.CD = vehcle.CD_0 + ((vehcle.CL*vehcle.CL)/(pi * vehcle.AR * vehcle.e)) ;
 				//drag due to lift
-				vehcle.all_drag_force =  vehcle.Q*vehcle.s*(vehcle.CD_0 + ((vehcle.CL*vehcle.CL)/(pi * vehcle.AR * vehcle.e)) );
+				vehcle.all_drag_force =  vehcle.Q*vehcle.s*(vehcle.CD);
 			}
 
 		break;
@@ -127,12 +130,12 @@ void v_calculate_drag_force()
 
 		case PLANE_EQX:
 		{
-		float Cmu_S=0;
-		Cmu_S  = vehcle.Cmu * vehcle.c / vehcle.s;
-			vehcle.CD = vehcle.CD_0 - 0.9*Cmu_S + (2.5*vehcle.CL*vehcle.CL / (pi * vehcle.AR * vehcle.e + 2.0*Cmu_S))
-			+ vehcle.CD_delta_f * vehcle.delta_f + vehcle.CD_delta_e*vehcle.delta_e + vehcle.CD_delta_e2 * vehcle.delta_e*vehcle.delta_e;
-		
-		vehcle.all_drag_force = vehcle.Q*vehcle.s*vehcle.CD;
+			float Cmu_S=0;
+			Cmu_S  = vehcle.Cmu * vehcle.c / vehcle.s;
+				vehcle.CD = vehcle.CD_0 - 0.9*Cmu_S + (2.5*vehcle.CL*vehcle.CL / (pi * vehcle.AR * vehcle.e + 2.0*Cmu_S))
+				+ vehcle.CD_delta_f * vehcle.delta_f + vehcle.CD_delta_e*vehcle.delta_e + vehcle.CD_delta_e2 * vehcle.delta_e*vehcle.delta_e;
+			
+			vehcle.all_drag_force = vehcle.Q*vehcle.s*vehcle.CD;
 			break;
 		}
 
@@ -155,8 +158,11 @@ void v_calculate_side_force()
 	{
 		case PLANE_ARDU_DEFAULT:
 		{
-				vehcle.all_side_force = vehcle.Q*vehcle.s*(vehcle.CY_0 + vehcle.CY_beta*vehcle.beta + vehcle.CY_delta_r*vehcle.delta_r + vehcle.CY_delta_a*vehcle.delta_a) +
-					(0.5*vehcle.rho*vehcle.tas)*vehcle.CY_r*vehcle.r*vehcle.b/2.0f + (0.5*vehcle.rho*vehcle.tas)*vehcle.CY_p*vehcle.p*vehcle.b/2.0f;
+			vehcle.CY = vehcle.CY_0 + vehcle.CY_beta*vehcle.beta + vehcle.CY_delta_r*vehcle.delta_r + vehcle.CY_delta_a*vehcle.delta_a +
+					 vehcle.CY_p*vehcle.p*vehcle.b/(2.0f*vehcle.tas) +
+					 vehcle.CY_r*vehcle.r*vehcle.b/(2.0f*vehcle.tas);
+
+			vehcle.all_side_force = vehcle.Q*vehcle.s*(vehcle.CY);
 		break;
 		}
 
@@ -218,8 +224,10 @@ void v_calculate_aero_roll_moment()
 	{
 		case PLANE_ARDU_DEFAULT:
 		{
-			vehcle.all_aero_moment[0] = vehcle.Q*vehcle.s*(vehcle.Cl_0 + vehcle.Cl_beta*vehcle.beta + vehcle.Cl_delta_r*vehcle.delta_r + vehcle.Cl_delta_a*vehcle.delta_a) +
-					(0.5*vehcle.rho*vehcle.tas)*vehcle.Cl_r*vehcle.r*vehcle.b/2.0f + (0.5*vehcle.rho*vehcle.tas)*vehcle.Cl_p*vehcle.p*vehcle.b/2.0f;
+			vehcle.Cl = vehcle.Cl_0 + vehcle.Cl_beta*vehcle.beta + vehcle.Cl_delta_r*vehcle.delta_r + vehcle.Cl_delta_a*vehcle.delta_a +
+					 vehcle.Cl_p*vehcle.p*vehcle.b/(2.0f*vehcle.tas) +
+					 vehcle.Cl_r*vehcle.r*vehcle.b/(2.0f*vehcle.tas);
+			vehcle.all_aero_moment[0] = vehcle.Q*vehcle.s*(vehcle.Cl);
 		break;
 		}
 
@@ -261,9 +269,9 @@ void v_calculate_aero_pitch_moment()
 	{
 		case PLANE_ARDU_DEFAULT:
 		{
-
-				vehcle.all_aero_moment[1] = vehcle.Q*vehcle.s*(vehcle.Cm_0 + vehcle.Cm_alpha*vehcle.alpha + vehcle.Cm_delta_e*vehcle.delta_e) +
-				(0.5*vehcle.rho*vehcle.tas)*vehcle.Cm_q*vehcle.q*vehcle.c/2.0f;
+			vehcle.Cm = vehcle.Cm_0 + vehcle.Cm_alpha*vehcle.alpha + vehcle.Cm_delta_e*vehcle.delta_e +
+					 vehcle.Cm_q*vehcle.q*vehcle.c/(2.0f*vehcle.tas);
+			vehcle.all_aero_moment[1] = vehcle.Q*vehcle.s*(vehcle.Cm);
 			break;
 		}
 
@@ -328,9 +336,10 @@ void v_calculate_aero_yaw_moment()
 	{
 		case PLANE_ARDU_DEFAULT:
 		{
-			vehcle.all_aero_moment[2] = vehcle.Q*vehcle.s*(vehcle.Cn_0 + vehcle.Cn_beta*vehcle.beta + vehcle.Cn_delta_r*vehcle.delta_r + vehcle.Cn_delta_a*vehcle.delta_a) +
-					(0.5*vehcle.rho*vehcle.tas)*vehcle.Cn_r*vehcle.r*vehcle.b/2.0f + (0.5*vehcle.rho*vehcle.tas)*vehcle.Cn_p*vehcle.p*vehcle.b/2.0f ;
-		
+			vehcle.Cn = vehcle.Cn_0 + vehcle.Cn_beta*vehcle.beta + vehcle.Cn_delta_r*vehcle.delta_r + vehcle.Cn_delta_a*vehcle.delta_a +
+					 vehcle.Cn_p*vehcle.p*vehcle.b/(2.0f*vehcle.tas) +
+					 vehcle.Cn_r*vehcle.r*vehcle.b/(2.0f*vehcle.tas);
+			vehcle.all_aero_moment[2] = vehcle.Q*vehcle.s*(vehcle.Cn);
 			break;
 		}
 
@@ -381,10 +390,16 @@ void v_aero_force_and_moments()
 {
 	float temp3X1_1[3]={0.0};
 
+	if (vehcle.tas>11.1)
+	{
+		vehcle.aero_zero_speed = 5.0;
+	}
+
 	v_calculate_drag_force();
 	temp3X1_1[0] = -vehcle.all_drag_force;
 	temp3X1_1[1] = 0.0;
 	temp3X1_1[2] = 0.0;
+
 	windframe_to_body(temp3X1_1, vehcle.D_b); // need to do stability frame to body conversion here, refer randal Beard pg 16
 
 	v_calculate_lift_force();

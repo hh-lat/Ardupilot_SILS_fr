@@ -33,6 +33,7 @@ void v_rk4(float y[],float t,float h)
 
 	v_derivative(y, t, k1);// supply y to get k1
 
+	return;
 
 	for(i = 0; i < NUM_STATEVARS; i++)
 	{

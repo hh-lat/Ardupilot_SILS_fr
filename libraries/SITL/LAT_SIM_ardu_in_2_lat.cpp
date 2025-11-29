@@ -37,6 +37,8 @@ void  v_ardu_input_to_lat_input(struct sitl_input input)
             s_servo[AILERON_LEFT].pwm_in    = input.servos[9]; // aileron left
             s_servo[AILERON_RIGHT].pwm_in   = input.servos[10]; // aileron right
 
+            s_servo[AILERON_COMMON].pwm_in  = s_servo[AILERON_RIGHT].pwm_in; // aileron common
+
             s_servo[ELEVATOR_COMMON].pwm_in = input.servos[12]; //elevator common
             s_servo[RUDDER_COMMON].pwm_in   = input.servos[5]; //Rudder common
             s_servo[FLAP].pwm_in            = input.servos[11]; //rudder common

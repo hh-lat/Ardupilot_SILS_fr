@@ -78,26 +78,27 @@ typedef enum
 	DOF_VERTICAL_MOTION = 9,
 }struct_enum_dof;
 
+
+#pragma pack(1)
 typedef struct
 {
-	float V_b_gnd[3];
-	float V_ned_gnd[3];
-	float V_ned_tas[3];
-	float V_b_tas[3];
+	float V_b_gnd[3] = {0, 0, 0};
+	float V_ned_gnd[3] = {0, 0, 0};
+	float V_ned_tas[3] = {0, 0, 0};
+	float V_b_tas[3] = {0, 0, 0};
 
-	float Accel_b[3];
-	float Accel_ned[3];
+	float Accel_b[3] = {0, 0, 0};
+	float Accel_ned[3] = {0, 0, 0};
 
-	float Accel_b_gs[3];
-	float Accel_ned_gs[3];
-
+	float Accel_b_gs[3] = {0, 0, 0};
+	float Accel_ned_gs[3] = {0, 0, 0};
 
 	float lat;
 	float lon;
 	float alt_msl;
 	float alt_agl;
 
-	float pos_ned[3];
+	float pos_ned[3]={0,0,0};
 
 
 	float phi;
@@ -110,7 +111,7 @@ typedef struct
 	float beta;
 	float gamma;
 
-	float wind_ned[3];
+	float wind_ned[3] = {0.0, 0.0, 0.0};
 
 	float CL,CD,CY,Cl,Cm,Cn;
 	float p, q, r;
@@ -135,10 +136,13 @@ typedef struct
 	float all_lift_force;
 	float all_side_force;
 	float all_drag_force;
-	float L_b[3],D_b[3],mg_b[3];
 
-	float all_aero_force[3], all_aero_moment[3], all_payload_moment[3];
-	float all_rotors_force[3], all_rotors_moment[3],all_payload_force[3];
+	float mg_b[3] = {0, 0, 0};
+	float L_b[3] = {0, 0, 0};
+	float D_b[3] = {0, 0, 0};
+
+	float all_aero_force[3] = {0, 0, 0}, all_aero_moment[3] = {0, 0, 0}, all_payload_moment[3] = {0, 0, 0};
+	float all_rotors_force[3] = {0, 0, 0}, all_rotors_moment[3] = {0, 0, 0}, all_payload_force[3] = {0, 0, 0};
 
 	float alpha_stall;
 
@@ -269,6 +273,7 @@ typedef struct
 	float theta_tolerance_for_ground;
 	float altitude_tolerance_for_ground;
 	float step_dt;
+	float p_dot,q_dot,r_dot;
 
 	struct_enum_plane_model plane_model;
 	enum_plane_moving_state plane_moving_state;

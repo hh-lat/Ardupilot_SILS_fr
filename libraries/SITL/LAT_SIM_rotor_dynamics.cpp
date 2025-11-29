@@ -70,6 +70,7 @@ void v_motor_pwm_to_throttle(float t_step_rot)
 		}
 
 		s_motor[i].throttle_cmd = s_motor[i].throttle_cmd_old + throttle_rate_cmd*t_step_rot;
+		s_motor[i].throttle_cmd_old = s_motor[i].throttle_cmd;
 	}
 
 }

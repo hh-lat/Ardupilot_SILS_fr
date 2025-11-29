@@ -32,30 +32,30 @@ void v_update_vehcle_state_from_ardu_ekf()
 	if (g_aircraft_instance != nullptr) 
 	{
 		// phi, theta , psi via dcm
-		const Matrix3f &dcm_matrix = g_aircraft_instance->get_dcm();
+		// Matrix3f &dcm_matrix = g_aircraft_instance->get_dcm();
 
-		float phi = atan2f(dcm_matrix.b.z, dcm_matrix.c.z);      // roll
-		float theta = -asinf(dcm_matrix.a.z);                     // pitch
-		float psi = atan2f(dcm_matrix.a.y, dcm_matrix.a.x);      // yaw
+		// float phi = atan2f(dcm_matrix.b.z, dcm_matrix.c.z);      // roll
+		// float theta = -asinf(dcm_matrix.a.z);                     // pitch
+		// float psi = atan2f(dcm_matrix.a.y, dcm_matrix.a.x);      // yaw
 		
-		vehcle.phi = phi;
-		vehcle.theta = theta;
-		vehcle.psi = psi;
+		// vehcle.phi = phi;
+		// vehcle.theta = theta;
+		// vehcle.psi = psi;
 
 		// aoa & beta via air velcity components
-		const Vector3f &velocity_air_bf = g_aircraft_instance->get_velocity_air_bf();
+		//const Vector3f &velocity_air_bf = g_aircraft_instance->get_velocity_air_bf();
 		
-		float angle_of_attack = atan2f(velocity_air_bf.z, velocity_air_bf.x);
-		float beta = atan2f(velocity_air_bf.y, velocity_air_bf.x);
+		float angle_of_attack = atan2f(vehcle.V_b_tas[2] , vehcle.V_b_tas[0] );
+		float beta = atan2f(vehcle.V_b_tas[1] , vehcle.V_b_tas[0] );
 		
 		// Store in vehicle state
 		vehcle.alpha = angle_of_attack;
 		vehcle.beta = beta;
 		
-		// Also fill V_b_tas for other calculations
-		vehcle.V_b_tas[0] = velocity_air_bf.x;
-		vehcle.V_b_tas[1] = velocity_air_bf.y;
-		vehcle.V_b_tas[2] = velocity_air_bf.z;
+		// // Also fill V_b_tas for other calculations
+		// vehcle.V_b_tas[0] = velocity_air_bf.x;
+		// vehcle.V_b_tas[1] = velocity_air_bf.y;
+		// vehcle.V_b_tas[2] = velocity_air_bf.z;
 
 		vehcle.tas = sqrtf( vehcle.V_b_tas[0]*vehcle.V_b_tas[0]  + vehcle.V_b_tas[1]*vehcle.V_b_tas[1] + 
 							vehcle.V_b_tas[2]*vehcle.V_b_tas[2] );
@@ -69,54 +69,69 @@ void v_lat_fdm_run(const struct sitl_input &input)
     static float t=0;
     float plane_state[12]={0};
 
+	if  (vehcle.step_dt >0.05)
+	{
+		vehcle.step_dt =0.05; //max 20 Hz
+	}
+
+	if (vehcle.step_dt <0.000001)
+	{
+		vehcle.step_dt =0.000001; 
+	}
+
 	v_update_vehcle_state_from_ardu_ekf();
 	plane_state[6] = vehcle.phi;
 	plane_state[7] = vehcle.theta;
 	plane_state[8] = vehcle.psi;
+	
 
     v_ardu_input_to_lat_input(input); // fills servo_channels from ardupilot to control surface and motor pwms
     v_servo_dynamics(vehcle.step_dt); // converts servopwm to angles and applies rate limits
 	v_rotor_esc_dynamics(vehcle.step_dt); // converts motor pwm to throttle with rate limiting
-    v_rk4(plane_state, t, vehcle.step_dt);
+  
+	if (1)
+	{
+		v_rk4(plane_state, t, vehcle.step_dt);
+	}
 
 
+
+	vehcle.Accel_b[0]= (vehcle.total_force_bd[0] -vehcle.mg_b[0])/vehcle.mass;
+	vehcle.Accel_b[1]= (vehcle.total_force_bd[1] -vehcle.mg_b[1])/vehcle.mass;
+	vehcle.Accel_b[2]= (vehcle.total_force_bd[2] -vehcle.mg_b[2])/vehcle.mass;
+   
+	return;
     // For Ardupilot
 	switch (vehcle.plane_moving_state)
 	{
 		case STATIONARY:
 		{
-			vehcle.Accel_b[0]= vehcle.total_force_bd[0] -vehcle.mg_b[0];
-			vehcle.Accel_b[1]= vehcle.total_force_bd[1] -vehcle.mg_b[1];
-			vehcle.Accel_b[2]= vehcle.total_force_bd[2] -vehcle.mg_b[2];
-
-			vehcle.p = 0;
-			vehcle.q = 0;	
-			vehcle.r = 0;		
+			vehcle.Accel_b[0]= 0;// ardupilot needs accel without normal reaction and weight//(vehcle.total_force_bd[0] -vehcle.mg_b[0])/vehcle.mass;
+			vehcle.Accel_b[1]= 0;//(vehcle.total_force_bd[1] -vehcle.mg_b[1])/vehcle.mass;
+			vehcle.Accel_b[2]= 0;//(vehcle.total_force_bd[2] -vehcle.mg_b[2])/vehcle.mass;
+			vehcle.p_dot =0;
+			vehcle.q_dot =0;
+			vehcle.r_dot =0;
 			break;
 		}
 
 		case CT_RUNWAY_MOVING:
 		case CT_RUNWAY_ROTATING:
 		{
-			vehcle.Accel_b[0]= vehcle.total_force_bd[0] -vehcle.mg_b[0];
-			vehcle.Accel_b[1]= vehcle.total_force_bd[1] -vehcle.mg_b[1];
-			vehcle.Accel_b[2]= vehcle.total_force_bd[2] -vehcle.mg_b[2];
+			vehcle.Accel_b[0]= (vehcle.total_force_bd[0] -vehcle.mg_b[0])/vehcle.mass;
+			vehcle.Accel_b[1]= 0;
+			vehcle.Accel_b[2]= (vehcle.total_force_bd[2] -vehcle.mg_b[2])/vehcle.mass;
 
-			vehcle.p = plane_state[3];
-			vehcle.q = plane_state[4];
-			vehcle.r = 0.5*vehcle.rho*powf(vehcle.tas-vehcle.aero_zero_speed,2)*(vehcle.delta_r*vehcle.ground_yaw_gain);
+			vehcle.p_dot = 0;
+			vehcle.r_dot= 0.5*vehcle.rho*powf(vehcle.tas-vehcle.aero_zero_speed,2)*(vehcle.delta_r*vehcle.ground_yaw_gain);
 			break;	
 		}
 
 		case IN_AIR:
 		{
-			vehcle.Accel_b[0]= vehcle.total_force_bd[0] -vehcle.mg_b[0];
-			vehcle.Accel_b[1]= vehcle.total_force_bd[1] -vehcle.mg_b[1];
-			vehcle.Accel_b[2]= vehcle.total_force_bd[2] -vehcle.mg_b[2];
-
-			vehcle.p = plane_state[3];
-			vehcle.q = plane_state[4];
-			vehcle.r = plane_state[5];
+			vehcle.Accel_b[0]= (vehcle.total_force_bd[0] -vehcle.mg_b[0])/vehcle.mass;
+			vehcle.Accel_b[1]= (vehcle.total_force_bd[1] -vehcle.mg_b[1])/vehcle.mass;
+			vehcle.Accel_b[2]= (vehcle.total_force_bd[2] -vehcle.mg_b[2])/vehcle.mass;
 			break;	
 		}
 	}
@@ -250,10 +265,11 @@ void v_plane_param_define_equinox()
 	vehcle.aero_zero_speed = 5.0; // m/s
     vehcle.mass = 65.0 ;
 	vehcle.g = 9.81; 
+	vehcle.lift_stall_M = 50.0;
     vehcle.Ixx = 14.658 ;
     vehcle.Iyy = 16.944 ;
     vehcle.Izz = 27.412 ;
-    vehcle.Ixz = 3.985 ;
+    vehcle.Ixz = 0*3.985 ;
 	vehcle.Iyz = 0.0 ;
 	vehcle.Ixy = 0.0 ;
     vehcle.s = 0.9;
@@ -273,12 +289,12 @@ void v_plane_param_define_equinox()
     vehcle.nlg_x = 0;
     vehcle.nlg_y = 0;
     vehcle.nlg_z = 0;
-	vehcle.alpha_stall = 14.0*D2R; // stall angle in rad
+	vehcle.alpha_stall = 20.0*D2R; // stall angle in rad
 
 	vehcle.CL_0 = 0.29;
 	vehcle.CL_delta_e =1.175;
 	vehcle.CL_alpha = 5.0; // default
-	vehcle.CL_q =3.0; 
+	vehcle.CL_q =22;//3.0; 
 
 	vehcle.CD_0 = 0.2; 
 	vehcle.CD_delta_e = -0.355;
@@ -326,45 +342,47 @@ void v_plane_param_define_equinox()
 	vehcle.Cn_delta_aR =  0.000119*R2D;
 	vehcle.Cn_beta_Cmu = -0.000829*R2D;
 
-	s_motor[0].thrust_2_torque_factor = 0; // JP Hobby EDFs kind of not produces any torque
-	s_motor[1].thrust_2_torque_factor = 0;
-	s_motor[2].thrust_2_torque_factor = 0;
-	s_motor[3].thrust_2_torque_factor = 0;
-	s_motor[4].thrust_2_torque_factor = 0;
-	s_motor[5].thrust_2_torque_factor = 0;
-	s_motor[6].thrust_2_torque_factor = 0;
-	s_motor[7].thrust_2_torque_factor = 0;
+	for (int i=0;i<s_motor_manager.num_motors;i++)
+	{
+		s_motor[i].pwm_min = 1100;
+		s_motor[i].pwm_max = 1900;
+		s_motor[i].omega_tf = 30.0; // rad/s
+		s_motor[i].zeta_tf = 0.7;
+		s_motor[i].rpm_max = 28000.0;
+		s_motor[i].rpm_min = 0.0;
+		s_motor[i].dia_prop = 0.12;
+		s_motor[i].max_thrust = (vehcle.mass*vehcle.g/s_motor_manager.num_motors)*0.7;	
+		s_motor[i].min_thrust = 0.0;
+		s_motor[i].thrust_2_torque_factor =0; // JP Hobby EDFs kind of not produces any torque
+		s_motor[i].CT_static = s_motor[0].max_thrust / (vehcle.rho*powf(s_motor[0].dia_prop,4)*powf(s_motor[0].rpm_max/60.0f,2));;
+		s_motor[i].rate_limit_throttle = (1.0/0.1); // full throttle change in 0.1 sec
+	}
 
-	s_motor[0].max_thrust = (vehcle.mass*vehcle.g/s_motor_manager.num_motors)*0.7;
-	s_motor[1].max_thrust = (vehcle.mass*vehcle.g/s_motor_manager.num_motors)*0.7;
-	s_motor[2].max_thrust = (vehcle.mass*vehcle.g/s_motor_manager.num_motors)*0.7;
-	s_motor[3].max_thrust = (vehcle.mass*vehcle.g/s_motor_manager.num_motors)*0.7;
-	s_motor[4].max_thrust = (vehcle.mass*vehcle.g/s_motor_manager.num_motors)*0.7;
-	s_motor[5].max_thrust = (vehcle.mass*vehcle.g/s_motor_manager.num_motors)*0.7;
-	s_motor[6].max_thrust = (vehcle.mass*vehcle.g/s_motor_manager.num_motors)*0.7;
-	s_motor[7].max_thrust = (vehcle.mass*vehcle.g/s_motor_manager.num_motors)*0.7;
+	float y1= 0.274;
+	float y2= 0.598;
+	float y3 = 0.922;
+	float y4 = 1.246;
 
-	s_motor[0].dia_prop = 0.2032;  s_motor[1].dia_prop = 0.2032;  s_motor[2].dia_prop = 0.2032;  s_motor[3].dia_prop = 0.2032;
-	s_motor[4].dia_prop = 0.2032;  s_motor[5].dia_prop = 0.2032;  s_motor[6].dia_prop =	 0.2032;  s_motor[7].dia_prop = 0.2032;
-	
-	s_motor[0].CT_static = 1.3; s_motor[1].CT_static = 1.3; s_motor[2].CT_static = 1.3; s_motor[3].CT_static = 1.3;
-	s_motor[4].CT_static = 1.3; s_motor[5].CT_static = 1.3; s_motor[6].CT_static = 1.3; s_motor[7].CT_static = 1.3;
+	float z = 0.0948; //cg to edf, cg is above edf
 
-	s_motor[0].rotor_xyz[0] = 0;                     s_motor[1].rotor_xyz[0] = 0;
-	s_motor[0].rotor_xyz[1] = 0;                     s_motor[1].rotor_xyz[1] = 0;
-	s_motor[0].rotor_xyz[2] = 0;                     s_motor[1].rotor_xyz[2] = 0;
+	float x = 0;
+	x= vehcle.cg_x - 757.2/1000.0; // edf are 30 mm behind cg
+
+	s_motor[0].rotor_xyz[0] = x;                     s_motor[1].rotor_xyz[0] = x;
+	s_motor[0].rotor_xyz[1] =-y4;                    s_motor[1].rotor_xyz[1] = -y3;
+	s_motor[0].rotor_xyz[2] = z;                     s_motor[1].rotor_xyz[2] = z;
 	
-	s_motor[2].rotor_xyz[0] = 0;                     s_motor[3].rotor_xyz[0] = 0;
-	s_motor[2].rotor_xyz[1] = 0;                     s_motor[3].rotor_xyz[1] = 0;
-	s_motor[2].rotor_xyz[2] = 0;                     s_motor[3].rotor_xyz[2] = 0;
-	
-	s_motor[4].rotor_xyz[0] = 0;                     s_motor[5].rotor_xyz[0] = 0;
-	s_motor[4].rotor_xyz[1] = 0;                     s_motor[5].rotor_xyz[1] = 0;
-	s_motor[4].rotor_xyz[2] = 0;                     s_motor[5].rotor_xyz[2] = 0;
-	
-	s_motor[6].rotor_xyz[0] = 0;                     s_motor[7].rotor_xyz[0] = 0;
-	s_motor[6].rotor_xyz[1] = 0;                     s_motor[7].rotor_xyz[1] = 0;
-	s_motor[6].rotor_xyz[2] = 0;                     s_motor[7].rotor_xyz[2] = 0;
+	s_motor[2].rotor_xyz[0] = x;                     s_motor[3].rotor_xyz[0] = x;
+	s_motor[2].rotor_xyz[1] = -y2;                   s_motor[3].rotor_xyz[1] = -y1;
+	s_motor[2].rotor_xyz[2] = z;                     s_motor[3].rotor_xyz[2] = z;
+
+	s_motor[4].rotor_xyz[0] = x;                     s_motor[5].rotor_xyz[0] = x;
+	s_motor[4].rotor_xyz[1] = y1;                   s_motor[5].rotor_xyz[1] = y2;
+	s_motor[4].rotor_xyz[2] = z;                     s_motor[5].rotor_xyz[2] = z;	
+
+	s_motor[6].rotor_xyz[0] = x;                     s_motor[7].rotor_xyz[0] = x;
+	s_motor[6].rotor_xyz[1] = y3;                   s_motor[7].rotor_xyz[1] = y4;
+	s_motor[6].rotor_xyz[2] = z;                     s_motor[7].rotor_xyz[2] = z;
 
 	s_motor[0].rotor_tilt[0] = 0.0;                     s_motor[1].rotor_tilt[0] = 0.0;
 	s_motor[0].rotor_tilt[1] = 0.0;                     s_motor[1].rotor_tilt[1] = 0.0;
@@ -388,6 +406,8 @@ void v_plane_param_define_equinox()
 
 	s_motor[4].rotor_r_direction = 1.0;              s_motor[5].rotor_r_direction = -1.0;
 	s_motor[6].rotor_r_direction = -1.0;             s_motor[7].rotor_r_direction = 1.0;
+
+
 }
 
 
@@ -409,7 +429,20 @@ void v_plane_param_define_ardupilot_default()
 		
 	v_set_servo_params(1100,1900,-30*D2R,30*D2R, 10.0, 0.7, -360*D2R, 360*D2R, -720*D2R, 720*D2R, NOSE_LG_SERVO);
 
+	vehcle.ground_yaw_gain = 0.5; 
+	vehcle.cg_x = 1070.0/1000.0; // from nose center, put positve number
+	vehcle.cg_z = 43.0/1000.0;// from nose center, 43 mm above  nose center
+	vehcle.MLG_x = fabsf( (1319.2/1000.0) - vehcle.cg_x); // put all positive
+	vehcle.MLG_z = fabsf(319.6/1000.0 + vehcle.cg_z); // put all positive
+	vehcle.FLG_x = fabsf((339.2/1000.0) - vehcle.cg_x);
+	vehcle.FLG_z = vehcle.MLG_z;
+    vehcle.delta_r_deadzone = 3.0*D2R; // 5 degree deadzone for rudder on ground
+	vehcle.theta_tolerance_for_ground = -1.0*D2R; // pitch angle below which plane is shifted to runway moving state
+	vehcle.altitude_tolerance_for_ground = -0.1; // altitude below which plane is considered on ground
 
+	vehcle.mg_b[0]=0;
+	vehcle.mg_b[1]=0;
+	vehcle.mg_b[2]=0;
 	// Ensure coffecient signs are compatible with aerospace sign convention for elevator, aileron, rudder
 	vehcle.aero_zero_speed = 5.0; // m/s
 	vehcle.s = 0.45;
@@ -491,53 +524,64 @@ void v_plane_param_define_ardupilot_default()
 	vehcle.Cn_delta_aR = 0;
 	vehcle.Cn_beta_Cmu = 0;	
 
-	s_motor[0].thrust_2_torque_factor = 0; // JP Hobby EDFs kind of not produces any torque
-	s_motor[1].thrust_2_torque_factor = 0;
-	s_motor[2].thrust_2_torque_factor = 0;
-	s_motor[3].thrust_2_torque_factor = 0;
-	s_motor[4].thrust_2_torque_factor = 0;
-	s_motor[5].thrust_2_torque_factor = 0;
-	s_motor[6].thrust_2_torque_factor = 0;
-	s_motor[7].thrust_2_torque_factor = 0;
+	for (int i=0;i<s_motor_manager.num_motors;i++)
+	{
+		s_motor[i].pwm_min = 1100;
+		s_motor[i].pwm_max = 1900;
+		s_motor[i].omega_tf = 30.0; // rad/s
+		s_motor[i].zeta_tf = 0.7;
+		s_motor[i].rpm_max = 28000.0;
+		s_motor[i].rpm_min = 0.0;
+		s_motor[i].dia_prop = 0.12;
+		s_motor[i].max_thrust = (vehcle.mass*vehcle.g/s_motor_manager.num_motors)*0.5;	
+		s_motor[i].min_thrust = 0.0;
+		s_motor[i].thrust_2_torque_factor =0; // JP Hobby EDFs kind of not produces any torque
+		s_motor[i].CT_static = s_motor[0].max_thrust / (vehcle.rho*powf(s_motor[0].dia_prop,4)*powf(s_motor[0].rpm_max/60.0f,2));;
+		s_motor[i].rate_limit_throttle = (1.0/0.01); // full throttle change in 0.1 sec
+	}
 
-	s_motor[0].dia_prop = 0.12;  s_motor[1].dia_prop = 0.12;  s_motor[2].dia_prop = 0.12;  s_motor[3].dia_prop = 0.12;
-	s_motor[4].dia_prop = 0.12;  s_motor[5].dia_prop = 0.12;  s_motor[6].dia_prop =	 0.12;  s_motor[7].dia_prop = 0.12;
+	float y1= 0.274;
+	float y2= 0.598;
+	float y3 = 0.922;
+	float y4 = 1.246;
 
-	s_motor[0].rpm_max = 7000;  s_motor[1].rpm_max = 7000;  s_motor[2].rpm_max = 7000;  s_motor[3].rpm_max = 7000;
-	s_motor[4].rpm_max = 7000;  s_motor[5].rpm_max = 7000;  s_motor[6].rpm_max  = 7000;  s_motor[7].rpm_max = 7000;
+	float z = 0;//0.0948; //cg to edf, cg is above edf
 
-	s_motor[0].max_thrust = (vehcle.mass*vehcle.g/s_motor_manager.num_motors)*0.4;
-	s_motor[1].max_thrust = (vehcle.mass*vehcle.g/s_motor_manager.num_motors)*0.4;
-	s_motor[2].max_thrust = (vehcle.mass*vehcle.g/s_motor_manager.num_motors)*0.4;
-	s_motor[3].max_thrust = (vehcle.mass*vehcle.g/s_motor_manager.num_motors)*0.4;
-	s_motor[4].max_thrust = (vehcle.mass*vehcle.g/s_motor_manager.num_motors)*0.4;
-	s_motor[5].max_thrust = (vehcle.mass*vehcle.g/s_motor_manager.num_motors)*0.4;
-	s_motor[6].max_thrust = (vehcle.mass*vehcle.g/s_motor_manager.num_motors)*0.4;
-	s_motor[7].max_thrust = (vehcle.mass*vehcle.g/s_motor_manager.num_motors)*0.4;
+	float x = 0;
+	x= vehcle.cg_x - 757.2/1000.0; // edf are 30 mm behind cg
 
-	float CT =0;
-	CT = s_motor[0].max_thrust / (vehcle.rho*powf(s_motor[0].dia_prop,4)*powf(s_motor[0].rpm_max/60.0f,2));
-
-
-	s_motor[0].CT_static = CT; s_motor[1].CT_static = CT; s_motor[2].CT_static = CT; s_motor[3].CT_static = CT;
-	s_motor[4].CT_static = CT; s_motor[5].CT_static = CT; s_motor[6].CT_static = CT; s_motor[7].CT_static = CT;
-
-
-	s_motor[0].rotor_xyz[0] = 0;                     s_motor[1].rotor_xyz[0] = 0;
-	s_motor[0].rotor_xyz[1] = 0;                     s_motor[1].rotor_xyz[1] = 0;
-	s_motor[0].rotor_xyz[2] = 0;                     s_motor[1].rotor_xyz[2] = 0;
+	s_motor[0].rotor_xyz[0] = x;                     s_motor[1].rotor_xyz[0] = x;
+	s_motor[0].rotor_xyz[1] =-y4;                    s_motor[1].rotor_xyz[1] = -y3;
+	s_motor[0].rotor_xyz[2] = z;                     s_motor[1].rotor_xyz[2] = z;
 	
-	s_motor[2].rotor_xyz[0] = 0;                     s_motor[3].rotor_xyz[0] = 0;
-	s_motor[2].rotor_xyz[1] = 0;                     s_motor[3].rotor_xyz[1] = 0;
-	s_motor[2].rotor_xyz[2] = 0;                     s_motor[3].rotor_xyz[2] = 0;
+	s_motor[2].rotor_xyz[0] = x;                     s_motor[3].rotor_xyz[0] = x;
+	s_motor[2].rotor_xyz[1] = -y2;                   s_motor[3].rotor_xyz[1] = -y1;
+	s_motor[2].rotor_xyz[2] = z;                     s_motor[3].rotor_xyz[2] = z;
 
-	s_motor[4].rotor_xyz[0] = 0;                     s_motor[5].rotor_xyz[0] = 0;
-	s_motor[4].rotor_xyz[1] = 0;                     s_motor[5].rotor_xyz[1] = 0;
-	s_motor[4].rotor_xyz[2] = 0;                     s_motor[5].rotor_xyz[2] = 0;	
+	s_motor[4].rotor_xyz[0] = x;                     s_motor[5].rotor_xyz[0] = x;
+	s_motor[4].rotor_xyz[1] = y1;                   s_motor[5].rotor_xyz[1] = y2;
+	s_motor[4].rotor_xyz[2] = z;                     s_motor[5].rotor_xyz[2] = z;	
 
-	s_motor[6].rotor_xyz[0] = 0;                     s_motor[7].rotor_xyz[0] = 0;
-	s_motor[6].rotor_xyz[1] = 0;                     s_motor[7].rotor_xyz[1] = 0;
-	s_motor[6].rotor_xyz[2] = 0;                     s_motor[7].rotor_xyz[2] = 0;
+	s_motor[6].rotor_xyz[0] = x;                     s_motor[7].rotor_xyz[0] = x;
+	s_motor[6].rotor_xyz[1] = y3;                   s_motor[7].rotor_xyz[1] = y4;
+	s_motor[6].rotor_xyz[2] = z;                     s_motor[7].rotor_xyz[2] = z;
+
+	
+	s_motor[0].rotor_tilt[0] = 0.0;                     s_motor[1].rotor_tilt[0] = 0.0;
+	s_motor[0].rotor_tilt[1] = 0.0;                     s_motor[1].rotor_tilt[1] = 0.0;
+	s_motor[0].rotor_tilt[2] = 0.0;                     s_motor[1].rotor_tilt[2] = 0.0;
+
+	s_motor[2].rotor_tilt[0] = 0.0;                     s_motor[3].rotor_tilt[0] = 0.0;
+	s_motor[2].rotor_tilt[1] = 0.0;                     s_motor[3].rotor_tilt[1] = 0.0;
+	s_motor[2].rotor_tilt[2] = 0.0;                     s_motor[3].rotor_tilt[2] = 0.0;
+
+	s_motor[4].rotor_tilt[0] = 0.0;                     s_motor[5].rotor_tilt[0] = 0.0;
+	s_motor[4].rotor_tilt[1] = 0.0;                     s_motor[5].rotor_tilt[1] = 0.0;
+	s_motor[4].rotor_tilt[2] = 0.0;                     s_motor[5].rotor_tilt[2] = 0.0;
+
+	s_motor[6].rotor_tilt[0] = 0.0;                     s_motor[7].rotor_tilt[0] = 0.0;
+	s_motor[6].rotor_tilt[1] = 0.0;                     s_motor[7].rotor_tilt[1] = 0.0;
+	s_motor[6].rotor_tilt[2] = 0.0;                     s_motor[7].rotor_tilt[2] = 0.0;
 	
 	///////////////////////////////////////////////////////////////////////////////////////
 	s_motor[0].rotor_r_direction = 1.0;              s_motor[1].rotor_r_direction = -1.0;
