@@ -505,19 +505,36 @@ void Aircraft::fill_fdm(struct sitl_fdm &fdm)
 // @Field: As: Airspeed
 // @Field: ASpdU: Achieved simulation speedup value
 // @Field: UFC: Number of times simulation paused for serial0 output
-        Vector3d pos = get_position_relhome();
-        Vector3f vel = get_velocity_ef();
+//         /*   pos.x, pos.y, pos.z,
+        //   /**/  vel.x, vel.y, vel.z,
+        //     airspeed_pitot,
+        //     achieved_rate_hz/rate_hz,
+        //     full_count*/
+       // Vector3d pos = get_position_relhome();
+       // Vector3f vel = get_velocity_ef();
         AP::logger().WriteStreaming(
             "SIM2",
-            "TimeUS,PN,PE,PD,VN,VE,VD,As,ASpdU,UFC",
+            "TimeUS,PMS,FLGNR,MLGNR,Accx,Accy,forcez,As,ASpdU,UFC",
             "QdddfffffI",
             AP_HAL::micros64(),
-            pos.x, pos.y, pos.z,
-            vel.x, vel.y, vel.z,
+            (float)vehcle.plane_moving_state,vehcle.FLG_NR,vehcle.MLG_NR,
+            vehcle.Accel_ned[0],vehcle.Accel_ned[1],vehcle.total_force_bd[2],
             airspeed_pitot,
             achieved_rate_hz/rate_hz,
             full_count
         );
+
+        // AP::logger().WriteStreaming(
+        //     "SIM2",
+        //     "TimeUS,PN,PE,PD,VN,VE,VD,As,ASpdU,UFC",
+        //     "QdddfffffI",
+        //     AP_HAL::micros64(),
+        //     (float)vehcle.plane_moving_state,vehcle.FLG_NR,vehcle.MLG_NR,
+        //     vehcle.Accel_ned[0],vehcle.Accel_ned[1],vehcle.total_force_bd[2],
+        //     airspeed_pitot,
+        //     achieved_rate_hz/rate_hz,
+        //     full_count
+        // );
     }
 #endif
 }

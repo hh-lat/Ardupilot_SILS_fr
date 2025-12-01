@@ -617,8 +617,6 @@ void Plane::update(const struct sitl_input &input)
             const float steer_scale = radians(5);
             gyro.z += steering * velocity_bf.x * steer_scale;
         }
-
-
     }
     else
     {        
