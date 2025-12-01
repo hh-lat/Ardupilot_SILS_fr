@@ -20,8 +20,8 @@ void v_set_aircraft_instance(SITL::Aircraft* aircraft) {
 
 void v_lat_fdm_init()
 {	
-	vehcle.plane_model = PLANE_ARDU_DEFAULT; // 0 for default simple model, 1 for equinox model
-    vehcle.dof = DOF_ALL_MOTION;
+	vehcle.plane_model = PLANE_EQX;//PLANE_ARDU_DEFAULT; // 0 for default simple model, 1 for equinox model
+    vehcle.dof = DOF_LONGITUDINAL_ONLY;
 	vehcle.plane_on_ground = 1;
     v_plane_param_define();
 }
@@ -80,15 +80,66 @@ void v_lat_fdm_run(const struct sitl_input &input)
 	}
 
 	v_update_vehcle_state_from_ardu_ekf();
+	plane_state[3] = vehcle.p;
+	plane_state[4] = vehcle.q;
+	plane_state[5] = vehcle.r;
 	plane_state[6] = vehcle.phi;
 	plane_state[7] = vehcle.theta;
 	plane_state[8] = vehcle.psi;
-	
+
 
     v_ardu_input_to_lat_input(input); // fills servo_channels from ardupilot to control surface and motor pwms
     v_servo_dynamics(vehcle.step_dt); // converts servopwm to angles and applies rate limits
 	v_rotor_esc_dynamics(vehcle.step_dt); // converts motor pwm to throttle with rate limiting
-  
+    // if (vehcle.plane_moving_state == STATIONARY)
+	// {
+
+
+	// }
+	// else if ((vehcle.plane_on_ground == 0) && (vehcle.plane_moving_state != STATIONARY))
+	// {
+	// 	for (int i=0;i<s_motor_manager.num_motors;i++)
+	// 	{
+	// 		s_motor[i].throttle_cmd = 1700;
+	// 	}
+
+	// 	vehcle.delta_f = 20.0f*D2R; // set throttle to 20% when in air
+	// 	vehcle.delta_e = 25.0f*D2R;
+	// 	vehcle.delta_aL = 0;
+	// 	vehcle.delta_aR = 0;
+	// 	vehcle.delta_r = 0;
+	// 	vehcle.delta_a = 0;
+	// }
+	// else if ((vehcle.plane_on_ground == 1) && (vehcle.plane_moving_state == STATIONARY))
+	// {
+	// 	for (int i=0;i<s_motor_manager.num_motors;i++)
+	// 	{
+	// 		s_motor[i].throttle_cmd = 1000;
+	// 	}
+
+	// 	vehcle.delta_f = 20.0f*D2R; // set throttle to 20% when in air
+	// 	vehcle.delta_e = 25.0f*D2R;
+	// 	vehcle.delta_aL = 0;
+	// 	vehcle.delta_aR = 0;
+	// 	vehcle.delta_r = 0;
+	// 	vehcle.delta_a = 0;	
+	// }
+	// else if ( (vehcle.plane_on_ground == 1) && (vehcle.plane_moving_state != STATIONARY) )
+	// {
+	// 	for (int i=0;i<s_motor_manager.num_motors;i++)
+	// 	{
+	// 		s_motor[i].throttle_cmd = 1800;
+	// 	}
+
+	// 	vehcle.delta_f = 20.0f*D2R; // set throttle to 20% when in air
+	// 	vehcle.delta_e = -20.0f*D2R;
+	// 	vehcle.delta_aL = 0;
+	// 	vehcle.delta_aR = 0;
+	// 	vehcle.delta_r = 0;
+	// 	vehcle.delta_a = 0;	
+	// }	
+
+	t += vehcle.step_dt;
 	if (1)
 	{
 		v_rk4(plane_state, t, vehcle.step_dt);
@@ -100,6 +151,16 @@ void v_lat_fdm_run(const struct sitl_input &input)
 	vehcle.Accel_b[1]= (vehcle.total_force_bd[1] -vehcle.mg_b[1])/vehcle.mass;
 	vehcle.Accel_b[2]= (vehcle.total_force_bd[2] -vehcle.mg_b[2])/vehcle.mass;
    
+	static float print_timer = 0;
+	print_timer += vehcle.step_dt;
+
+	if (print_timer >= 0.1f) 
+	{
+		print_timer = 0;
+		printf("delta_e: %.2f, delta_aL: %.2f, delta_aR: %.2f, delta_r: %.2f, delta_f: %.2f, delta_a: %.2f\n", 
+		vehcle.delta_e*R2D, vehcle.delta_aL*R2D, vehcle.delta_aR*R2D, vehcle.delta_r*R2D, vehcle.delta_f*R2D, vehcle.delta_a*R2D);
+	}
+
 	return;
     // For Ardupilot
 	switch (vehcle.plane_moving_state)
@@ -234,7 +295,7 @@ void v_fill_lla_to_vehcle_state(float latitude_point,float longitude_point, floa
 
 void v_plane_param_define_equinox()
 {
-	s_servo_manager.num_servos = 10; //  put max servo enum that is used
+	s_servo_manager.num_servos = 16; //  put max servo enum that is used
 	s_motor_manager.num_motors = 8;
 
    //v_set_servo_params(pwm_min, pwm_max, angle_pwm_min, angle_pwm_max,omega, zeta, min_rate, max_rate, min_accel, max_accel,  type)
@@ -247,7 +308,7 @@ void v_plane_param_define_equinox()
 	v_set_servo_params(1100,1900, 30*D2R,-30*D2R, 10.0, 0.7, -360*D2R, 360*D2R, -720*D2R, 720*D2R, AILERON_LEFT);
 	v_set_servo_params(1100,1900,-30*D2R,30*D2R, 10.0, 0.7, -360*D2R, 360*D2R, -720*D2R, 720*D2R, AILERON_RIGHT);
 
-	v_set_servo_params(1100,1900,-40*D2R,40*D2R, 10.0, 0.7, -360*D2R, 360*D2R, -720*D2R, 720*D2R, FLAP);
+	v_set_servo_params(1100,1900,0,40*D2R, 10.0, 0.7, -360*D2R, 360*D2R, -720*D2R, 720*D2R, FLAP);
 
 	v_set_servo_params(1100,1900,-30*D2R,30*D2R, 10.0, 0.7, -360*D2R, 360*D2R, -720*D2R, 720*D2R, NOSE_LG_SERVO);
 	
@@ -330,7 +391,7 @@ void v_plane_param_define_equinox()
 	vehcle.Cm_alpha_Cmu = 0.042538*R2D;
 	vehcle.Cm_delta_f = 0.006377*R2D;
 	vehcle.Cm_beta2 = -0.001099*R2D*R2D;
-	vehcle.Cm_beta2_Cmu = 0.001855*R2D;
+	vehcle.Cm_beta2_Cmu = 0.001855*R2D*R2D;
 	vehcle.Cm_q = -116.5576;
 
 	vehcle.Cn_0 = 0;
@@ -351,11 +412,11 @@ void v_plane_param_define_equinox()
 		s_motor[i].rpm_max = 28000.0;
 		s_motor[i].rpm_min = 0.0;
 		s_motor[i].dia_prop = 0.12;
-		s_motor[i].max_thrust = (vehcle.mass*vehcle.g/s_motor_manager.num_motors)*0.7;	
+		s_motor[i].max_thrust = (vehcle.mass*vehcle.g/s_motor_manager.num_motors)*0.8;	
 		s_motor[i].min_thrust = 0.0;
 		s_motor[i].thrust_2_torque_factor =0; // JP Hobby EDFs kind of not produces any torque
 		s_motor[i].CT_static = s_motor[0].max_thrust / (vehcle.rho*powf(s_motor[0].dia_prop,4)*powf(s_motor[0].rpm_max/60.0f,2));;
-		s_motor[i].rate_limit_throttle = (1.0/0.1); // full throttle change in 0.1 sec
+		s_motor[i].rate_limit_throttle = (1.0/0.01); // full throttle change in 0.1 sec
 	}
 
 	float y1= 0.274;
@@ -414,7 +475,7 @@ void v_plane_param_define_equinox()
 
 void v_plane_param_define_ardupilot_default()
 {
-	s_servo_manager.num_servos = 10; //  put max servo enum that is used
+	s_servo_manager.num_servos = 16; //  put max servo enum that is used
 	s_motor_manager.num_motors = 8;
 
 	//v_set_servo_params(pwm_min, pwm_max, angle_pwm_min, angle_pwm_max,omega, zeta, min_rate, max_rate, min_accel, max_accel,  type)
@@ -479,7 +540,7 @@ void v_plane_param_define_ardupilot_default()
 	vehcle.CD_delta_e = 0;
 	vehcle.CD_delta_f = 0;
 	vehcle.CD_delta_e2 = 0;
-	vehcle.CD_alpha = 0.3;
+	vehcle.CD_alpha = 0*0.3;
 	vehcle.CY_0 = 0;
 	vehcle.CY_beta = -0.98;
 	vehcle.CY_p = 0;
@@ -503,7 +564,7 @@ void v_plane_param_define_ardupilot_default()
 	vehcle.Cl_r = 0.14;
 	vehcle.Cm_0 = 0.045;
 	vehcle.Cm_alpha = -0.7;
-	vehcle.Cm_q = -20;
+	vehcle.Cm_q = -120;
 	vehcle.Cm_delta_e = -1.0;
 	vehcle.Cm_delta_aL = 0;
 	vehcle.Cm_delta_aR = 0;
@@ -548,7 +609,7 @@ void v_plane_param_define_ardupilot_default()
 	float z = 0;//0.0948; //cg to edf, cg is above edf
 
 	float x = 0;
-	x= vehcle.cg_x - 757.2/1000.0; // edf are 30 mm behind cg
+	x= 0*(vehcle.cg_x - 757.2/1000.0); // edf are 30 mm behind cg
 
 	s_motor[0].rotor_xyz[0] = x;                     s_motor[1].rotor_xyz[0] = x;
 	s_motor[0].rotor_xyz[1] =-y4;                    s_motor[1].rotor_xyz[1] = -y3;

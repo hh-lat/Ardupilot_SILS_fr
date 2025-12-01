@@ -93,7 +93,8 @@ void v_fill_vehcle_angles()
 	vehcle.delta_r = s_servo[RUDDER_COMMON].angle;
 
 	vehcle.delta_aL = s_servo[AILERON_LEFT].angle;
-	vehcle.delta_aR = s_servo[AILERON_LEFT].angle;
+	vehcle.delta_aR = s_servo[AILERON_RIGHT].angle;
+	vehcle.delta_f = s_servo[FLAP].angle;
 }
 
 

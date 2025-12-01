@@ -727,6 +727,9 @@ void Aircraft::update_dynamics(const Vector3f &rot_accel)
     gyro.y = constrain_float(gyro.y, -radians(2000.0f), radians(2000.0f));
     gyro.z = constrain_float(gyro.z, -radians(2000.0f), radians(2000.0f));
 
+     gyro.x = 0;
+     gyro.z =0;
+
     vehcle.p = gyro.x;
     vehcle.q = gyro.y;
     vehcle.r = gyro.z;
@@ -749,6 +752,7 @@ void Aircraft::update_dynamics(const Vector3f &rot_accel)
     // to zero. This effectively adds the force of the ground on the aircraft
     if (on_ground() && accel_earth.z > 0) {
         accel_earth.z = 0;
+        vehcle.plane_on_ground = 1;
     }
 
     // work out acceleration as seen by the accelerometers. It sees the kinematic
@@ -775,6 +779,7 @@ void Aircraft::update_dynamics(const Vector3f &rot_accel)
 
     // airspeed
     update_eas_airspeed();
+    
 
     // constrain height to the ground
     if (on_ground()) {
@@ -783,6 +788,8 @@ void Aircraft::update_dynamics(const Vector3f &rot_accel)
             last_ground_contact_ms = AP_HAL::millis();
         }
         position.z = -(ground_level + frame_height - home.alt * 0.01f + ground_height_difference());
+
+        vehcle.plane_on_ground = 1;
 
         // get speed of ground movement (for ship takeoff/landing)
         float yaw_rate = 0;
@@ -874,6 +881,10 @@ void Aircraft::update_dynamics(const Vector3f &rot_accel)
             break;
         }
         }
+    }
+    else
+    {
+        vehcle.plane_on_ground = 0;
     }
 
     // update slung payload

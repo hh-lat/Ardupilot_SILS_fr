@@ -127,6 +127,12 @@ void v_rk4(float y[],float t,float h)
 		break;
 	}
 
+	case DOF_LONGITUDINAL_ONLY:
+	{
+
+		break;
+	}
+
 	case DOF_YAW:
 	{
 		y[0] = y[0] + h6 * (k1[0] + k4[0] + 2.0f*(k2[0] + k3[0]))*0;      //u

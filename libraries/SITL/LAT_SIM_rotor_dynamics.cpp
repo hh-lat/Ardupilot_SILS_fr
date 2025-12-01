@@ -94,8 +94,7 @@ void v_throttle_to_thrust_torque(float t_step_rot)
 
 		case PLANE_EQX:
 		{
-
-
+			v_update_dynamic_thrust_parameters();
 		break;
 		}
 	}
@@ -253,9 +252,14 @@ void v_update_rotors_advance_ratio(float V_inf)
 	for (int i=0;i<(s_motor_manager.num_motors);i++)
 	{
 		s_motor[i].J = V_inf/(((s_motor[i].rpm + 1e-6)/60.0)*s_motor[i].dia_prop);
-		if (s_motor[i].J < 0.005f)
+		if (s_motor[i].J > 15.0)
 		{
-			s_motor[i].J = 0.005f;
+			s_motor[i].J = 15.0;
+		}
+
+		if (s_motor[i].J < 0.01)
+		{
+			s_motor[i].J = 0.01;
 		}
 	}
 }
@@ -275,14 +279,10 @@ void v_update_rotors_Cmu()
 			case PLANE_EQX:
 			{
 				s_motor[i].Cmu = 0.0966 / powf(s_motor[i].J,2.314);
-				if (s_motor[i].Cmu < 1)
-				{
-					s_motor[i].Cmu = 1.0;
-				}
 
-				if (s_motor[i].Cmu > 500.0f)
+				if (s_motor[i].Cmu > 50.0f)
 				{
-					s_motor[i].Cmu = 500.0f;
+					s_motor[i].Cmu = 50.0f;
 				}
 
 			break;

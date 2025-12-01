@@ -500,7 +500,17 @@ void Plane::calculate_forces(const struct sitl_input &input, Vector3f &rot_accel
     }
 
     thrust = vehcle.all_rotors_force[0];
-    
+
+    static float aileron_old=0, elevator_old=0, rudder_old=0;
+
+    aileron = aileron_old   + 0.006*(vehcle.delta_a - aileron_old);
+    elevator = elevator_old + 0.006*(vehcle.delta_e - elevator_old);
+    rudder = rudder_old     + 0.006*(vehcle.delta_r - rudder_old);
+
+    aileron_old = aileron;
+    elevator_old = elevator;
+    rudder_old = rudder;
+
     Vector3f force = getForce(aileron, elevator, rudder);
     rot_accel = getTorque(aileron, elevator, rudder, thrust, force);
 
@@ -565,16 +575,17 @@ void Plane::update(const struct sitl_input &input)
         if (is_armed == false)
         {
             vehcle.plane_moving_state = STATIONARY;
-            vehcle.plane_on_ground = 1;
+           // vehcle.plane_on_ground = 1;
             flag_arm_first_time = true;
         }
 
         if (is_armed == true && flag_arm_first_time == true )
         {
             vehcle.plane_moving_state = CT_RUNWAY_MOVING;
-            vehcle.plane_on_ground = 1;
+           // vehcle.plane_on_ground = 1;
             flag_arm_first_time = false;
         }
+
 
 
 
@@ -587,20 +598,19 @@ void Plane::update(const struct sitl_input &input)
         
         v_lat_fdm_run(input);
 
-        // float p[3];
-        // p[0] = vehcle.Accel_b[0];
-        // p[1] = vehcle.Accel_b[1];
-        // p[2] = vehcle.Accel_b[2];
-        // v_update_accel_body(&p[0]);
+         float p[3];
+         p[0] = vehcle.Accel_b[0];
+         p[1] = vehcle.Accel_b[1];
+         p[2] = vehcle.Accel_b[2];
+         v_update_accel_body(&p[0]);
 
-        // rot_accel.x = vehcle.p_dot;
-        // rot_accel.y = vehcle.q_dot;
-        // rot_accel.z = vehcle.r_dot;
-        // update_dynamics(rot_accel);
+         rot_accel.x = vehcle.p_dot;
+         rot_accel.y = vehcle.q_dot;
+         rot_accel.z = vehcle.r_dot;
+         update_dynamics(rot_accel);
 
-
-        calculate_forces(input, rot_accel);
-        update_dynamics(rot_accel);
+        //calculate_forces(input, rot_accel);
+        //update_dynamics(rot_accel);
             /*
       add in ground steering, this should be replaced with a proper
       calculation of a nose wheel effect

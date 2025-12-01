@@ -76,6 +76,7 @@ typedef enum
 	DOF_ROLL_PITCH_YAW = 7,
 	DOF_HORIZONTAL_MOTION = 8,
 	DOF_VERTICAL_MOTION = 9,
+	DOF_LONGITUDINAL_ONLY = 10,
 }struct_enum_dof;
 
 
