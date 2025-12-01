@@ -119,8 +119,8 @@ void v_derivative(float Plane_state[],float t,float dydt[])
 			//vehcle.plane_on_ground = 0;
 			vehcle.FLG_NR = (vehcle.mass*vehcle.g*vehcle.MLG_x + m)/(vehcle.FLG_x + vehcle.MLG_x);
 			vehcle.MLG_NR = vehcle.mass*vehcle.g - vehcle.FLG_NR;
-			//printf("Time: %.4f, MLG_NR: %.4f, FLG_NR: %.4f\n", t, vehcle.MLG_NR, vehcle.FLG_NR);
-		if (vehcle.MLG_NR < 0.0f && vehcle.FLG_NR < 0.0f)
+
+			if (vehcle.MLG_NR < 0.0f && vehcle.FLG_NR < 0.0f)
 			{
 				vehcle.FLG_NR = 0.0f;
 				vehcle.plane_moving_state = IN_AIR;
