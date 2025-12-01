@@ -91,6 +91,7 @@ void v_lat_fdm_run(const struct sitl_input &input)
     v_ardu_input_to_lat_input(input); // fills servo_channels from ardupilot to control surface and motor pwms
     v_servo_dynamics(vehcle.step_dt); // converts servopwm to angles and applies rate limits
 	v_rotor_esc_dynamics(vehcle.step_dt); // converts motor pwm to throttle with rate limiting
+
     // if (vehcle.plane_moving_state == STATIONARY)
 	// {
 
@@ -104,7 +105,7 @@ void v_lat_fdm_run(const struct sitl_input &input)
 	// 	}
 
 	// 	vehcle.delta_f = 20.0f*D2R; // set throttle to 20% when in air
-	// 	vehcle.delta_e = 25.0f*D2R;
+	// 	vehcle.delta_e = 0.75;//25.0f*D2R;
 	// 	vehcle.delta_aL = 0;
 	// 	vehcle.delta_aR = 0;
 	// 	vehcle.delta_r = 0;
@@ -132,7 +133,7 @@ void v_lat_fdm_run(const struct sitl_input &input)
 	// 	}
 
 	// 	vehcle.delta_f = 20.0f*D2R; // set throttle to 20% when in air
-	// 	vehcle.delta_e = -20.0f*D2R;
+	// 	vehcle.delta_e = -0.1566;//-20.0f*D2R;
 	// 	vehcle.delta_aL = 0;
 	// 	vehcle.delta_aR = 0;
 	// 	vehcle.delta_r = 0;
@@ -140,28 +141,22 @@ void v_lat_fdm_run(const struct sitl_input &input)
 	// }	
 
 	t += vehcle.step_dt;
-	if (1)
-	{
-		v_rk4(plane_state, t, vehcle.step_dt);
-	}
 
-
-
-	vehcle.Accel_b[0]= (vehcle.total_force_bd[0] -vehcle.mg_b[0])/vehcle.mass;
-	vehcle.Accel_b[1]= (vehcle.total_force_bd[1] -vehcle.mg_b[1])/vehcle.mass;
-	vehcle.Accel_b[2]= (vehcle.total_force_bd[2] -vehcle.mg_b[2])/vehcle.mass;
-   
+	v_rk4(plane_state, t, vehcle.step_dt);
+	
 	static float print_timer = 0;
 	print_timer += vehcle.step_dt;
+	static float print_timer1 = 0;
+	print_timer1 += vehcle.step_dt;
 
 	if (print_timer >= 0.1f) 
 	{
 		print_timer = 0;
-		printf("delta_e: %.2f, delta_aL: %.2f, delta_aR: %.2f, delta_r: %.2f, delta_f: %.2f, delta_a: %.2f\n", 
-		vehcle.delta_e*R2D, vehcle.delta_aL*R2D, vehcle.delta_aR*R2D, vehcle.delta_r*R2D, vehcle.delta_f*R2D, vehcle.delta_a*R2D);
+		printf("plane_moving_state: %d, delta_e: %.2f, delta_aL: %.2f, delta_aR: %.2f, delta_r: %.2f, delta_f: %.2f, delta_a: %.2f, MLG_NR: %.2f, FLG_NR: %.2f, Accel_ned[0]: %.2f, Accel_ned[1]: %.2f, Accel_ned[2]: %.2f, alt_agl: %.2f\n", 
+		vehcle.plane_moving_state, vehcle.delta_e*R2D, vehcle.delta_aL*R2D, vehcle.delta_aR*R2D, vehcle.delta_r*R2D, vehcle.delta_f*R2D, vehcle.delta_a*R2D, vehcle.MLG_NR, vehcle.FLG_NR, vehcle.Accel_ned[0], vehcle.Accel_ned[1], vehcle.Accel_ned[2], vehcle.alt_agl);
+		print_timer1 = 0;
 	}
 
-	return;
     // For Ardupilot
 	switch (vehcle.plane_moving_state)
 	{
@@ -170,6 +165,11 @@ void v_lat_fdm_run(const struct sitl_input &input)
 			vehcle.Accel_b[0]= 0;// ardupilot needs accel without normal reaction and weight//(vehcle.total_force_bd[0] -vehcle.mg_b[0])/vehcle.mass;
 			vehcle.Accel_b[1]= 0;//(vehcle.total_force_bd[1] -vehcle.mg_b[1])/vehcle.mass;
 			vehcle.Accel_b[2]= 0;//(vehcle.total_force_bd[2] -vehcle.mg_b[2])/vehcle.mass;
+
+
+			vehcle.Accel_ned[0] = 0;
+			vehcle.Accel_ned[1] = 0;
+			vehcle.Accel_ned[2] = 0;
 			vehcle.p_dot =0;
 			vehcle.q_dot =0;
 			vehcle.r_dot =0;
@@ -179,20 +179,40 @@ void v_lat_fdm_run(const struct sitl_input &input)
 		case CT_RUNWAY_MOVING:
 		case CT_RUNWAY_ROTATING:
 		{
-			vehcle.Accel_b[0]= (vehcle.total_force_bd[0] -vehcle.mg_b[0])/vehcle.mass;
+			vehcle.Accel_b[0]= (vehcle.total_force_bd[0])/vehcle.mass;
 			vehcle.Accel_b[1]= 0;
-			vehcle.Accel_b[2]= (vehcle.total_force_bd[2] -vehcle.mg_b[2])/vehcle.mass;
+			vehcle.Accel_b[2]= (vehcle.total_force_bd[2])/vehcle.mass;
+
+			body_to_NED(vehcle.Accel_b,  vehcle.Accel_ned);
+
+			vehcle.Accel_ned[1]=0;
+			vehcle.Accel_ned[2]=0;
+
+			NED_to_body(vehcle.Accel_ned, vehcle.Accel_b);
 
 			vehcle.p_dot = 0;
-			vehcle.r_dot= 0.5*vehcle.rho*powf(vehcle.tas-vehcle.aero_zero_speed,2)*(vehcle.delta_r*vehcle.ground_yaw_gain);
+
+			if (fabsf(vehcle.delta_r) > 5/57.3)
+			{
+				vehcle.r_dot= 0.5*vehcle.rho*powf(vehcle.tas-vehcle.aero_zero_speed,2)*(vehcle.delta_r*vehcle.ground_yaw_gain);
+			}
+			else
+			{
+				vehcle.r_dot= 0;
+			}
+
+			vehcle.r_dot=0;
 			break;	
 		}
 
 		case IN_AIR:
 		{
-			vehcle.Accel_b[0]= (vehcle.total_force_bd[0] -vehcle.mg_b[0])/vehcle.mass;
-			vehcle.Accel_b[1]= (vehcle.total_force_bd[1] -vehcle.mg_b[1])/vehcle.mass;
-			vehcle.Accel_b[2]= (vehcle.total_force_bd[2] -vehcle.mg_b[2])/vehcle.mass;
+			vehcle.Accel_b[0]= (vehcle.total_force_bd[0])/vehcle.mass;
+			vehcle.Accel_b[1]= (vehcle.total_force_bd[1])/vehcle.mass;
+			vehcle.Accel_b[2]= (vehcle.total_force_bd[2])/vehcle.mass;
+
+			body_to_NED(vehcle.Accel_b,  vehcle.Accel_ned);
+
 			break;	
 		}
 	}
@@ -312,7 +332,8 @@ void v_plane_param_define_equinox()
 
 	v_set_servo_params(1100,1900,-30*D2R,30*D2R, 10.0, 0.7, -360*D2R, 360*D2R, -720*D2R, 720*D2R, NOSE_LG_SERVO);
 	
-	vehcle.ground_yaw_gain = 0.05; 
+
+	vehcle.ground_yaw_gain = 0.5; 
 	vehcle.cg_x = 1070.0/1000.0; // from nose center, put positve number
 	vehcle.cg_z = 43.0/1000.0;// from nose center, 43 mm above  nose center
 	vehcle.MLG_x = fabsf( (1319.2/1000.0) - vehcle.cg_x); // put all positive
@@ -322,6 +343,10 @@ void v_plane_param_define_equinox()
     vehcle.delta_r_deadzone = 3.0*D2R; // 5 degree deadzone for rudder on ground
 	vehcle.theta_tolerance_for_ground = -1.0*D2R; // pitch angle below which plane is shifted to runway moving state
 	vehcle.altitude_tolerance_for_ground = -0.1; // altitude below which plane is considered on ground
+
+	vehcle.mg_b[0]=0;
+	vehcle.mg_b[1]=0;
+	vehcle.mg_b[2]=0;
 
 	vehcle.aero_zero_speed = 5.0; // m/s
     vehcle.mass = 65.0 ;

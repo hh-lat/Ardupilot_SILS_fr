@@ -727,8 +727,8 @@ void Aircraft::update_dynamics(const Vector3f &rot_accel)
     gyro.y = constrain_float(gyro.y, -radians(2000.0f), radians(2000.0f));
     gyro.z = constrain_float(gyro.z, -radians(2000.0f), radians(2000.0f));
 
-     gyro.x = 0;
-     gyro.z =0;
+    gyro.x = 0;
+    gyro.z =0;
 
     vehcle.p = gyro.x;
     vehcle.q = gyro.y;
@@ -746,14 +746,18 @@ void Aircraft::update_dynamics(const Vector3f &rot_accel)
     dcm.to_euler(&vehcle.phi, &vehcle.theta, &vehcle.psi);
 		
     Vector3f accel_earth = dcm *  accel_body  ;
-    accel_earth += Vector3f(0.0f, 0.0f, GRAVITY_MSS);
+
+    accel_earth.x = vehcle.Accel_ned[0];
+    accel_earth.y = vehcle.Accel_ned[1];
+    accel_earth.z = vehcle.Accel_ned[2];
+    //accel_earth += Vector3f(0.0f, 0.0f, GRAVITY_MSS); // LAT
 
     // if we're on the ground, then our vertical acceleration is limited
     // to zero. This effectively adds the force of the ground on the aircraft
-    if (on_ground() && accel_earth.z > 0) {
-        accel_earth.z = 0;
-        vehcle.plane_on_ground = 1;
-    }
+    // if (on_ground() && accel_earth.z > 0) {// LAT
+    //     accel_earth.z = 0;
+    //     vehcle.plane_on_ground = 1;
+    // }
 
     // work out acceleration as seen by the accelerometers. It sees the kinematic
     // acceleration (ie. real movement), plus gravity
@@ -762,9 +766,15 @@ void Aircraft::update_dynamics(const Vector3f &rot_accel)
     // new velocity vector
     velocity_ef += accel_earth * delta_time;
 
+    vehcle.V_ned_gnd[0] = velocity_ef.x;
+    vehcle.V_ned_gnd[1] = velocity_ef.y;
+    vehcle.V_ned_gnd[2] = velocity_ef.z;
+
     const bool was_on_ground = on_ground();
     // new position vector
     position += (velocity_ef * delta_time).todouble();
+
+    vehcle.alt_agl = -(position.z);
 
     // velocity relative to air mass, in earth frame
     velocity_air_ef = velocity_ef - wind_ef;
@@ -780,7 +790,6 @@ void Aircraft::update_dynamics(const Vector3f &rot_accel)
     // airspeed
     update_eas_airspeed();
     
-
     // constrain height to the ground
     if (on_ground()) {
         if (!was_on_ground && AP_HAL::millis() - last_ground_contact_ms > 1000) {
@@ -788,8 +797,6 @@ void Aircraft::update_dynamics(const Vector3f &rot_accel)
             last_ground_contact_ms = AP_HAL::millis();
         }
         position.z = -(ground_level + frame_height - home.alt * 0.01f + ground_height_difference());
-
-        vehcle.plane_on_ground = 1;
 
         // get speed of ground movement (for ship takeoff/landing)
         float yaw_rate = 0;
@@ -881,10 +888,6 @@ void Aircraft::update_dynamics(const Vector3f &rot_accel)
             break;
         }
         }
-    }
-    else
-    {
-        vehcle.plane_on_ground = 0;
     }
 
     // update slung payload

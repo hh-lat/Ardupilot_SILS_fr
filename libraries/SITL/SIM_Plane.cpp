@@ -569,7 +569,6 @@ void Plane::update(const struct sitl_input &input)
     
     update_wind(input);
 
-
     if (1)
     {
         if (is_armed == false)
@@ -585,9 +584,6 @@ void Plane::update(const struct sitl_input &input)
            // vehcle.plane_on_ground = 1;
             flag_arm_first_time = false;
         }
-
-
-
 
         if (lat_fdm_init ==0)
         {
