@@ -20,7 +20,7 @@ void v_set_aircraft_instance(SITL::Aircraft* aircraft) {
 
 void v_lat_fdm_init()
 {	
-	vehcle.plane_model = PLANE_EQX;//PLANE_ARDU_DEFAULT; // 0 for default simple model, 1 for equinox model
+	vehcle.plane_model = PLANE_ARDU_DEFAULT;////PLANE_EQX // 0 for default simple model, 1 for equinox model
     vehcle.dof = DOF_LONGITUDINAL_ONLY;
 	vehcle.plane_on_ground = 1;
     v_plane_param_define();
@@ -626,10 +626,10 @@ void v_plane_param_define_ardupilot_default()
 		s_motor[i].rate_limit_throttle = (1.0/0.01); // full throttle change in 0.1 sec
 	}
 
-	float y1= 0.274;
-	float y2= 0.598;
-	float y3 = 0.922;
-	float y4 = 1.246;
+	float y1= 0.274*0;
+	float y2= 0.598*0;
+	float y3 = 0.922*0;
+	float y4 = 1.246*0;
 
 	float z = 0;//0.0948; //cg to edf, cg is above edf
 

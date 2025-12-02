@@ -767,6 +767,8 @@ void Aircraft::update_dynamics(const Vector3f &rot_accel)
     accel_earth.x = vehcle.Accel_ned[0];
     accel_earth.y = vehcle.Accel_ned[1];
     accel_earth.z = vehcle.Accel_ned[2];
+
+    // commented addign gravity as we already add gravity in Accel_ned
     //accel_earth += Vector3f(0.0f, 0.0f, GRAVITY_MSS); // LAT
 
     // if we're on the ground, then our vertical acceleration is limited
@@ -808,7 +810,7 @@ void Aircraft::update_dynamics(const Vector3f &rot_accel)
     update_eas_airspeed();
     
     // constrain height to the ground
-    if (on_ground()) {
+    if ((on_ground()) && (vehcle.plane_moving_state != IN_AIR)) {
         if (!was_on_ground && AP_HAL::millis() - last_ground_contact_ms > 1000) {
             GCS_SEND_TEXT(MAV_SEVERITY_INFO, "SIM Hit ground at %f m/s", velocity_ef.z);
             last_ground_contact_ms = AP_HAL::millis();
@@ -1421,7 +1423,7 @@ void Aircraft::update_eas_airspeed()
       assume the pitot can correctly capture airspeed up to 20 degrees off the nose
       and follows a cose law outside that range
     */
-    const float max_pitot_aoa = radians(20);
+    const float max_pitot_aoa = radians(90);
     if (pitot_aoa > radians(90)) {
         airspeed_pitot = 0;
     } else if (pitot_aoa > max_pitot_aoa) {

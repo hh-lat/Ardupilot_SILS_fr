@@ -117,7 +117,7 @@ void v_derivative(float Plane_state[],float t,float dydt[])
 		case CT_RUNWAY_MOVING:
 		{		
 			//vehcle.plane_on_ground = 0;
-			vehcle.FLG_NR = (vehcle.mass*vehcle.g*vehcle.MLG_x + m)/(vehcle.FLG_x + vehcle.MLG_x);
+			vehcle.FLG_NR = (vehcle.mass*vehcle.g*vehcle.MLG_x - m)/(vehcle.FLG_x + vehcle.MLG_x);
 			vehcle.MLG_NR = vehcle.mass*vehcle.g - vehcle.FLG_NR;
 
 			if (vehcle.MLG_NR < 0.0f && vehcle.FLG_NR < 0.0f)
@@ -131,8 +131,19 @@ void v_derivative(float Plane_state[],float t,float dydt[])
 				vehcle.plane_moving_state = CT_RUNWAY_ROTATING;
 			}
 
+			if (vehcle.FLG_NR < 0.0f)
+			{
+				vehcle.FLG_NR = 0.0f;
+			}
+
+			if (vehcle.MLG_NR < 0.0f)
+			{
+				vehcle.MLG_NR = 0.0f;
+			}
+
 			m = 0;//m + vehcle.FLG_NR*vehcle.FLG_x - vehcle.MLG_NR*vehcle.MLG_x;
 
+			fx = fx ;//- vehcl e.friction_coeff_ground*(vehcle.FLG_NR + vehcle.MLG_NR);
 			dydt[0] = ((fx * mass_inv) + (r * v) - (q * w));//%u_dot//optimization
 			dydt[1] = 0*((fy * mass_inv) + (p * w) - (r * u));//%v_dot
 			dydt[2] = 0*((fz * mass_inv) + (q * u) - (p * v));  //%w_dot
@@ -169,21 +180,31 @@ void v_derivative(float Plane_state[],float t,float dydt[])
 		{
 			//vehcle.plane_on_ground = 0;
 
-			float fz_mmg=0,fx_mmg=0;
 			float A=0,B=0,C=0;
+			float FZ =0;
 
-			A = vehcle.MLG_x*cosf(theta) - vehcle.MLG_z*sinf(theta);
-			B = vehcle.MLG_x*sinf(theta) + vehcle.MLG_z*cosf(theta);
+			float temp3[3]={0};
+			float temp4[3]={0};
 
-			C = 1 - (vehcle.mass*A*vehcle.MLG_x)/(Iy);
+			temp3[0] = fx;
+			temp3[1] = 0;
+			temp3[2] = fz;
+
+			body_to_NED(temp3, temp4);
+
+			FZ = temp4[2];
+
+			C = (mass*A*vehcle.MLG_x -1);
 			if (fabsf(C)<0.0001)
 			{
 				C=0.0001; // to avoid division by zero
 			}
 
-			vehcle.MLG_NR = (vehcle.mass*vehcle.g + fz_mmg*cosf(theta) - fx_mmg*sinf(theta) +
-							 vehcle.mass*((A*m/Iy) - B*q*q))/(C); 
-			vehcle.FLG_NR = 0;
+			A = -(vehcle.MLG_x*cosf(theta) - vehcle.MLG_z*sinf(theta));
+			A = A/Iy;
+			B = vehcle.MLG_x*sinf(theta) + vehcle.MLG_z*cosf(theta);
+
+			vehcle.MLG_NR = (mass*A*m + mass*B*q*q - FZ)/(C);
 
 			if (vehcle.MLG_NR < 0.0f)
 			{
@@ -200,6 +221,8 @@ void v_derivative(float Plane_state[],float t,float dydt[])
 			fz = fz - vehcle.MLG_NR*cosf(theta);
 
 			m = m + vehcle.FLG_NR*vehcle.FLG_x - vehcle.MLG_NR*vehcle.MLG_x;
+
+			fx = fx ;//- vehcle.friction_coeff_ground*(vehcle.FLG_NR + vehcle.MLG_NR);
 
 			dydt[0] = ((fx * mass_inv) + (r * v) - (q * w));//%u_dot//optimization
 			dydt[1] = 0*((fy * mass_inv) + (p * w) - (r * u));//%v_dot
@@ -246,11 +269,11 @@ void v_derivative(float Plane_state[],float t,float dydt[])
 
 			if (vehcle.alt_agl < vehcle.altitude_tolerance_for_ground && vehcle.theta < vehcle.theta_tolerance_for_ground)
 			{
-				vehcle.plane_moving_state = CT_RUNWAY_MOVING;
+				//vehcle.plane_moving_state = CT_RUNWAY_M3OVING;
 			}
 			else if (vehcle.alt_agl < vehcle.altitude_tolerance_for_ground)
 			{
-				vehcle.plane_moving_state = CT_RUNWAY_ROTATING;
+				//vehcle.plane_moving_state = CT_RUNWAY_ROTATING;
 			}
 
 			dydt[0] = ((fx * mass_inv) + (r * v) - (q * w));//%u_dot//optimization
@@ -259,7 +282,6 @@ void v_derivative(float Plane_state[],float t,float dydt[])
 
 			dydt[3] = ((Iyz * Iyz - Iy * Iz) * (l + q * (Ixz * p + Iyz * q - Iz * r) - r * (Ixy * p - Iy * q + Iyz * r)))/(Iz * Ixy * Ixy + 2 * Ixy * Ixz * Iyz + Iy * Ixz * Ixz + Ix * Iyz * Iyz - Ix*Iy*Iz) - ((Ixz*Iy + Ixy*Iyz)*(n + p*(Ixy*p - Iy*q + Iyz*r) - q*(Ixy*q - Ix*p + Ixz*r)))/(Iz*Ixy*Ixy + 2*Ixy*Ixz*Iyz + Iy*Ixz*Ixz + Ix*Iyz*Iyz - Ix*Iy*Iz) - ((Ixz*Iyz + Ixy*Iz)*(m - p*(Ixz*p + Iyz*q - Iz*r) + r*(Ixy*q - Ix*p + Ixz*r)))/(Iz*Ixy*Ixy + 2*Ixy*Ixz*Iyz + Iy*Ixz*Ixz + Ix*Iyz*Iyz - Ix*Iy*Iz);
 			dydt[4] = ((Ixz * Ixz - Ix * Iz) * (m - p * (Ixz * p + Iyz * q - Iz * r) + r * (Ixy * q - Ix * p + Ixz * r)))/(Iz * Ixy * Ixy + 2 * Ixy * Ixz * Iyz + Iy * Ixz * Ixz + Ix * Iyz * Iyz - Ix*Iy*Iz) - ((Ixy*Ixz + Ix*Iyz)*(n + p*(Ixy*p - Iy*q + Iyz*r) - q*(Ixy*q - Ix*p + Ixz*r)))/(Iz*Ixy*Ixy + 2*Ixy*Ixz*Iyz + Iy*Ixz*Ixz + Ix*Iyz*Iyz - Ix*Iy*Iz) - ((Ixz*Iyz + Ixy*Iz)*(l + q*(Ixz*p + Iyz*q - Iz*r) - r*(Ixy*p - Iy*q + Iyz*r)))/(Iz*Ixy*Ixy + 2*Ixy*Ixz*Iyz + Iy*Ixz*Ixz + Ix*Iyz*Iyz - Ix*Iy*Iz);
-
 			dydt[5] = ((Ixy * Ixy - Ix * Iy) * (n + p * (Ixy * p - Iy * q + Iyz * r) - q * (Ixy * q - Ix * p + Ixz * r)))/(Iz * Ixy * Ixy + 2 * Ixy * Ixz * Iyz + Iy * Ixz * Ixz + Ix * Iyz * Iyz - Ix*Iy*Iz) - ((Ixy*Ixz + Ix*Iyz)*(m - p*(Ixz*p + Iyz*q - Iz*r) + r*(Ixy*q - Ix*p + Ixz*r)))/(Iz*Ixy*Ixy + 2*Ixy*Ixz*Iyz + Iy*Ixz*Ixz + Ix*Iyz*Iyz - Ix*Iy*Iz) - ((Ixz*Iy + Ixy*Iyz)*(l + q*(Ixz*p + Iyz*q - Iz*r) - r*(Ixy*p - Iy*q + Iyz*r)))/(Iz*Ixy*Ixy + 2*Ixy*Ixz*Iyz + Iy*Ixz*Ixz + Ix*Iyz*Iyz - Ix*Iy*Iz);
 			
 			dydt[6] = (p + (q * sinf(phi) * tanf(theta)) + (r * cosf(phi) * tanf(theta)));//%phi_dot

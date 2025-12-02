@@ -327,11 +327,10 @@ void v_update_rotors_thrust_from_CT()
 	for (int i=0;i<(s_motor_manager.num_motors);i++)
 	{
 		s_motor[i].thrust_out =  vehcle.rho * powf((s_motor[i].rpm/60.0),2) * powf(s_motor[i].dia_prop,4) * s_motor[i].CT;
-		if (s_motor[i].thrust_out < 0.0f)
+ 		if (s_motor[i].thrust_out < 0.0f)
 		{
 			s_motor[i].thrust_out = 0.0f;
 		}
-		break;
 	}
 }
 
