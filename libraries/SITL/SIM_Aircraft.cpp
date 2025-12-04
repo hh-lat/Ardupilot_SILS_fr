@@ -744,8 +744,8 @@ void Aircraft::update_dynamics(const Vector3f &rot_accel)
     gyro.y = constrain_float(gyro.y, -radians(2000.0f), radians(2000.0f));
     gyro.z = constrain_float(gyro.z, -radians(2000.0f), radians(2000.0f));
 
-    gyro.x = 0;
-    gyro.z =0;
+    //gyro.x = 0;
+    //gyro.z =0;
 
     vehcle.p = gyro.x;
     vehcle.q = gyro.y;
@@ -768,7 +768,7 @@ void Aircraft::update_dynamics(const Vector3f &rot_accel)
     accel_earth.y = vehcle.Accel_ned[1];
     accel_earth.z = vehcle.Accel_ned[2];
 
-    // commented addign gravity as we already add gravity in Accel_ned
+    // commented adding gravity as we already add gravity in Accel_ned
     //accel_earth += Vector3f(0.0f, 0.0f, GRAVITY_MSS); // LAT
 
     // if we're on the ground, then our vertical acceleration is limited

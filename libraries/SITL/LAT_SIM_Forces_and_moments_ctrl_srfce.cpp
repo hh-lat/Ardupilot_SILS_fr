@@ -442,5 +442,9 @@ void v_aero_force_and_moments()
 	v_calculate_aero_roll_moment();
 	v_calculate_aero_pitch_moment();
 	v_calculate_aero_yaw_moment();
+
+	vehcle.all_aero_force[0] = vehcle.L_b[0] + vehcle.D_b[0] ;
+	vehcle.all_aero_force[1] = vehcle.L_b[1] + vehcle.D_b[1] + vehcle.all_side_force;
+	vehcle.all_aero_force[2] = vehcle.L_b[2] + vehcle.D_b[2] ;
 }
 

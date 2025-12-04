@@ -47,6 +47,9 @@ void v_update_vehcle_state_from_ardu_ekf()
 		
 		float angle_of_attack = atan2f(vehcle.V_b_tas[2] , vehcle.V_b_tas[0] );
 		float beta = atan2f(vehcle.V_b_tas[1] , vehcle.V_b_tas[0] );
+
+		angle_of_attack = constrain_float1(angle_of_attack, -10.0f*D2R, 20.0f*D2R);
+		beta = constrain_float1(beta, -20.0f*D2R, 20.0f*D2R);
 		
 		// Store in vehicle state
 		vehcle.alpha = angle_of_attack;
@@ -319,18 +322,18 @@ void v_plane_param_define_equinox()
 	s_motor_manager.num_motors = 8;
 
    //v_set_servo_params(pwm_min, pwm_max, angle_pwm_min, angle_pwm_max,omega, zeta, min_rate, max_rate, min_accel, max_accel,  type)
-	v_set_servo_params(1100,1900,-30*D2R,30*D2R, 10.0, 0.7, -360*D2R, 360*D2R, -720*D2R, 720*D2R, AILERON_COMMON);
-	v_set_servo_params(1100,1900,-30*D2R,30*D2R, 10.0, 0.7, -360*D2R, 360*D2R, -720*D2R, 720*D2R, ELEVATOR_COMMON);
+	v_set_servo_params(1100,1900,-30*D2R,30*D2R, 10.0, 0.7, -1000*D2R, 1000*D2R, -720*D2R, 720*D2R, AILERON_COMMON);
+	v_set_servo_params(1100,1900,-30*D2R,30*D2R, 10.0, 0.7, -1000*D2R, 1000*D2R, -720*D2R, 720*D2R, ELEVATOR_COMMON);
 
 	// CFD assumed right rudder as +ve, so when ardupilot demands 1900 to turn right, rudder  should be moved right, hence +ve angle at 1900
-	v_set_servo_params(1100,1900,-30*D2R,30*D2R, 10.0, 0.7, -360*D2R, 360*D2R, -720*D2R, 720*D2R, RUDDER_COMMON);
+	v_set_servo_params(1100,1900,-30*D2R,30*D2R, 10.0, 0.7, -1000*D2R, 1000*D2R, -720*D2R, 720*D2R, RUDDER_COMMON);
 
-	v_set_servo_params(1100,1900, 30*D2R,-30*D2R, 10.0, 0.7, -360*D2R, 360*D2R, -720*D2R, 720*D2R, AILERON_LEFT);
-	v_set_servo_params(1100,1900,-30*D2R,30*D2R, 10.0, 0.7, -360*D2R, 360*D2R, -720*D2R, 720*D2R, AILERON_RIGHT);
+	v_set_servo_params(1100,1900, 30*D2R,-30*D2R, 10.0, 0.7, -1000*D2R, 1000*D2R, -720*D2R, 720*D2R, AILERON_LEFT);
+	v_set_servo_params(1100,1900,-30*D2R,30*D2R, 10.0, 0.7, -1000*D2R, 1000*D2R, -720*D2R, 720*D2R, AILERON_RIGHT);
 
-	v_set_servo_params(1100,1900,0,40*D2R, 10.0, 0.7, -360*D2R, 360*D2R, -720*D2R, 720*D2R, FLAP);
+	v_set_servo_params(1100,1900,0,40*D2R, 10.0, 0.7, -1000*D2R, 1000*D2R, -720*D2R, 720*D2R, FLAP);
 
-	v_set_servo_params(1100,1900,-30*D2R,30*D2R, 10.0, 0.7, -360*D2R, 360*D2R, -720*D2R, 720*D2R, NOSE_LG_SERVO);
+	v_set_servo_params(1100,1900,-30*D2R,30*D2R, 10.0, 0.7, -1000*D2R, 1000*D2R, -720*D2R, 720*D2R, NOSE_LG_SERVO);
 	
 
 	vehcle.ground_yaw_gain = 0.5; 
@@ -504,16 +507,16 @@ void v_plane_param_define_ardupilot_default()
 	s_motor_manager.num_motors = 8;
 
 	//v_set_servo_params(pwm_min, pwm_max, angle_pwm_min, angle_pwm_max,omega, zeta, min_rate, max_rate, min_accel, max_accel,  type)
-	v_set_servo_params(1100,1900,-30*D2R,30*D2R, 10.0, 0.7, -360*D2R, 360*D2R, -720*D2R, 720*D2R, AILERON_COMMON);
-	v_set_servo_params(1100,1900,-30*D2R,30*D2R, 10.0, 0.7, -360*D2R, 360*D2R, -720*D2R, 720*D2R, ELEVATOR_COMMON);
-	v_set_servo_params(1100,1900, 30*D2R,-30*D2R, 10.0, 0.7, -360*D2R, 360*D2R, -720*D2R, 720*D2R, RUDDER_COMMON);
+	v_set_servo_params(1100,1900,-30*D2R,30*D2R, 10.0, 0.7, -1000*D2R, 1000*D2R, -720*D2R, 720*D2R, AILERON_COMMON);
+	v_set_servo_params(1100,1900,-30*D2R,30*D2R, 10.0, 0.7, -1000*D2R, 1000*D2R, -720*D2R, 720*D2R, ELEVATOR_COMMON);
+	v_set_servo_params(1100,1900, 30*D2R,-30*D2R, 10.0, 0.7, -1000*D2R, 1000*D2R, -720*D2R, 720*D2R, RUDDER_COMMON);
 
-	v_set_servo_params(1100,1900,-30*D2R,30*D2R, 10.0, 0.7, -360*D2R, 360*D2R, -720*D2R, 720*D2R, AILERON_LEFT);
-	v_set_servo_params(1100,1900, 30*D2R,-30*D2R, 10.0, 0.7, -360*D2R, 360*D2R, -720*D2R, 720*D2R, AILERON_RIGHT);
+	v_set_servo_params(1100,1900,-30*D2R,30*D2R, 10.0, 0.7, -1000*D2R, 1000*D2R, -720*D2R, 720*D2R, AILERON_LEFT);
+	v_set_servo_params(1100,1900, 30*D2R,-30*D2R, 10.0, 0.7, -1000*D2R, 1000*D2R, -720*D2R, 720*D2R, AILERON_RIGHT);
 
-	v_set_servo_params(1100,1900,-40*D2R,40*D2R, 10.0, 0.7, -360*D2R, 360*D2R, -720*D2R, 720*D2R, FLAP);
+	v_set_servo_params(1100,1900,-40*D2R,40*D2R, 10.0, 0.7, -1000*D2R, 1000*D2R, -720*D2R, 720*D2R, FLAP);
 		
-	v_set_servo_params(1100,1900,-30*D2R,30*D2R, 10.0, 0.7, -360*D2R, 360*D2R, -720*D2R, 720*D2R, NOSE_LG_SERVO);
+	v_set_servo_params(1100,1900,-30*D2R,30*D2R, 10.0, 0.7, -1000*D2R, 1000*D2R, -720*D2R, 720*D2R, NOSE_LG_SERVO);
 
 	vehcle.ground_yaw_gain = 0.5; 
 	vehcle.cg_x = 1070.0/1000.0; // from nose center, put positve number
@@ -589,7 +592,7 @@ void v_plane_param_define_ardupilot_default()
 	vehcle.Cl_r = 0.14;
 	vehcle.Cm_0 = 0.045;
 	vehcle.Cm_alpha = -0.7;
-	vehcle.Cm_q = -120;
+	vehcle.Cm_q = -60.0;
 	vehcle.Cm_delta_e = -1.0;
 	vehcle.Cm_delta_aL = 0;
 	vehcle.Cm_delta_aR = 0;
@@ -619,7 +622,7 @@ void v_plane_param_define_ardupilot_default()
 		s_motor[i].rpm_max = 28000.0;
 		s_motor[i].rpm_min = 0.0;
 		s_motor[i].dia_prop = 0.12;
-		s_motor[i].max_thrust = (vehcle.mass*vehcle.g/s_motor_manager.num_motors)*0.5;	
+		s_motor[i].max_thrust = (vehcle.mass*vehcle.g/s_motor_manager.num_motors)*0.8;	
 		s_motor[i].min_thrust = 0.0;
 		s_motor[i].thrust_2_torque_factor =0; // JP Hobby EDFs kind of not produces any torque
 		s_motor[i].CT_static = s_motor[0].max_thrust / (vehcle.rho*powf(s_motor[0].dia_prop,4)*powf(s_motor[0].rpm_max/60.0f,2));;
