@@ -20,7 +20,7 @@ void v_set_aircraft_instance(SITL::Aircraft* aircraft) {
 
 void v_lat_fdm_init()
 {	
-	vehcle.plane_model = PLANE_ARDU_DEFAULT;////PLANE_EQX // 0 for default simple model, 1 for equinox model
+	vehcle.plane_model = PLANE_EQX;////PLANE_EQX//PLANE_ARDU_DEFAULT // 0 for default simple model, 1 for equinox model
     vehcle.dof = DOF_LONGITUDINAL_ONLY;
 	vehcle.plane_on_ground = 1;
     v_plane_param_define();
@@ -437,7 +437,7 @@ void v_plane_param_define_equinox()
 		s_motor[i].pwm_max = 1900;
 		s_motor[i].omega_tf = 30.0; // rad/s
 		s_motor[i].zeta_tf = 0.7;
-		s_motor[i].rpm_max = 28000.0;
+		s_motor[i].rpm_max = 36000.0;
 		s_motor[i].rpm_min = 0.0;
 		s_motor[i].dia_prop = 0.12;
 		s_motor[i].max_thrust = (vehcle.mass*vehcle.g/s_motor_manager.num_motors)*0.8;	
@@ -619,7 +619,7 @@ void v_plane_param_define_ardupilot_default()
 		s_motor[i].pwm_max = 1900;
 		s_motor[i].omega_tf = 30.0; // rad/s
 		s_motor[i].zeta_tf = 0.7;
-		s_motor[i].rpm_max = 28000.0;
+		s_motor[i].rpm_max = 36000.0;
 		s_motor[i].rpm_min = 0.0;
 		s_motor[i].dia_prop = 0.12;
 		s_motor[i].max_thrust = (vehcle.mass*vehcle.g/s_motor_manager.num_motors)*0.8;	

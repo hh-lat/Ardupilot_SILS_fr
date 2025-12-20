@@ -744,8 +744,13 @@ void Aircraft::update_dynamics(const Vector3f &rot_accel)
     gyro.y = constrain_float(gyro.y, -radians(2000.0f), radians(2000.0f));
     gyro.z = constrain_float(gyro.z, -radians(2000.0f), radians(2000.0f));
 
-    //gyro.x = 0;
-    //gyro.z =0;
+
+    if (vehcle.dof == DOF_LONGITUDINAL_ONLY)
+    {
+      gyro.x = 0;
+      gyro.z =0;
+    }
+
 
     vehcle.p = gyro.x;
     vehcle.q = gyro.y;
@@ -755,6 +760,11 @@ void Aircraft::update_dynamics(const Vector3f &rot_accel)
     accel_body.x = constrain_float(accel_body.x, -accel_limit, accel_limit);
     accel_body.y = constrain_float(accel_body.y, -accel_limit, accel_limit);
     accel_body.z = constrain_float(accel_body.z, -accel_limit, accel_limit);
+
+    if (vehcle.dof == DOF_LONGITUDINAL_ONLY)
+    {
+     accel_body.y =0;
+    }
 
     // update attitude
     dcm.rotate(gyro * delta_time);
