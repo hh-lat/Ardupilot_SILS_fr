@@ -1,6 +1,7 @@
 
 #include <stdio.h>
 #include <math.h>
+#include <AP_HAL/AP_HAL.h>
 #include "LAT_SIM_math_util.h"
 #include "LAT_SIM_Runner.h"
 #include "LAT_SIM_Forces_and_moments_ctrl_srfce.h"
@@ -143,7 +144,7 @@ void v_derivative(float Plane_state[],float t,float dydt[])
 
 			m = 0;//m + vehcle.FLG_NR*vehcle.FLG_x - vehcle.MLG_NR*vehcle.MLG_x;
 
-			fx = fx ;//- vehcl e.friction_coeff_ground*(vehcle.FLG_NR + vehcle.MLG_NR);
+			fx = fx - 0.06*(vehcle.FLG_NR + vehcle.MLG_NR);
 			dydt[0] = ((fx * mass_inv) + (r * v) - (q * w));//%u_dot//optimization
 			dydt[1] = 0*((fy * mass_inv) + (p * w) - (r * u));//%v_dot
 			dydt[2] = 0*((fz * mass_inv) + (q * u) - (p * v));  //%w_dot
@@ -222,7 +223,7 @@ void v_derivative(float Plane_state[],float t,float dydt[])
 
 			m = m + vehcle.FLG_NR*vehcle.FLG_x - vehcle.MLG_NR*vehcle.MLG_x;
 
-			fx = fx ;//- vehcle.friction_coeff_ground*(vehcle.FLG_NR + vehcle.MLG_NR);
+			fx = fx - 0.06*(vehcle.FLG_NR + vehcle.MLG_NR);
 
 			dydt[0] = ((fx * mass_inv) + (r * v) - (q * w));//%u_dot//optimization
 			dydt[1] = 0*((fy * mass_inv) + (p * w) - (r * u));//%v_dot
@@ -261,7 +262,6 @@ void v_derivative(float Plane_state[],float t,float dydt[])
 		case IN_AIR:
 		{
 			//vehcle.plane_on_ground = 0;
-
 			vehcle.MLG_NR = 0;
 			vehcle.FLG_NR = 0;
 
@@ -275,6 +275,27 @@ void v_derivative(float Plane_state[],float t,float dydt[])
 			{
 				//vehcle.plane_moving_state = CT_RUNWAY_ROTATING;
 			}
+
+			// static uint32_t last_time_ms = 0;
+			// // Get current runtime in milliseconds from ArduPilot HAL
+			// if (last_time_ms == 0)
+			// {
+			// 	last_time_ms = AP_HAL::millis();
+			// }
+
+			// if (AP_HAL::millis() - last_time_ms < 50)
+			// {
+			// 	m=0;
+			// 	l=0;
+			// 	n=0;
+			// }
+
+			// vehcle.Cm = vehcle.Cm_0 + vehcle.Cm_alpha*vehcle.alpha + vehcle.Cm_delta_e*vehcle.delta_e +
+			// 		 vehcle.Cm_q*vehcle.q*vehcle.c/(2.0f*vehcle.tas);
+			// 		 //vehcle.Cm_Cmu*vehcle.Cmu + vehcle.Cm_alpha_Cmu*vehcle.alpha*vehcle.Cmu +
+			// 		 //vehcle.Cm_delta_f*vehcle.delta_f;
+			// m = vehcle.Q*vehcle.s*vehcle.c*(vehcle.Cm) + vehcle.all_rotors_moment[1] ;
+			// m = (0.5*1.15*25*25)*vehcle.s*vehcle.c*(vehcle.Cm) + vehcle.all_rotors_moment[1] ;
 
 			dydt[0] = ((fx * mass_inv) + (r * v) - (q * w));//%u_dot//optimization
 			dydt[1] = ((fy * mass_inv) + (p * w) - (r * u));//%v_dot
@@ -290,10 +311,19 @@ void v_derivative(float Plane_state[],float t,float dydt[])
 
 			body_to_NED(vehcle.V_b_gnd,  V);
 
-			
 			vehcle.p_dot =dydt[3];
 			vehcle.q_dot =dydt[4];
 			vehcle.r_dot =dydt[5];
+
+			// if (fabsf(vehcle.delta_e) > 5/57.3)
+			// {
+			// 	vehcle.q_dot =10*(0-vehcle.q) + (vehcle.Cm_delta_e*(vehcle.delta_e))*0.5;//dydt[4];
+			// }
+			// else 
+			// {
+			// 	vehcle.q_dot =10*(0-vehcle.q) ;
+			// }
+			
 
 			dydt[9]  = V[0];//%inertial velocity X
 			dydt[10] = V[1];//%inertial velocity Y

@@ -83,6 +83,9 @@ void v_lat_fdm_run(const struct sitl_input &input)
 	}
 
 	v_update_vehcle_state_from_ardu_ekf();
+	plane_state[0] = vehcle.V_b_tas[0];
+	plane_state[1] = vehcle.V_b_tas[1];
+	plane_state[2] = vehcle.V_b_tas[2];
 	plane_state[3] = vehcle.p;
 	plane_state[4] = vehcle.q;
 	plane_state[5] = vehcle.r;
