@@ -79,8 +79,8 @@ void LAT::lat_update_motor_state()
 {
    // int mode = det_mode.get();
 
-   // int mode = 0;//plane.g2.det_mode.get();
-     int mode = _params.det_mode.get();
+     int mode = 0;//plane.g2.det_mode.get();
+     //int mode = _params.det_mode.get();
 
     // do not check if disarmed or when no detection mode is set, reset motor flags
     if ((!AP::arming().is_armed()) || (mode == 0)) {

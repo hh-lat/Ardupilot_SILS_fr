@@ -10,8 +10,6 @@
 #include "LAT_SIM_rotor_dynamics.h"
 #include "LAT_SIM_servo_dynamics.h"
 
-
-
 void v_derivative(float Plane_state[],float t,float dydt[])
 {
 	float u,v,w,p,q,r,phi,theta;
@@ -64,7 +62,6 @@ void v_derivative(float Plane_state[],float t,float dydt[])
 	v_update_vehcle_Cmu();
 
 	v_aero_force_and_moments();// updates vehcle.all_aero_force[] and vehcle.all_aero_moment[]
-
 
 	mass_inv =  1.0f/mass;
 

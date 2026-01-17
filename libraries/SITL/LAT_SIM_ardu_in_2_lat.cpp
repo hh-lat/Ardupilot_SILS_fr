@@ -77,6 +77,29 @@ void  v_ardu_input_to_lat_input(struct sitl_input input)
             s_motor[7].pwm_in = input.servos[0]; // motor 8  
             break;
         }
+
+        case PLANE_EQX_V1_NEW_MODEL:
+        {
+            s_servo[AILERON_LEFT].pwm_in    = input.servos[9]; // aileron left
+            s_servo[AILERON_RIGHT].pwm_in   = input.servos[10]; // aileron right
+
+            s_servo[AILERON_COMMON].pwm_in  = s_servo[AILERON_RIGHT].pwm_in; // aileron common
+
+            s_servo[ELEVATOR_COMMON].pwm_in = input.servos[12]; //elevator common
+            s_servo[RUDDER_COMMON].pwm_in   = input.servos[5]; //Rudder common
+            s_servo[FLAP].pwm_in            = input.servos[11]; //rudder common
+            s_servo[NOSE_LG_SERVO].pwm_in   = input.servos[8];
+
+            s_motor[0].pwm_in = input.servos[0]; // motor 1
+            s_motor[1].pwm_in = input.servos[1]; // motor 2
+            s_motor[2].pwm_in = input.servos[2]; // motor 3
+            s_motor[3].pwm_in = input.servos[3]; // motor 4
+            s_motor[4].pwm_in = input.servos[3]; // motor 5
+            s_motor[5].pwm_in = input.servos[2]; // motor 6
+            s_motor[6].pwm_in = input.servos[1]; // motor 7
+            s_motor[7].pwm_in = input.servos[0]; // motor 8  
+            break;
+        }
     }
 }
 

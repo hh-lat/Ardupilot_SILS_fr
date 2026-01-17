@@ -93,6 +93,7 @@ void v_throttle_to_thrust_torque(float t_step_rot)
 		}
 
 		case PLANE_EQX:
+		case PLANE_EQX_V1_NEW_MODEL:
 		{
 			v_update_dynamic_thrust_parameters();
 		break;
@@ -235,6 +236,7 @@ void v_update_rotors_rpm_from_throttle()
 			}
 
 			case PLANE_EQX:
+			case PLANE_EQX_V1_NEW_MODEL:
 			{
 				s_motor[i].rpm = 39543*s_motor[i].throttle_cmd - 3792.7;
 				if (s_motor[i].rpm < 0.0f)
@@ -278,7 +280,7 @@ void v_update_rotors_Cmu()
 
 			case PLANE_EQX:
 			{
-				s_motor[i].Cmu = 0.0966 / powf(s_motor[i].J,2.314);
+				s_motor[i].Cmu = (0.0966 / powf(s_motor[i].J,2.314));
 
 				if (s_motor[i].Cmu > 15.0f)
 				{
@@ -286,6 +288,17 @@ void v_update_rotors_Cmu()
 				}
 
 			break;
+			}
+
+			case PLANE_EQX_V1_NEW_MODEL:
+			{
+				s_motor[i].Cmu = (0.0966 / powf(s_motor[i].J,2.314)) + (-0.0357726);
+
+				if (s_motor[i].Cmu > 15.0f)
+				{
+					s_motor[i].Cmu = 15.0f;
+				}
+				break;
 			}
 		}
 	}
@@ -308,8 +321,9 @@ void v_update_rotors_thrust_coefficient()
 			}
 
 			case PLANE_EQX:
+			case PLANE_EQX_V1_NEW_MODEL:
 			{
-				s_motor[i].CT = -0.0283*powf(s_motor[i].J,2) - 0.917*s_motor[i].J + 1.3647;
+				s_motor[i].CT = 0.7225*(-0.0283*powf(s_motor[i].J,2) - 0.917*s_motor[i].J + 1.3647);
 
 				if (s_motor[i].CT < 0.0f)
 				{
@@ -331,6 +345,11 @@ void v_update_rotors_thrust_from_CT()
 		{
 			s_motor[i].thrust_out = 0.0f;
 		}
+
+		if (s_motor[i].thrust_out > s_motor[i].max_thrust)
+		{
+			s_motor[i].thrust_out = s_motor[i].max_thrust;
+		}
 	}
 }
 
@@ -347,6 +366,7 @@ void v_update_vehcle_Cmu()
 			}
 
 			case PLANE_EQX:
+			case PLANE_EQX_V1_NEW_MODEL:
 			{
 				for (int i=0;i<(s_motor_manager.num_motors);i++)
 				{

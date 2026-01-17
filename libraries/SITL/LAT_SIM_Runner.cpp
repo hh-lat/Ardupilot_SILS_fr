@@ -20,8 +20,8 @@ void v_set_aircraft_instance(SITL::Aircraft* aircraft) {
 
 void v_lat_fdm_init()
 {	
-	vehcle.plane_model = PLANE_EQX;////PLANE_EQX//PLANE_ARDU_DEFAULT // 0 for default simple model, 1 for equinox model
-    vehcle.dof = DOF_LONGITUDINAL_ONLY;
+	vehcle.plane_model =PLANE_EQX_V1_NEW_MODEL;// PLANE_ARDU_DEFAULT;//PLANE_EQX_V1_NEW_MODEL;//PLANE_EQX;////PLANE_EQX//PLANE_ARDU_DEFAULT // 0 for default simple model, 1 for equinox model
+    vehcle.dof = DOF_ALL_MOTION;//DOF_LONGITUDINAL_ONLY;
 	vehcle.plane_on_ground = 1;
     v_plane_param_define();
 }
@@ -235,12 +235,200 @@ void v_plane_param_define()
 		     v_plane_param_define_equinox();
 			 break;
 		}
+		case PLANE_EQX_V1_NEW_MODEL:
+		{
+			 v_plane_param_define_eqx_v1_new_model();
+			 break;
+		}
 		default:
 		{
 			 v_plane_param_define_ardupilot_default();
 			 break;
 		}
 	}
+}
+
+void v_plane_param_define_eqx_v1_new_model()
+{
+	s_servo_manager.num_servos = 16; //  put max servo enum that is used
+	s_motor_manager.num_motors = 8;
+
+   //v_set_servo_params(pwm_min, pwm_max, angle_pwm_min, angle_pwm_max,omega, zeta, min_rate, max_rate, min_accel, max_accel,  type)
+	v_set_servo_params(1100,1900,-20*D2R,20*D2R, 10.0, 0.7, -1000*D2R, 1000*D2R, -720*D2R, 720*D2R, AILERON_COMMON);
+	v_set_servo_params(1100,1900,-20*D2R,20*D2R, 10.0, 0.7, -1000*D2R, 1000*D2R, -720*D2R, 720*D2R, ELEVATOR_COMMON);
+
+	// CFD assumed right rudder as +ve, so when ardupilot demands 1900 to turn right, rudder  should be moved right, hence +ve angle at 1900
+	v_set_servo_params(1100,1900,-20*D2R,20*D2R, 10.0, 0.7, -1000*D2R, 1000*D2R, -720*D2R, 720*D2R, RUDDER_COMMON);
+	v_set_servo_params(1100,1900, 20*D2R,-20*D2R, 10.0, 0.7, -1000*D2R, 1000*D2R, -720*D2R, 720*D2R, AILERON_LEFT);
+	v_set_servo_params(1100,1900,-20*D2R,20*D2R, 10.0, 0.7, -1000*D2R, 1000*D2R, -720*D2R, 720*D2R, AILERON_RIGHT);
+
+	v_set_servo_params(1100,1900,0,40*D2R, 10.0, 0.7, -1000*D2R, 1000*D2R, -720*D2R, 720*D2R, FLAP);
+
+	v_set_servo_params(1100,1900,-20*D2R,20*D2R, 10.0, 0.7, -1000*D2R, 1000*D2R, -720*D2R, 720*D2R, NOSE_LG_SERVO);
+	
+	vehcle.ground_yaw_gain = 0.5; 
+	vehcle.cg_x = 1070.0/1000.0; // from nose center, put positve number
+	vehcle.cg_z = 43.0/1000.0;// from nose center, 43 mm above  nose center
+	vehcle.MLG_x = fabsf((1319.2/1000.0) - vehcle.cg_x); // put all positive
+	vehcle.MLG_z = fabsf(319.6/1000.0 + vehcle.cg_z); // put all positive
+	vehcle.FLG_x = fabsf((339.2/1000.0) - vehcle.cg_x);
+	vehcle.FLG_z = vehcle.MLG_z;
+    vehcle.delta_r_deadzone = 3.0*D2R; // 5 degree deadzone for rudder on ground
+	vehcle.theta_tolerance_for_ground = -1.0*D2R; // pitch angle below which plane is shifted to runway moving state
+	vehcle.altitude_tolerance_for_ground = -0.1; // altitude below which plane is considered on ground
+
+	vehcle.mg_b[0]=0;
+	vehcle.mg_b[1]=0;
+	vehcle.mg_b[2]=0;
+
+	vehcle.aero_zero_speed = 5.0; // m/s
+    vehcle.mass = 65.0 ;
+	vehcle.g = 9.81; 
+	vehcle.lift_stall_M = 50.0;
+    vehcle.Ixx = 14.658 ;
+    vehcle.Iyy = 16.944 ;
+    vehcle.Izz = 27.412 ;
+    vehcle.Ixz = 0*3.985 ;
+	vehcle.Iyz = 0.0 ;
+	vehcle.Ixy = 0.0 ;
+    vehcle.s = 0.9;
+	vehcle.s_blown = 0.216;
+    vehcle.b = 3.0;
+    vehcle.c = 0.3;
+	vehcle.e =0.7;
+	vehcle.AR =vehcle.b*vehcle.b/vehcle.s;
+	vehcle.t_by_c = 0.15;
+    vehcle.rho = 1.15;
+    vehcle.mlgL_x = 0;
+    vehcle.mlgL_y = 0;
+    vehcle.mlgL_z = 0;
+    vehcle.mlgR_x = 0;
+    vehcle.mlgR_y = 0;
+    vehcle.mlgR_z = 0;
+    vehcle.nlg_x = 0;
+    vehcle.nlg_y = 0;
+    vehcle.nlg_z = 0;
+	vehcle.alpha_stall = 25.0*D2R; // stall angle in rad
+
+	vehcle.CL_0 = 0.18;
+	vehcle.CL_delta_e =0.69;
+	vehcle.CL_alpha = 5.718; // default
+	vehcle.CL_q =12.5;//3.0; 
+
+	vehcle.CD_0 = 0.0763; 
+	vehcle.CD_delta_e = 0.012;
+	vehcle.CD_delta_f =0.23;
+	vehcle.CD_delta_e2 = 0.004;
+	vehcle.CD_alpha = 0.3;// default
+
+	vehcle.CY_0 = 0;
+	vehcle.CY_beta = -0.013686*R2D;
+	vehcle.CY_delta_r =0.001042*R2D;
+	vehcle.CY_delta_aL_Cmu = 0*R2D;
+	vehcle.CY_delta_aR_Cmu = 0*R2D;
+	vehcle.CY_delta_aL = -0.000212*R2D;
+	vehcle.CY_delta_aR =  0.000186*R2D;
+	vehcle.CY_beta_Cmu = 0.000597*R2D;
+	vehcle.CY_p = -0.078266;
+	vehcle.CY_r =  0.20338;
+
+	vehcle.Cl_0 = -0.000117;
+	vehcle.Cl_beta = -0.000003*R2D;
+	vehcle.Cl_delta_r =0.000145*R2D;
+	vehcle.Cl_delta_aL_Cmu =0.001281*R2D;
+	vehcle.Cl_delta_aR_Cmu = -0.001267*R2D;
+	vehcle.Cl_delta_aL = 0.001088*R2D;
+	vehcle.Cl_delta_aR =  -0.001097*R2D;
+	vehcle.Cl_p = 0;
+	vehcle.Cl_r = 0.08;
+
+	vehcle.Cm_0 = 0.249992;
+	vehcle.Cm_alpha = -0.073394*R2D;
+	vehcle.Cm_delta_e =-0.057653*R2D;
+	vehcle.Cm_delta_aL = -0.000813*R2D;
+	vehcle.Cm_delta_aR = -0.000659*R2D;
+	vehcle.Cm_Cmu = 0.199495;
+	vehcle.Cm_alpha_Cmu = 0.020895*R2D;
+	vehcle.Cm_delta_f = 0.002852*R2D;
+	vehcle.Cm_beta2 = -0.001134*R2D*R2D;
+	vehcle.Cm_beta2_Cmu = -0.000034*R2D*R2D;
+	vehcle.Cm_q = -77.0;
+
+	vehcle.Cn_0 = 0;
+	vehcle.Cn_beta = 0.001227*R2D;
+	vehcle.Cn_delta_r = -0.000494*R2D;
+	vehcle.Cn_delta_aL_Cmu = -0.000193*R2D;
+	vehcle.Cn_delta_aR_Cmu =  0.000194*R2D;
+	vehcle.Cn_delta_aL = -0.000029*R2D;
+	vehcle.Cn_delta_aR =  0.000035*R2D;
+	vehcle.Cn_beta_Cmu = 0.000786*R2D;
+	vehcle.Cn_p = -0.01;
+	vehcle.Cn_r = -0.05;
+	
+	for (int i=0;i<s_motor_manager.num_motors;i++)
+	{
+		s_motor[i].pwm_min = 1100;
+		s_motor[i].pwm_max = 1900;
+		s_motor[i].omega_tf = 30.0; // rad/s
+		s_motor[i].zeta_tf = 0.7;
+		s_motor[i].rpm_max = 36000.0;
+		s_motor[i].rpm_min = 0.0;
+		s_motor[i].dia_prop = 0.12;
+		s_motor[i].max_thrust = 47.0*9.81/8.0; // 47 kg total thrust divided by number of motors	
+		s_motor[i].min_thrust = 0.0;
+		s_motor[i].thrust_2_torque_factor =0; // JP Hobby EDFs kind of not produces any torque
+		s_motor[i].CT_static = s_motor[0].max_thrust / (vehcle.rho*powf(s_motor[0].dia_prop,4)*powf(s_motor[0].rpm_max/60.0f,2));;
+		s_motor[i].rate_limit_throttle = (1.0/0.01); // (1.0/0.1)=full throttle change in 0.1 sec
+	}
+
+	float y1= 0.274;
+	float y2= 0.598;
+	float y3 = 0.922;
+	float y4 = 1.246;
+
+	float z = 0.0948; //cg to edf, cg is above edf
+
+	float x = 0;
+	x= vehcle.cg_x - 757.2/1000.0; // edf are 30 mm behind cg
+
+	s_motor[0].rotor_xyz[0] = x;                     s_motor[1].rotor_xyz[0] = x;
+	s_motor[0].rotor_xyz[1] =-y4;                    s_motor[1].rotor_xyz[1] = -y3;
+	s_motor[0].rotor_xyz[2] = z;                     s_motor[1].rotor_xyz[2] = z;
+	
+	s_motor[2].rotor_xyz[0] = x;                     s_motor[3].rotor_xyz[0] = x;
+	s_motor[2].rotor_xyz[1] = -y2;                   s_motor[3].rotor_xyz[1] = -y1;
+	s_motor[2].rotor_xyz[2] = z;                     s_motor[3].rotor_xyz[2] = z;
+
+	s_motor[4].rotor_xyz[0] = x;                     s_motor[5].rotor_xyz[0] = x;
+	s_motor[4].rotor_xyz[1] = y1;                   s_motor[5].rotor_xyz[1] = y2;
+	s_motor[4].rotor_xyz[2] = z;                     s_motor[5].rotor_xyz[2] = z;	
+
+	s_motor[6].rotor_xyz[0] = x;                     s_motor[7].rotor_xyz[0] = x;
+	s_motor[6].rotor_xyz[1] = y3;                   s_motor[7].rotor_xyz[1] = y4;
+	s_motor[6].rotor_xyz[2] = z;                     s_motor[7].rotor_xyz[2] = z;
+
+	s_motor[0].rotor_tilt[0] = 0.0;                     s_motor[1].rotor_tilt[0] = 0.0;
+	s_motor[0].rotor_tilt[1] = 0.0;                     s_motor[1].rotor_tilt[1] = 0.0;
+	s_motor[0].rotor_tilt[2] = 0.0;                     s_motor[1].rotor_tilt[2] = 0.0;
+
+	s_motor[2].rotor_tilt[0] = 0.0;                     s_motor[3].rotor_tilt[0] = 0.0;
+	s_motor[2].rotor_tilt[1] = 0.0;                     s_motor[3].rotor_tilt[1] = 0.0;
+	s_motor[2].rotor_tilt[2] = 0.0;                     s_motor[3].rotor_tilt[2] = 0.0;
+
+	s_motor[4].rotor_tilt[0] = 0.0;                     s_motor[5].rotor_tilt[0] = 0.0;
+	s_motor[4].rotor_tilt[1] = 0.0;                     s_motor[5].rotor_tilt[1] = 0.0;
+	s_motor[4].rotor_tilt[2] = 0.0;                     s_motor[5].rotor_tilt[2] = 0.0;
+
+	s_motor[6].rotor_tilt[0] = 0.0;                     s_motor[7].rotor_tilt[0] = 0.0;
+	s_motor[6].rotor_tilt[1] = 0.0;                     s_motor[7].rotor_tilt[1] = 0.0;
+	s_motor[6].rotor_tilt[2] = 0.0;                     s_motor[7].rotor_tilt[2] = 0.0;
+
+	///////////////////////////////////////////////////////////////////////////////////////
+	s_motor[0].rotor_r_direction = 1.0;              s_motor[1].rotor_r_direction = -1.0;
+	s_motor[2].rotor_r_direction = -1.0;             s_motor[3].rotor_r_direction = 1.0;
+
+	s_motor[4].rotor_r_direction = 1.0;              s_motor[5].rotor_r_direction = -1.0;
+	s_motor[6].rotor_r_direction = -1.0;             s_motor[7].rotor_r_direction = 1.0;
 }
 
 void v_update_vehcle_states(float state[])
@@ -325,18 +513,18 @@ void v_plane_param_define_equinox()
 	s_motor_manager.num_motors = 8;
 
    //v_set_servo_params(pwm_min, pwm_max, angle_pwm_min, angle_pwm_max,omega, zeta, min_rate, max_rate, min_accel, max_accel,  type)
-	v_set_servo_params(1100,1900,-30*D2R,30*D2R, 10.0, 0.7, -1000*D2R, 1000*D2R, -720*D2R, 720*D2R, AILERON_COMMON);
-	v_set_servo_params(1100,1900,-30*D2R,30*D2R, 10.0, 0.7, -1000*D2R, 1000*D2R, -720*D2R, 720*D2R, ELEVATOR_COMMON);
+	v_set_servo_params(1100,1900,-20*D2R,20*D2R, 10.0, 0.7, -1000*D2R, 1000*D2R, -720*D2R, 720*D2R, AILERON_COMMON);
+	v_set_servo_params(1100,1900,-20*D2R,20*D2R, 10.0, 0.7, -1000*D2R, 1000*D2R, -720*D2R, 720*D2R, ELEVATOR_COMMON);
 
 	// CFD assumed right rudder as +ve, so when ardupilot demands 1900 to turn right, rudder  should be moved right, hence +ve angle at 1900
-	v_set_servo_params(1100,1900,-30*D2R,30*D2R, 10.0, 0.7, -1000*D2R, 1000*D2R, -720*D2R, 720*D2R, RUDDER_COMMON);
+	v_set_servo_params(1100,1900,-20*D2R,20*D2R, 10.0, 0.7, -1000*D2R, 1000*D2R, -720*D2R, 720*D2R, RUDDER_COMMON);
 
-	v_set_servo_params(1100,1900, 30*D2R,-30*D2R, 10.0, 0.7, -1000*D2R, 1000*D2R, -720*D2R, 720*D2R, AILERON_LEFT);
-	v_set_servo_params(1100,1900,-30*D2R,30*D2R, 10.0, 0.7, -1000*D2R, 1000*D2R, -720*D2R, 720*D2R, AILERON_RIGHT);
+	v_set_servo_params(1100,1900, 20*D2R,-20*D2R, 10.0, 0.7, -1000*D2R, 1000*D2R, -720*D2R, 720*D2R, AILERON_LEFT);
+	v_set_servo_params(1100,1900,-20*D2R,20*D2R, 10.0, 0.7, -1000*D2R, 1000*D2R, -720*D2R, 720*D2R, AILERON_RIGHT);
 
 	v_set_servo_params(1100,1900,0,40*D2R, 10.0, 0.7, -1000*D2R, 1000*D2R, -720*D2R, 720*D2R, FLAP);
 
-	v_set_servo_params(1100,1900,-30*D2R,30*D2R, 10.0, 0.7, -1000*D2R, 1000*D2R, -720*D2R, 720*D2R, NOSE_LG_SERVO);
+	v_set_servo_params(1100,1900,-20*D2R,20*D2R, 10.0, 0.7, -1000*D2R, 1000*D2R, -720*D2R, 720*D2R, NOSE_LG_SERVO);
 	
 
 	vehcle.ground_yaw_gain = 0.5; 

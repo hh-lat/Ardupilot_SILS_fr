@@ -62,6 +62,7 @@ typedef enum
 {
 	PLANE_ARDU_DEFAULT = 0,
 	PLANE_EQX = 1,
+	PLANE_EQX_V1_NEW_MODEL = 2,
 }struct_enum_plane_model;
 
 typedef enum
@@ -294,6 +295,7 @@ extern void v_update_vehcle_states(float state[]);
 extern void v_fill_lla_to_vehcle_state(float, float , float );
 extern void v_plane_param_define();
 extern void v_plane_param_define_equinox();
+extern void v_plane_param_define_eqx_v1_new_model();
 extern void v_plane_param_define_ardupilot_default();
 extern void v_update_vehcle_state_from_ardu_ekf();
 
