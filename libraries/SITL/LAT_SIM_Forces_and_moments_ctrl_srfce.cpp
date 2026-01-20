@@ -116,7 +116,7 @@ void v_calculate_lift_force()
 			Cmu_Sp = vehcle.Cmu * vehcle.c / vehcle.s_blown;
 
 			float theta_rad=0; // jet flap angle
-			if (vehcle.delta_f <= 20.0*D2R)
+			if (vehcle.delta_f <= 25.0*D2R)
 			{
 				theta_rad = 46.0*D2R - fabsf(vehcle.delta_f - 20.0*D2R);
 			}
@@ -128,7 +128,7 @@ void v_calculate_lift_force()
 			float F=0;
 			F = (vehcle.AR + 2.0/pi*Cmu_S) / (vehcle.AR + 2.0 + 0.604*sqrtf(Cmu_S) + 0.876*Cmu_S);
 			float dCl_dtheta =0,dCl_dalpha=0;
-			dCl_dtheta = sqrtf(4.0*pi*Cmu_Sp*(1.0 + 0.151*sqrtf(Cmu_Sp) + 0.139*Cmu_Sp));
+			dCl_dtheta = sqrtf(4.0*pi*Cmu_Sp*(1.0 + 0.151*sqrtf(Cmu_Sp)) + 0.139*Cmu_Sp);
 			dCl_dalpha = vehcle.CL_alpha*(1.0 + 0.151*sqrt(Cmu_Sp) + 0.219*Cmu_Sp)/1.15;
 
 			float nu=0;

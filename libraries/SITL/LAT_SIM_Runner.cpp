@@ -288,7 +288,7 @@ void v_plane_param_define_eqx_v1_new_model()
     vehcle.Ixx = 14.658 ;
     vehcle.Iyy = 16.944 ;
     vehcle.Izz = 27.412 ;
-    vehcle.Ixz = 0*3.985 ;
+    vehcle.Ixz = 3.985 ;
 	vehcle.Iyz = 0.0 ;
 	vehcle.Ixy = 0.0 ;
     vehcle.s = 0.9;
@@ -344,7 +344,7 @@ void v_plane_param_define_eqx_v1_new_model()
 
 	vehcle.Cm_0 = 0.249992;
 	vehcle.Cm_alpha = -0.073394*R2D;
-	vehcle.Cm_delta_e =-0.057653*R2D;
+	vehcle.Cm_delta_e =-0.057653*R2D*1.4;
 	vehcle.Cm_delta_aL = -0.000813*R2D;
 	vehcle.Cm_delta_aR = -0.000659*R2D;
 	vehcle.Cm_Cmu = 0.199495;
@@ -386,7 +386,7 @@ void v_plane_param_define_eqx_v1_new_model()
 	float y3 = 0.922;
 	float y4 = 1.246;
 
-	float z = 0.0948; //cg to edf, cg is above edf
+	float z = 0.027;//0948 //cg to edf, cg is above edf
 
 	float x = 0;
 	x= vehcle.cg_x - 757.2/1000.0; // edf are 30 mm behind cg

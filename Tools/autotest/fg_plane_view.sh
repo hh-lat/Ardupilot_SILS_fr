@@ -1,3 +1,4 @@
+
 #!/bin/sh
 
 AUTOTESTDIR=$(dirname $0)

@@ -1,25 +1,33 @@
-set AUTOTESTDIR="%~dp0\aircraft"
+@echo off
 
-FOR /F "delims=" %%D in ('dir /b "\Program Files"\FlightGear*') DO set FGDIR=%%D
-echo "Using FlightGear %FGDIR%"
-cd "\Program Files\%FGDIR%\bin"
+REM ===== USER-SPECIFIC PATHS =====
+set FGDIR=C:\Program Files\FlightGear 2024.1
+set FGDATA=C:\Users\rajat\FlightGear\Downloads\fgdata_2024_1
+set AUTOTESTDIR=%~dp0\aircraft
+
+echo Using FlightGear binary: %FGDIR%
+echo Using FlightGear data:   %FGDATA%
+
+cd "%FGDIR%\bin"
+
 fgfs ^
-    --native-fdm=socket,in,10,,5503,udp ^
-    --fdm=external ^
-    --aircraft=Rascal110-JSBSim ^
-    --fg-aircraft=%AUTOTESTDIR% ^
-    --airport=KSFO ^
-    --geometry=650x550 ^
-    --bpp=32 ^
-    --disable-hud-3d ^
-    --disable-horizon-effect ^
-    --timeofday=noon ^
-    --disable-sound ^
-    --disable-fullscreen ^
-    --disable-random-objects ^
-    --disable-ai-models ^
-    --fog-disable ^
-    --disable-specular-highlight ^
-    --disable-anti-alias-hud ^
-    --wind=0@0
+ --fg-root="%FGDATA%" ^
+ --native-fdm=socket,in,10,127.0.0.1,5503,udp ^
+ --fdm=external ^
+ --aircraft=Rascal110-JSBSim ^
+ --fg-aircraft="%AUTOTESTDIR%" ^
+ --airport=KSFO ^
+ --geometry=650x550 ^
+ --timeofday=noon ^
+ --disable-hud-3d ^
+ --disable-horizon-effect ^
+ --disable-sound ^
+ --disable-fullscreen ^
+ --disable-random-objects ^
+ --disable-ai-models ^
+ --fog-disable ^
+ --disable-specular-highlight ^
+ --disable-anti-alias-hud ^
+ --wind=0@0
+
 pause
