@@ -158,8 +158,9 @@ void v_lat_fdm_run(const struct sitl_input &input)
 	if (print_timer >= 0.1f) 
 	{
 		print_timer = 0;
-		printf("plane_moving_state: %d, delta_e: %.2f, delta_aL: %.2f, delta_aR: %.2f, delta_r: %.2f, delta_f: %.2f, delta_a: %.2f, MLG_NR: %.2f, FLG_NR: %.2f, Accel_ned[0]: %.2f, Accel_ned[1]: %.2f, Accel_ned[2]: %.2f, alt_agl: %.2f\n", 
-		vehcle.plane_moving_state, vehcle.delta_e*R2D, vehcle.delta_aL*R2D, vehcle.delta_aR*R2D, vehcle.delta_r*R2D, vehcle.delta_f*R2D, vehcle.delta_a*R2D, vehcle.MLG_NR, vehcle.FLG_NR, vehcle.Accel_ned[0], vehcle.Accel_ned[1], vehcle.Accel_ned[2], vehcle.alt_agl);
+		printf("plane_moving_state: %d, Rotor-force(N): %.2f, delta_e: %.2f, delta_aL: %.2f, delta_aR: %.2f, delta_r: %.2f, delta_f: %.2f, delta_a: %.2f, MLG_NR: %.2f, FLG_NR: %.2f, Accel_ned[0]: %.2f, Accel_ned[1]: %.2f, Accel_ned[2]: %.2f, alt_agl: %.2f\n", 
+		vehcle.plane_moving_state, vehcle.all_rotors_force[0],vehcle.delta_e*R2D, vehcle.delta_aL*R2D, vehcle.delta_aR*R2D, vehcle.delta_r*R2D, vehcle.delta_f*R2D, vehcle.delta_a*R2D, vehcle.MLG_NR, vehcle.FLG_NR, vehcle.Accel_ned[0], vehcle.Accel_ned[1], vehcle.Accel_ned[2], vehcle.alt_agl);
+
 		print_timer1 = 0;
 	}
 
@@ -288,7 +289,7 @@ void v_plane_param_define_eqx_v1_new_model()
     vehcle.Ixx = 14.658 ;
     vehcle.Iyy = 16.944 ;
     vehcle.Izz = 27.412 ;
-    vehcle.Ixz = 3.985 ;
+    vehcle.Ixz = 0*3.985 ;
 	vehcle.Iyz = 0.0 ;
 	vehcle.Ixy = 0.0 ;
     vehcle.s = 0.9;

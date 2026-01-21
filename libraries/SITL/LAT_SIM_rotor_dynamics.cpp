@@ -294,6 +294,11 @@ void v_update_rotors_Cmu()
 			{
 				s_motor[i].Cmu = (0.0966 / powf(s_motor[i].J,2.314)) + (-0.0357726);
 
+				if (s_motor[i].Cmu < 0.0f)
+				{
+					s_motor[i].Cmu = 0.0000001f;
+				}
+
 				if (s_motor[i].Cmu > 15.0f)
 				{
 					s_motor[i].Cmu = 15.0f;
@@ -323,7 +328,7 @@ void v_update_rotors_thrust_coefficient()
 			case PLANE_EQX:
 			case PLANE_EQX_V1_NEW_MODEL:
 			{
-				s_motor[i].CT = 0.7225*(-0.0283*powf(s_motor[i].J,2) - 0.917*s_motor[i].J + 1.3647);
+				s_motor[i].CT = 0.82*(-0.0283*powf(s_motor[i].J,2) - 0.917*s_motor[i].J + 1.3647);
 
 				if (s_motor[i].CT < 0.0f)
 				{

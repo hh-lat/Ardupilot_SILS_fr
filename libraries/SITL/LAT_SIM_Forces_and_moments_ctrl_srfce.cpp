@@ -128,7 +128,7 @@ void v_calculate_lift_force()
 			float F=0;
 			F = (vehcle.AR + 2.0/pi*Cmu_S) / (vehcle.AR + 2.0 + 0.604*sqrtf(Cmu_S) + 0.876*Cmu_S);
 			float dCl_dtheta =0,dCl_dalpha=0;
-			dCl_dtheta = sqrtf(4.0*pi*Cmu_Sp*(1.0 + 0.151*sqrtf(Cmu_Sp)) + 0.139*Cmu_Sp);
+			dCl_dtheta = sqrtf(4.0*pi*Cmu_Sp*(1.0 + 0.151*sqrtf(Cmu_Sp) + 0.139*Cmu_Sp));
 			dCl_dalpha = vehcle.CL_alpha*(1.0 + 0.151*sqrt(Cmu_Sp) + 0.219*Cmu_Sp)/1.15;
 
 			float nu=0;
@@ -248,7 +248,7 @@ void v_calculate_drag_force()
 
 			CD_fp = 2.0f*(sinf(vehcle.alpha)*sinf(vehcle.alpha)*sinf(vehcle.alpha));
 
-			CD = ((1.0f - W)*CD + W*CD_fp)*1.3;
+			CD = ((1.0f - W)*CD + W*CD_fp);
 
 			vehcle.CD = CD;
 			

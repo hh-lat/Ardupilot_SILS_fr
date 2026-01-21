@@ -52,6 +52,7 @@ void v_derivative(float Plane_state[],float t,float dydt[])
 	// }
 	
 	vehcle.rho = 1.15;
+	float friction_coff = 0.001;
 
 	v_rotation_matrices_update(vehcle.phi,  vehcle.theta,  vehcle.psi,  vehcle.alpha,  vehcle.beta);
 
@@ -78,6 +79,10 @@ void v_derivative(float Plane_state[],float t,float dydt[])
 	fy = vehcle.all_rotors_force[1] + vehcle.all_aero_force[1] + vehcle.mg_b[1]  + 0.0*vehcle.all_payload_force[1];
 	//	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 	fz = vehcle.all_rotors_force[2] + vehcle.all_aero_force[2] + vehcle.mg_b[2]  + 0.0*vehcle.all_payload_force[2];
+
+	float force_arr_bd[3] = {fx, fy, fz};
+	float force_arr_ned[3]={0.0};
+	body_to_NED(force_arr_bd,  force_arr_ned);
 
 	switch (vehcle.plane_moving_state)
 	{
@@ -115,8 +120,8 @@ void v_derivative(float Plane_state[],float t,float dydt[])
 		case CT_RUNWAY_MOVING:
 		{		
 			//vehcle.plane_on_ground = 0;
-			vehcle.FLG_NR = (vehcle.mass*vehcle.g*vehcle.MLG_x - m)/(vehcle.FLG_x + vehcle.MLG_x);
-			vehcle.MLG_NR = vehcle.mass*vehcle.g - vehcle.FLG_NR;
+			vehcle.FLG_NR = (force_arr_ned[2]*vehcle.MLG_x - m)/(vehcle.FLG_x + vehcle.MLG_x);
+			vehcle.MLG_NR = (force_arr_ned[2] - vehcle.FLG_NR);
 
 			if (vehcle.MLG_NR < 0.0f && vehcle.FLG_NR < 0.0f)
 			{
@@ -141,7 +146,7 @@ void v_derivative(float Plane_state[],float t,float dydt[])
 
 			m = 0;//m + vehcle.FLG_NR*vehcle.FLG_x - vehcle.MLG_NR*vehcle.MLG_x;
 
-			fx = fx - 0.06*(vehcle.FLG_NR + vehcle.MLG_NR);
+			fx = fx - friction_coff*(vehcle.FLG_NR + vehcle.MLG_NR);
 			dydt[0] = ((fx * mass_inv) + (r * v) - (q * w));//%u_dot//optimization
 			dydt[1] = 0*((fy * mass_inv) + (p * w) - (r * u));//%v_dot
 			dydt[2] = 0*((fz * mass_inv) + (q * u) - (p * v));  //%w_dot
@@ -220,7 +225,7 @@ void v_derivative(float Plane_state[],float t,float dydt[])
 
 			m = m + vehcle.FLG_NR*vehcle.FLG_x - vehcle.MLG_NR*vehcle.MLG_x;
 
-			fx = fx - 0.06*(vehcle.FLG_NR + vehcle.MLG_NR);
+			fx = fx - friction_coff*(vehcle.FLG_NR + vehcle.MLG_NR);
 
 			dydt[0] = ((fx * mass_inv) + (r * v) - (q * w));//%u_dot//optimization
 			dydt[1] = 0*((fy * mass_inv) + (p * w) - (r * u));//%v_dot
