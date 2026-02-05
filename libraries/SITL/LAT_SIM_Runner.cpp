@@ -192,14 +192,14 @@ void v_lat_fdm_run(const struct sitl_input &input)
 
 			body_to_NED(vehcle.Accel_b,  vehcle.Accel_ned);
 
-			vehcle.Accel_ned[1]=0;
+			//vehcle.Accel_ned[1]=0;
 			vehcle.Accel_ned[2]=0;
 
 			NED_to_body(vehcle.Accel_ned, vehcle.Accel_b);
 
 			vehcle.p_dot = 0;
 
-			if (fabsf(vehcle.delta_r) > 5/57.3)
+			if (fabsf(vehcle.delta_r) > 5.0/57.3)
 			{
 				vehcle.r_dot= 0.5*vehcle.rho*powf(vehcle.tas-vehcle.aero_zero_speed,2)*(vehcle.delta_r*vehcle.ground_yaw_gain);
 			}
@@ -275,7 +275,7 @@ void v_plane_param_define_eqx_v1_new_model()
 	vehcle.FLG_x = fabsf((339.2/1000.0) - vehcle.cg_x);
 	vehcle.FLG_z = vehcle.MLG_z;
     vehcle.delta_r_deadzone = 3.0*D2R; // 5 degree deadzone for rudder on ground
-	vehcle.theta_tolerance_for_ground = -1.0*D2R; // pitch angle below which plane is shifted to runway moving state
+	vehcle.theta_tolerance_for_ground = 0.0*D2R; // pitch angle below which plane is shifted to runway moving state
 	vehcle.altitude_tolerance_for_ground = -0.1; // altitude below which plane is considered on ground
 
 	vehcle.mg_b[0]=0;
@@ -536,7 +536,7 @@ void v_plane_param_define_equinox()
 	vehcle.FLG_x = fabsf((339.2/1000.0) - vehcle.cg_x);
 	vehcle.FLG_z = vehcle.MLG_z;
     vehcle.delta_r_deadzone = 3.0*D2R; // 5 degree deadzone for rudder on ground
-	vehcle.theta_tolerance_for_ground = -1.0*D2R; // pitch angle below which plane is shifted to runway moving state
+	vehcle.theta_tolerance_for_ground = 0.0*D2R; // pitch angle below which plane is shifted to runway moving state
 	vehcle.altitude_tolerance_for_ground = -0.1; // altitude below which plane is considered on ground
 
 	vehcle.mg_b[0]=0;
@@ -718,7 +718,7 @@ void v_plane_param_define_ardupilot_default()
 	vehcle.FLG_x = fabsf((339.2/1000.0) - vehcle.cg_x);
 	vehcle.FLG_z = vehcle.MLG_z;
     vehcle.delta_r_deadzone = 3.0*D2R; // 5 degree deadzone for rudder on ground
-	vehcle.theta_tolerance_for_ground = -1.0*D2R; // pitch angle below which plane is shifted to runway moving state
+	vehcle.theta_tolerance_for_ground = 0.0*D2R; // pitch angle below which plane is shifted to runway moving state
 	vehcle.altitude_tolerance_for_ground = -0.1; // altitude below which plane is considered on ground
 
 	vehcle.mg_b[0]=0;

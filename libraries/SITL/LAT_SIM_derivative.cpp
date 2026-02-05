@@ -271,7 +271,7 @@ void v_derivative(float Plane_state[],float t,float dydt[])
 
 			if (vehcle.alt_agl < vehcle.altitude_tolerance_for_ground && vehcle.theta < vehcle.theta_tolerance_for_ground)
 			{
-				//vehcle.plane_moving_state = CT_RUNWAY_M3OVING;
+				//vehcle.plane_moving_state = CT_RUNWAY_MOVING;
 			}
 			else if (vehcle.alt_agl < vehcle.altitude_tolerance_for_ground)
 			{
