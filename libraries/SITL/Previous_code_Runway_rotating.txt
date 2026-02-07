@@ -1,0 +1,43 @@
+	float A=0,B=0,C=0;
+			float FZ =0;
+
+			float temp3[3]={0};
+			float temp4[3]={0};
+
+			temp3[0] = fx;
+			temp3[1] = 0;
+			temp3[2] = fz;
+
+			body_to_NED(temp3, temp4);
+
+			FZ = temp4[2];
+
+			C = (mass*A*vehcle.MLG_x -1);
+			if (fabsf(C)<0.0001)
+			{
+				C=0.0001; // to avoid division by zero
+			}
+
+			A = -(vehcle.MLG_x*cosf(theta) - vehcle.MLG_z*sinf(theta));
+			A = A/Iy;
+			B = vehcle.MLG_x*sinf(theta) + vehcle.MLG_z*cosf(theta);
+
+			vehcle.MLG_NR = (mass*A*m + mass*B*q*q - FZ)/(C);
+
+			if (vehcle.MLG_NR < 0.0f)
+			{
+				vehcle.MLG_NR = 0.0f;
+				vehcle.plane_moving_state = IN_AIR;
+			}
+			else if (vehcle.MLG_NR > 0.0f && vehcle.theta < vehcle.theta_tolerance_for_ground)
+			{
+				vehcle.MLG_NR = 0.0f;
+				vehcle.plane_moving_state = CT_RUNWAY_MOVING;
+			}
+
+			fx = fx + vehcle.MLG_NR*sinf(theta);
+			fz = fz - vehcle.MLG_NR*cosf(theta);
+
+			m = m + vehcle.FLG_NR*vehcle.FLG_x - vehcle.MLG_NR*vehcle.MLG_x;
+
+			fx = fx - friction_coff*(vehcle.FLG_NR + vehcle.MLG_NR);

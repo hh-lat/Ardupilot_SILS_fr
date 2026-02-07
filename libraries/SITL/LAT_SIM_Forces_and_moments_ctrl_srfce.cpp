@@ -549,6 +549,7 @@ void v_calculate_aero_pitch_moment()
 			vehcle.Cm = Cm_base * (1.0 - W) + (-0.052035)*Cm_flat * W + Cm_other;
 			vehcle.Cm = vehcle.Cm + vehcle.Cm_q*vehcle.q*vehcle.c/(2.0f*vehcle.tas) ;
 
+
 			vehcle.all_aero_moment[1] = vehcle.Q*vehcle.s*vehcle.c*vehcle.Cm;
 			
 			break;

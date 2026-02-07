@@ -44,12 +44,43 @@ void v_update_vehcle_state_from_ardu_ekf()
 
 		// aoa & beta via air velcity components
 		//const Vector3f &velocity_air_bf = g_aircraft_instance->get_velocity_air_bf();
-		
-		float angle_of_attack = atan2f(vehcle.V_b_tas[2] , vehcle.V_b_tas[0] );
-		float beta = atan2f(vehcle.V_b_tas[1] , vehcle.V_b_tas[0] );
+		vehcle.tas = sqrtf( vehcle.V_b_tas[0]*vehcle.V_b_tas[0]  + vehcle.V_b_tas[1]*vehcle.V_b_tas[1] + 
+							vehcle.V_b_tas[2]*vehcle.V_b_tas[2] );
 
-		angle_of_attack = constrain_float1(angle_of_attack, -10.0f*D2R, 20.0f*D2R);
-		beta = constrain_float1(beta, -20.0f*D2R, 20.0f*D2R);
+
+		float angle_of_attack = 0.0f;
+		float beta = 0.0f;
+
+		if (vehcle.plane_moving_state == STATIONARY)
+		{
+			angle_of_attack = 0;
+			beta = 0;
+		}
+		else if (vehcle.plane_moving_state == CT_RUNWAY_MOVING)
+		{
+			angle_of_attack = 0;
+			beta = 0;
+		}
+		else if (vehcle.plane_moving_state == CT_RUNWAY_ROTATING)
+		{
+			//angle_of_attack = D2R*8;//vehcle.theta;
+			angle_of_attack = vehcle.theta;
+			beta = 0;
+		}
+		else if (vehcle.plane_moving_state == IN_AIR)
+		{
+			angle_of_attack = atan2f(vehcle.V_b_tas[2] , vehcle.V_b_tas[0] );
+			beta = atan2f(vehcle.V_b_tas[1] , vehcle.V_b_tas[0] );
+		}
+
+		if ((vehcle.tas < 3.0) || (fabsf(vehcle.V_b_tas[0]) < 3.0))
+		{
+			angle_of_attack  = 0;
+		}
+
+		angle_of_attack = constrain_float1(angle_of_attack, -70.0f*D2R, 70.0f*D2R);
+
+		beta = constrain_float1(beta, -50.0f*D2R, 50.0f*D2R);
 		
 		// Store in vehicle state
 		vehcle.alpha = angle_of_attack;
@@ -60,9 +91,7 @@ void v_update_vehcle_state_from_ardu_ekf()
 		// vehcle.V_b_tas[1] = velocity_air_bf.y;
 		// vehcle.V_b_tas[2] = velocity_air_bf.z;
 
-		vehcle.tas = sqrtf( vehcle.V_b_tas[0]*vehcle.V_b_tas[0]  + vehcle.V_b_tas[1]*vehcle.V_b_tas[1] + 
-							vehcle.V_b_tas[2]*vehcle.V_b_tas[2] );
-
+	
 		vehcle.Q = 0.5*vehcle.rho*vehcle.tas*vehcle.tas;
 	}
 }
@@ -155,14 +184,27 @@ void v_lat_fdm_run(const struct sitl_input &input)
 	static float print_timer1 = 0;
 	print_timer1 += vehcle.step_dt;
 
-	if (print_timer >= 0.1f) 
-	{
-		print_timer = 0;
-		printf("plane_moving_state: %d, Rotor-force(N): %.2f, delta_e: %.2f, delta_aL: %.2f, delta_aR: %.2f, delta_r: %.2f, delta_f: %.2f, delta_a: %.2f, MLG_NR: %.2f, FLG_NR: %.2f, Accel_ned[0]: %.2f, Accel_ned[1]: %.2f, Accel_ned[2]: %.2f, alt_agl: %.2f\n", 
-		vehcle.plane_moving_state, vehcle.all_rotors_force[0],vehcle.delta_e*R2D, vehcle.delta_aL*R2D, vehcle.delta_aR*R2D, vehcle.delta_r*R2D, vehcle.delta_f*R2D, vehcle.delta_a*R2D, vehcle.MLG_NR, vehcle.FLG_NR, vehcle.Accel_ned[0], vehcle.Accel_ned[1], vehcle.Accel_ned[2], vehcle.alt_agl);
+	// if (print_timer >= 0.1f) 
+	// {
+	// 	print_timer = 0;
+	// 	printf("plane_moving_state: %d, Rotor-force(N): %.2f, delta_e: %.2f, delta_aL: %.2f, delta_aR: %.2f, delta_r: %.2f, delta_f: %.2f, delta_a: %.2f, MLG_NR: %.2f, FLG_NR: %.2f, Accel_ned[0]: %.2f, Accel_ned[1]: %.2f, Accel_ned[2]: %.2f, alt_agl: %.2f\n", 
+	// 	vehcle.plane_moving_state, vehcle.all_rotors_force[0],vehcle.delta_e*R2D, vehcle.delta_aL*R2D, vehcle.delta_aR*R2D, vehcle.delta_r*R2D, vehcle.delta_f*R2D, vehcle.delta_a*R2D, vehcle.MLG_NR, vehcle.FLG_NR, vehcle.Accel_ned[0], vehcle.Accel_ned[1], vehcle.Accel_ned[2], vehcle.alt_agl);
 
-		print_timer1 = 0;
-	}
+	// 	print_timer1 = 0;
+	// }
+if (print_timer >= 0.1f) 
+{
+    print_timer = 0;
+
+    printf("Time: %.2f, plane_moving_state: %d, MLG_NR: %.2f, FLG_NR: %.2f\n",
+           t,
+           vehcle.plane_moving_state,
+           vehcle.MLG_NR,
+           vehcle.FLG_NR);
+
+    print_timer1 = 0;
+}
+
 
     // For Ardupilot
 	switch (vehcle.plane_moving_state)
@@ -268,7 +310,7 @@ void v_plane_param_define_eqx_v1_new_model()
 	v_set_servo_params(1100,1900,-20*D2R,20*D2R, 10.0, 0.7, -1000*D2R, 1000*D2R, -720*D2R, 720*D2R, NOSE_LG_SERVO);
 	
 	vehcle.ground_yaw_gain = 0.5; 
-	vehcle.cg_x = 1070.0/1000.0; // from nose center, put positve number
+	vehcle.cg_x = 1030.0/1000.0; // from nose center, put positve number
 	vehcle.cg_z = 43.0/1000.0;// from nose center, 43 mm above  nose center
 	vehcle.MLG_x = fabsf((1319.2/1000.0) - vehcle.cg_x); // put all positive
 	vehcle.MLG_z = fabsf(319.6/1000.0 + vehcle.cg_z); // put all positive
@@ -312,7 +354,7 @@ void v_plane_param_define_eqx_v1_new_model()
 	vehcle.alpha_stall = 25.0*D2R; // stall angle in rad
 
 	vehcle.CL_0 = 0.18;
-	vehcle.CL_delta_e =0.69;
+	vehcle.CL_delta_e = 0.69;
 	vehcle.CL_alpha = 5.718; // default
 	vehcle.CL_q =12.5;//3.0; 
 
@@ -345,7 +387,7 @@ void v_plane_param_define_eqx_v1_new_model()
 
 	vehcle.Cm_0 = 0.249992;
 	vehcle.Cm_alpha = -0.073394*R2D;
-	vehcle.Cm_delta_e =-0.057653*R2D*1.4;
+	vehcle.Cm_delta_e =-0.057653*R2D*1.0;
 	vehcle.Cm_delta_aL = -0.000813*R2D;
 	vehcle.Cm_delta_aR = -0.000659*R2D;
 	vehcle.Cm_Cmu = 0.199495;
@@ -477,7 +519,7 @@ void v_update_vehcle_states(float state[])
 		vehcle.alpha = atan2f(vehcle.V_b_tas[2], vehcle.V_b_tas[0]);
 	}
 
-	vehcle.alpha = constrain_float1(vehcle.alpha,-20.0f/57.3f,20.0f/57.3f);
+	vehcle.alpha = constrain_float1(vehcle.alpha,-20.0f/57.3f,70.0f/57.3f);
 
 
 	if(vehcle.tas < 3.0)

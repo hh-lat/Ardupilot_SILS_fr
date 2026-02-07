@@ -238,7 +238,8 @@ void v_update_rotors_rpm_from_throttle()
 			case PLANE_EQX:
 			case PLANE_EQX_V1_NEW_MODEL:
 			{
-				s_motor[i].rpm = 39543*s_motor[i].throttle_cmd - 3792.7;
+				//s_motor[i].rpm = 39543*s_motor[i].throttle_cmd - 3792.7;// commented on 7-2-2026
+				s_motor[i].rpm = 33123.93*s_motor[i].throttle_cmd - 3792.7; // new model that satisfies 29000 rpm at 0.99 throttle, 7-2-2026, as seen by car test
 				if (s_motor[i].rpm < 0.0f)
 				{
 					s_motor[i].rpm = 0.0f;

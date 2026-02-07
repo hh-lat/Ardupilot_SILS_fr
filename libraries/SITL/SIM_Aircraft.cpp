@@ -771,7 +771,15 @@ void Aircraft::update_dynamics(const Vector3f &rot_accel)
     dcm.normalize();
 
     dcm.to_euler(&vehcle.phi, &vehcle.theta, &vehcle.psi);
-		
+
+      if (vehcle.plane_moving_state == CT_RUNWAY_MOVING) {
+        dcm.from_euler(0, 0, vehcle.psi);
+      }
+
+     if ((vehcle.plane_moving_state == CT_RUNWAY_ROTATING) && (vehcle.theta < -0.001)) {
+        dcm.from_euler(0, 0, vehcle.psi);
+      }
+
     Vector3f accel_earth = dcm *  accel_body  ;
 
     accel_earth.x = vehcle.Accel_ned[0];
@@ -826,6 +834,14 @@ void Aircraft::update_dynamics(const Vector3f &rot_accel)
             last_ground_contact_ms = AP_HAL::millis();
         }
         position.z = -(ground_level + frame_height - home.alt * 0.01f + ground_height_difference());
+
+        if (vehcle.plane_moving_state == CT_RUNWAY_MOVING) {
+           position.z =0;
+        }
+
+        if (vehcle.plane_moving_state == CT_RUNWAY_ROTATING) {
+           position.z =0;
+        }
 
         // get speed of ground movement (for ship takeoff/landing)
         float yaw_rate = 0;
@@ -890,8 +906,10 @@ void Aircraft::update_dynamics(const Vector3f &rot_accel)
             if (velocity_ef.z > 0.0f) {
                 velocity_ef.z = 0.0f;
             }
-            gyro.zero();
+            //gyro.zero(); // COMMENTED ON 7-2-2026
+            gyro.x = 0;
             gyro.z = yaw_rate;
+
             use_smoothing = true;
             break;
         }
