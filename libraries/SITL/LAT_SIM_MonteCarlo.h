@@ -11,7 +11,7 @@
  * values remain untouched — zero impact on normal operation.
  *
  * Override file location (hard-coded, absolute):
- *   /home/lat_avionics/Ardupilot_SITL_LATEST/Ardupilot_SILS/monte_carlo_overrides.txt
+ *   /home/lag/SITL_Workspace/Ardupilot_SILS/monte_carlo_overrides.txt
  *
  * File format (one param per line):
  *   param_name=value

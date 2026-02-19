@@ -2,8 +2,8 @@
 clc; close all; clear;
 
 % === USER CONFIGURATION ===
-results_root = '\\wsl.localhost\Ubuntu\home\lat_avionics\Ardupilot_SITL_LATEST\Ardupilot_SILS\Tools\autotest\monte_carlo\mc_results_20260212_143407';
-plot_count = 2;
+results_root = '\\wsl.localhost\Ubuntu\home\lag\SITL_Workspace\Ardupilot_SILS\Tools\autotest\monte_carlo\mc_results_20260219_152436';
+plot_count = 0;
 R2D = 180/pi;
 save_figures = true;
 

@@ -2,7 +2,7 @@
  * Output.cpp
  * ----------
  * Logs simulation state data to a CSV text file for post-run analysis.
- * Output directory: /home/lat_avionics/Ardupilot_SITL_LATEST/Ardupilot_SILS/Logs_Simulations/
+ * Output directory: $LAT_SIM_LOG_DIR or <workspace>/Logs_Simulations/
  */
 
 #include "Output.h"
@@ -13,19 +13,44 @@
 #include <time.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <libgen.h>
+#include <limits.h>
 
 static FILE* log_fp = nullptr;
-static const char LOG_DIR[] = "/home/lat_avionics/Ardupilot_SITL_LATEST/Ardupilot_SILS/Logs_Simulations/";
+static const char LOG_DIR_DEFAULT[] = "/home/lag/SITL_Workspace/Ardupilot_SILS/Logs_Simulations/";
+
+static const char* get_log_dir()
+{
+    // Allow override via environment variable for portability
+    const char* env = getenv("LAT_SIM_LOG_DIR");
+    if (env && env[0] != '\0') {
+        return env;
+    }
+    return LOG_DIR_DEFAULT;
+}
+
+static void ensure_dir_exists(const char* dir)
+{
+    struct stat st;
+    if (stat(dir, &st) != 0) {
+        mkdir(dir, 0755);
+    }
+}
 
 static void build_filename(char* buf, size_t len)
 {
+    const char* log_dir = get_log_dir();
+    ensure_dir_exists(log_dir);
+
     time_t now = time(nullptr);
     struct tm* tm_info = localtime(&now);
     int pid = (int)getpid();
 
     snprintf(buf, len,
              "%ssim_output_%04d%02d%02d_%02d%02d%02d_pid%d.csv",
-             LOG_DIR,
+             log_dir,
              tm_info->tm_year + 1900,
              tm_info->tm_mon + 1,
              tm_info->tm_mday,

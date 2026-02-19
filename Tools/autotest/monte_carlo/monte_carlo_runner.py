@@ -365,6 +365,9 @@ def _run_case(case_id: int, instance_id: int, config: dict,
     env = os.environ.copy()
     env["LAT_MC_OVERRIDE_FILE"] = override_file
     env["DISPLAY"] = ""   # prevent xterm pop-ups
+    log_sim_dir = os.path.join(workspace, "Logs_Simulations")
+    os.makedirs(log_sim_dir, exist_ok=True)
+    env["LAT_SIM_LOG_DIR"] = log_sim_dir + "/"
 
     tcp_port  = 5760 + 10 * instance_id
     sitl_proc = None

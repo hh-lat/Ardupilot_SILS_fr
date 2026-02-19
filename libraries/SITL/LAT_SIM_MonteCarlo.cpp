@@ -23,7 +23,7 @@
 #include <math.h>
 
 static const char MC_OVERRIDE_FILE_DEFAULT[] =
-    "/home/lat_avionics/Ardupilot_SITL_LATEST/Ardupilot_SILS/monte_carlo_overrides.txt";
+    "/home/lag/SITL_Workspace/Ardupilot_SILS/monte_carlo_overrides.txt";
 
 // ---- Map a key string to the correct vehcle field ----
 static void apply_override(const char* key, float val)
