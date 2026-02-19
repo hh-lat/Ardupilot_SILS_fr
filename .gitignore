@@ -174,3 +174,4 @@ venv.bak/
 autotest_result_*_junit.xml
 .python-version
 Tools/autotest/monte_carlo/mc_results*
+Logs_Simulations/sim_output_*
