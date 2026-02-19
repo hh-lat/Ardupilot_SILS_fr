@@ -4,7 +4,7 @@
 #include "LAT_SIM_rotor_dynamics.h"
 #include "LAT_SIM_Runner.h"
 
-
+#define flap_pwm_hardcoded 1500
 
 // Sign convention Ardupilot follows in non revered ticked state:
 // Elevator: 1900 means elevator down in both manual and stabalise mode
@@ -87,7 +87,7 @@ void  v_ardu_input_to_lat_input(struct sitl_input input)
 
             s_servo[ELEVATOR_COMMON].pwm_in = input.servos[12]; //elevator common
             s_servo[RUDDER_COMMON].pwm_in   = input.servos[5]; //Rudder common
-            s_servo[FLAP].pwm_in            = input.servos[11]; //rudder common
+            s_servo[FLAP].pwm_in            = flap_pwm_hardcoded; //input.servos[11]; //rudder common
             s_servo[NOSE_LG_SERVO].pwm_in   = input.servos[8];
 
             s_motor[0].pwm_in = input.servos[0]; // motor 1

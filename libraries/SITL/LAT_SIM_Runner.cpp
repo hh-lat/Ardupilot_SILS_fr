@@ -6,6 +6,8 @@
 #include "LAT_SIM_Runner.h"
 #include <AP_Math/AP_Math.h>
 #include "SIM_Aircraft.h"
+#include "Output.h"
+#include "LAT_SIM_MonteCarlo.h"
 
 vehcle_STATES vehcle;
 
@@ -24,6 +26,7 @@ void v_lat_fdm_init()
     vehcle.dof = DOF_ALL_MOTION;//DOF_LONGITUDINAL_ONLY;
 	vehcle.plane_on_ground = 1;
     v_plane_param_define();
+	v_output_log_init();  // open CSV log file for this run
 }
 
 void v_update_vehcle_state_from_ardu_ekf()
@@ -196,7 +199,11 @@ if (print_timer >= 0.1f)
 {
     print_timer = 0;
 
-    printf("Time: %.2f, plane_moving_state: %d, MLG_NR: %.2f, FLG_NR: %.2f\n",
+    // Write all vehicle states to CSV log file
+    v_output_log_write(t);
+
+    // Also keep a minimal console print for quick monitoring
+    printf("Time: %.2f, state: %d, MLG_NR: %.1f, FLG_NR: %.2f\n", 
            t,
            vehcle.plane_moving_state,
            vehcle.MLG_NR,
@@ -289,6 +296,11 @@ void v_plane_param_define()
 			 break;
 		}
 	}
+
+	// Apply Monte Carlo overrides (if override file exists).
+	// If no override file is present this is a silent no-op;
+	// nominal parameters above remain untouched.
+	v_apply_monte_carlo_overrides();
 }
 
 void v_plane_param_define_eqx_v1_new_model()
@@ -297,17 +309,17 @@ void v_plane_param_define_eqx_v1_new_model()
 	s_motor_manager.num_motors = 8;
 
    //v_set_servo_params(pwm_min, pwm_max, angle_pwm_min, angle_pwm_max,omega, zeta, min_rate, max_rate, min_accel, max_accel,  type)
-	v_set_servo_params(1100,1900,-20*D2R,20*D2R, 10.0, 0.7, -1000*D2R, 1000*D2R, -720*D2R, 720*D2R, AILERON_COMMON);
-	v_set_servo_params(1100,1900,-20*D2R,20*D2R, 10.0, 0.7, -1000*D2R, 1000*D2R, -720*D2R, 720*D2R, ELEVATOR_COMMON);
+	v_set_servo_params(1100,1900,-20*D2R,20*D2R, 10.0, 0.7, -200*D2R, 200*D2R, -720*D2R, 720*D2R, AILERON_COMMON);
+	v_set_servo_params(1100,1900,-20*D2R,20*D2R, 10.0, 0.7, -200*D2R, 200*D2R, -720*D2R, 720*D2R, ELEVATOR_COMMON);
 
 	// CFD assumed right rudder as +ve, so when ardupilot demands 1900 to turn right, rudder  should be moved right, hence +ve angle at 1900
-	v_set_servo_params(1100,1900,-20*D2R,20*D2R, 10.0, 0.7, -1000*D2R, 1000*D2R, -720*D2R, 720*D2R, RUDDER_COMMON);
-	v_set_servo_params(1100,1900, 20*D2R,-20*D2R, 10.0, 0.7, -1000*D2R, 1000*D2R, -720*D2R, 720*D2R, AILERON_LEFT);
-	v_set_servo_params(1100,1900,-20*D2R,20*D2R, 10.0, 0.7, -1000*D2R, 1000*D2R, -720*D2R, 720*D2R, AILERON_RIGHT);
+	v_set_servo_params(1100,1900,-20*D2R,20*D2R, 10.0, 0.7, -200*D2R, 200*D2R, -720*D2R, 720*D2R, RUDDER_COMMON);
+	v_set_servo_params(1100,1900, 20*D2R,-20*D2R, 10.0, 0.7, -200*D2R, 200*D2R, -720*D2R, 720*D2R, AILERON_LEFT);
+	v_set_servo_params(1100,1900,-20*D2R,20*D2R, 10.0, 0.7, -200*D2R, 200*D2R, -720*D2R, 720*D2R, AILERON_RIGHT);
 
-	v_set_servo_params(1100,1900,0,40*D2R, 10.0, 0.7, -1000*D2R, 1000*D2R, -720*D2R, 720*D2R, FLAP);
+	v_set_servo_params(1100,1900,0,40*D2R, 10.0, 0.7, -200*D2R, 200*D2R, -720*D2R, 720*D2R, FLAP);
 
-	v_set_servo_params(1100,1900,-20*D2R,20*D2R, 10.0, 0.7, -1000*D2R, 1000*D2R, -720*D2R, 720*D2R, NOSE_LG_SERVO);
+	v_set_servo_params(1100,1900,-20*D2R,20*D2R, 10.0, 0.7, -200*D2R, 200*D2R, -720*D2R, 720*D2R, NOSE_LG_SERVO);
 	
 	vehcle.ground_yaw_gain = 0.5; 
 	vehcle.cg_x = 1030.0/1000.0; // from nose center, put positve number
@@ -353,7 +365,7 @@ void v_plane_param_define_eqx_v1_new_model()
     vehcle.nlg_z = 0;
 	vehcle.alpha_stall = 25.0*D2R; // stall angle in rad
 
-	vehcle.CL_0 = 0.18;
+	vehcle.CL_0 = 0.18*1.0;
 	vehcle.CL_delta_e = 0.69;
 	vehcle.CL_alpha = 5.718; // default
 	vehcle.CL_q =12.5;//3.0; 

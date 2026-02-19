@@ -1,0 +1,8 @@
+- Takeoff Distance and Takeoff speed
+- Alpha just before takeoff
+- Commanded all of the cases to go to altitude 100m, find the error in altitude from Steady State plots
+- Max Body Angular rates should not exceed a particular threshold - if crossing can make that case as a failure
+- Radius of the circle it is doing - have given 200 m - whether following or not
+- Maximum Roll it is going, whether Autopilot can limit within the limits specified
+- Angle of attack variation. whether plane is going into that region
+- Oscillation frequency of all the actuators

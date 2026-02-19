@@ -1,0 +1,527 @@
+#!/usr/bin/env python3
+"""
+monte_carlo_runner.py
+=====================
+Fully automated Monte Carlo runner for LAT SITL FDM.
+
+Usage:
+    cd Tools/autotest/monte_carlo
+    python3 monte_carlo_runner.py                         # uses monte_carlo_config.json
+    python3 monte_carlo_runner.py --config my_config.json # custom config
+    python3 monte_carlo_runner.py --start-case 50         # resume from case 50
+    python3 monte_carlo_runner.py --num-runs 10           # override num_runs
+
+Process per case:
+    1. Generate perturbed params → write override file
+    2. Launch SITL (sim_vehicle.py)
+    3. Connect via MAVLink (pymavlink)
+    4. Upload mission: TAKEOFF → CIRCLE → AUTO-LAND
+    5. Arm → AUTO mode → wait for DISARM (or timeout)
+    6. Copy logs to  Logs_Simulations/MonteCarlo/CaseXXX_logdata/
+    7. Kill SITL
+    8. Repeat
+
+No main source files are modified.
+"""
+
+import argparse
+import json
+import os
+import sys
+import time
+import shutil
+import signal
+import subprocess
+import glob
+import csv
+import numpy as np
+from datetime import datetime
+
+# ─── Paths ───────────────────────────────────────────────────────────────────
+SCRIPT_DIR   = os.path.dirname(os.path.abspath(__file__))
+AUTOTEST_DIR = os.path.dirname(SCRIPT_DIR)           # Tools/autotest
+ROOT_DIR     = os.path.abspath(os.path.join(AUTOTEST_DIR, "..", ".."))  # repo root
+OVERRIDE_FILE = os.path.join(ROOT_DIR, "monte_carlo_overrides.txt")
+LOG_BASE_DIR  = os.path.join(ROOT_DIR, "Logs_Simulations", "MonteCarlo")
+SIM_VEHICLE   = os.path.join(AUTOTEST_DIR, "sim_vehicle.py")
+
+# MAVLink constants
+try:
+    from pymavlink import mavutil, mavwp
+    from pymavlink.mavutil import mavlink
+except ImportError:
+    print("ERROR: pymavlink not found. Install with:  pip3 install pymavlink")
+    sys.exit(1)
+
+
+def load_config(path):
+    with open(path, "r") as f:
+        return json.load(f)
+
+
+# ─── Parameter sampling ─────────────────────────────────────────────────────
+def generate_perturbed_params(config, rng):
+    """Return dict {param_name: perturbed_value} using Gaussian sampling."""
+    params = config["params"]
+    sigma_mult = config.get("sigma_multiplier", 3)
+    result = {}
+    for name, info in params.items():
+        nominal = info["nominal"]
+        sigma_3 = info["sigma_3"]
+        one_sigma = sigma_3 / 3.0
+        # Gaussian sample clipped to ±3σ
+        delta = rng.normal(0.0, one_sigma)
+        delta = np.clip(delta, -sigma_3, sigma_3)
+        result[name] = nominal + delta
+    return result
+
+
+def write_override_file(perturbed, case_id):
+    """Write the override file consumed by LAT_SIM_MonteCarlo.cpp."""
+    with open(OVERRIDE_FILE, "w") as f:
+        f.write(f"# Monte Carlo Case {case_id}\n")
+        f.write(f"# Generated: {datetime.now().isoformat()}\n")
+        for k, v in perturbed.items():
+            f.write(f"{k}={v:.8f}\n")
+
+
+def remove_override_file():
+    if os.path.exists(OVERRIDE_FILE):
+        os.remove(OVERRIDE_FILE)
+
+
+# ─── SITL process management ────────────────────────────────────────────────
+def launch_sitl(config):
+    """Start sim_vehicle.py and return the Popen handle."""
+    sitl_cfg = config["sitl"]
+    cmd = [
+        sys.executable, SIM_VEHICLE,
+        "-v", sitl_cfg["vehicle"],
+        "-L", sitl_cfg["location"],
+        "--out", sitl_cfg["mavproxy_out"],
+        "--no-rebuild",        # already built
+        "--no-extra-ports",    
+    ]
+    # Add extra args (--console --debug etc.)
+    extras = sitl_cfg.get("extra_args", "").split()
+    cmd.extend(extras)
+
+    print(f"  [SITL] Launching: {' '.join(cmd)}")
+    proc = subprocess.Popen(
+        cmd,
+        cwd=AUTOTEST_DIR,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        preexec_fn=os.setsid,  # so we can kill the whole process group
+    )
+    return proc
+
+
+def kill_sitl(proc):
+    """Kill the SITL process group."""
+    if proc is None:
+        return
+    try:
+        os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+        proc.wait(timeout=10)
+    except Exception:
+        try:
+            os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+        except Exception:
+            pass
+    # Also kill any leftover arduplane processes
+    subprocess.run(["pkill", "-f", "arduplane"], capture_output=True)
+    time.sleep(2)
+
+
+# ─── MAVLink connection ─────────────────────────────────────────────────────
+def connect_mavlink(timeout=60):
+    """Connect to SITL via TCP on default port 5760."""
+    print("  [MAV] Connecting to tcp:127.0.0.1:5760 ...")
+    deadline = time.time() + timeout
+    conn = None
+    while time.time() < deadline:
+        try:
+            conn = mavutil.mavlink_connection("tcp:127.0.0.1:5760", retries=0)
+            conn.wait_heartbeat(timeout=10)
+            print(f"  [MAV] Connected.  sysid={conn.target_system}  compid={conn.target_component}")
+            return conn
+        except Exception:
+            time.sleep(2)
+    raise RuntimeError("Could not connect to SITL via MAVLink")
+
+
+# ─── Mission upload ─────────────────────────────────────────────────────────
+def upload_mission(conn, config):
+    """Upload: TAKEOFF → CIRCLE (loiter turns) → AUTO-LAND."""
+    m = config["mission"]
+    lat   = m["home_lat"]
+    lon   = m["home_lon"]
+    alt   = m["takeoff_alt_m"]
+    r     = m["circle_radius_m"]
+    laps  = m["circle_laps"]
+    land_alt = m["landing_approach_alt_m"]
+
+    wp = mavwp.MAVWPLoader()
+
+    # WP0 — home (required)
+    wp.add(mavutil.mavlink.MAVLink_mission_item_message(
+        conn.target_system, conn.target_component,
+        0,  # seq
+        mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT,
+        mavutil.mavlink.MAV_CMD_NAV_WAYPOINT,
+        0, 1,  # current, autocontinue
+        0, 0, 0, 0,
+        lat, lon, 0))
+
+    # WP1 — TAKEOFF
+    wp.add(mavutil.mavlink.MAVLink_mission_item_message(
+        conn.target_system, conn.target_component,
+        1,
+        mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT,
+        mavutil.mavlink.MAV_CMD_NAV_TAKEOFF,
+        0, 1,
+        15,   # pitch angle
+        0, 0, 0,
+        lat, lon, alt))
+
+    # WP2 — fly to a point offset for the circle entry
+    import math
+    circle_lat = lat + (r / 111320.0)  # offset north by radius
+    wp.add(mavutil.mavlink.MAVLink_mission_item_message(
+        conn.target_system, conn.target_component,
+        2,
+        mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT,
+        mavutil.mavlink.MAV_CMD_NAV_WAYPOINT,
+        0, 1,
+        0, 0, 0, 0,
+        circle_lat, lon, alt))
+
+    # WP3 — LOITER_TURNS (circle)
+    wp.add(mavutil.mavlink.MAVLink_mission_item_message(
+        conn.target_system, conn.target_component,
+        3,
+        mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT,
+        mavutil.mavlink.MAV_CMD_NAV_LOITER_TURNS,
+        0, 1,
+        laps,  # turns
+        0, r, 0,  # empty, radius, 0
+        circle_lat, lon, alt))
+
+    # WP4 — waypoint aligned for landing approach
+    approach_lat = lat - (500.0 / 111320.0)  # 500m south of home
+    wp.add(mavutil.mavlink.MAVLink_mission_item_message(
+        conn.target_system, conn.target_component,
+        4,
+        mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT,
+        mavutil.mavlink.MAV_CMD_NAV_WAYPOINT,
+        0, 1,
+        0, 0, 0, 0,
+        approach_lat, lon, land_alt))
+
+    # WP5 — LAND
+    wp.add(mavutil.mavlink.MAVLink_mission_item_message(
+        conn.target_system, conn.target_component,
+        5,
+        mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT,
+        mavutil.mavlink.MAV_CMD_NAV_LAND,
+        0, 1,
+        0, 0, 0, 0,
+        lat, lon, 0))
+
+    # Send mission count
+    conn.waypoint_clear_all_send()
+    time.sleep(1)
+    conn.waypoint_count_send(wp.count())
+
+    # Send each item when requested
+    for i in range(wp.count()):
+        msg = conn.recv_match(type=["MISSION_REQUEST", "MISSION_REQUEST_INT"], blocking=True, timeout=10)
+        if msg is None:
+            raise RuntimeError(f"Timeout waiting for MISSION_REQUEST for WP {i}")
+        conn.mav.send(wp.wp(msg.seq))
+
+    # Wait for ACK
+    ack = conn.recv_match(type="MISSION_ACK", blocking=True, timeout=10)
+    if ack and ack.type == mavutil.mavlink.MAV_MISSION_ACCEPTED:
+        print(f"  [MAV] Mission uploaded: {wp.count()} waypoints")
+    else:
+        print(f"  [MAV] WARNING: Mission ACK = {ack}")
+
+
+# ─── Arm and run ────────────────────────────────────────────────────────────
+def wait_for_gps_and_ekf(conn, timeout=120):
+    """Wait until EKF is healthy and GPS has a 3D fix."""
+    print("  [MAV] Waiting for GPS 3D-fix and EKF ...")
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        conn.mav.heartbeat_send(
+            mavutil.mavlink.MAV_TYPE_GCS,
+            mavutil.mavlink.MAV_AUTOPILOT_INVALID,
+            0, 0, 0)
+
+        # Check SYS_STATUS
+        msg = conn.recv_match(type="HEARTBEAT", blocking=True, timeout=5)
+        if msg is None:
+            continue
+        # Try to get EKF status
+        conn.mav.command_long_send(
+            conn.target_system, conn.target_component,
+            mavutil.mavlink.MAV_CMD_REQUEST_MESSAGE, 0,
+            mavutil.mavlink.MAVLINK_MSG_ID_GPS_RAW_INT, 0, 0, 0, 0, 0, 0)
+
+        gps = conn.recv_match(type="GPS_RAW_INT", blocking=True, timeout=3)
+        if gps and gps.fix_type >= 3:
+            print(f"  [MAV] GPS fix type = {gps.fix_type}")
+            return True
+        time.sleep(2)
+    raise RuntimeError("Timeout waiting for GPS/EKF")
+
+
+def set_mode(conn, mode_name, timeout=15):
+    """Set flight mode by name."""
+    mode_id = conn.mode_mapping().get(mode_name)
+    if mode_id is None:
+        # Try alternate names
+        mode_map = conn.mode_mapping()
+        print(f"  [MAV] Available modes: {list(mode_map.keys())}")
+        raise RuntimeError(f"Unknown mode: {mode_name}")
+
+    conn.set_mode(mode_id)
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        hb = conn.recv_match(type="HEARTBEAT", blocking=True, timeout=3)
+        if hb and hb.custom_mode == mode_id:
+            print(f"  [MAV] Mode set to {mode_name}")
+            return
+    raise RuntimeError(f"Timeout setting mode {mode_name}")
+
+
+def arm_vehicle(conn, timeout=30):
+    """Arm the vehicle."""
+    print("  [MAV] Arming ...")
+    conn.arducopter_arm()  # works for plane too
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        hb = conn.recv_match(type="HEARTBEAT", blocking=True, timeout=3)
+        if hb and (hb.base_mode & mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED):
+            print("  [MAV] Armed.")
+            return
+    raise RuntimeError("Timeout arming vehicle")
+
+
+def wait_for_disarm(conn, timeout=600):
+    """Wait until vehicle disarms (mission complete or crash)."""
+    print(f"  [MAV] Waiting for mission completion (timeout={timeout}s) ...")
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        hb = conn.recv_match(type="HEARTBEAT", blocking=True, timeout=5)
+        if hb is None:
+            continue
+        armed = hb.base_mode & mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED
+        if not armed:
+            print("  [MAV] Vehicle disarmed — mission complete.")
+            return True
+    print("  [MAV] WARNING: Timeout — mission did not complete.")
+    return False
+
+
+# ─── Log collection ─────────────────────────────────────────────────────────
+def collect_logs(case_id, config):
+    """Copy SITL logs and CSV output to the case folder."""
+    case_dir = os.path.join(LOG_BASE_DIR, f"Case{case_id:04d}_logdata")
+    os.makedirs(case_dir, exist_ok=True)
+
+    # 1. Copy the LAT FDM CSV output from Logs_Simulations/
+    sim_log_dir = os.path.join(ROOT_DIR, "Logs_Simulations")
+    csvs = sorted(glob.glob(os.path.join(sim_log_dir, "sim_output_*.csv")))
+    if csvs:
+        latest_csv = csvs[-1]
+        shutil.copy2(latest_csv, os.path.join(case_dir, os.path.basename(latest_csv)))
+        print(f"  [LOG] Copied LAT CSV: {os.path.basename(latest_csv)}")
+
+    # 2. Copy ArduPilot BIN logs from autotest/logs/
+    ap_logs_dir = os.path.join(AUTOTEST_DIR, "logs")
+    if os.path.isdir(ap_logs_dir):
+        bins = sorted(glob.glob(os.path.join(ap_logs_dir, "**", "*.BIN"), recursive=True))
+        for b in bins[-2:]:  # last 2 log files
+            shutil.copy2(b, os.path.join(case_dir, os.path.basename(b)))
+        print(f"  [LOG] Copied {min(len(bins), 2)} BIN log(s)")
+
+    # 3. Copy the override file itself for traceability
+    if os.path.exists(OVERRIDE_FILE):
+        shutil.copy2(OVERRIDE_FILE, os.path.join(case_dir, "monte_carlo_overrides.txt"))
+
+    # 4. Save MAVProxy tlog if present
+    tlog = os.path.join(AUTOTEST_DIR, "mav.tlog")
+    if os.path.exists(tlog):
+        shutil.copy2(tlog, os.path.join(case_dir, "mav.tlog"))
+
+    return case_dir
+
+
+# ─── Summary CSV ─────────────────────────────────────────────────────────────
+def init_summary_csv(config):
+    """Create/overwrite the summary CSV with headers."""
+    summary_path = os.path.join(LOG_BASE_DIR, "monte_carlo_summary.csv")
+    os.makedirs(LOG_BASE_DIR, exist_ok=True)
+    headers = ["case_id", "status", "duration_s"] + list(config["params"].keys())
+    with open(summary_path, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(headers)
+    return summary_path
+
+
+def append_summary(summary_path, case_id, status, duration, perturbed, config):
+    """Append one row to the summary CSV."""
+    row = [case_id, status, f"{duration:.1f}"]
+    for name in config["params"]:
+        row.append(f"{perturbed[name]:.8f}")
+    with open(summary_path, "a", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(row)
+
+
+# ─── Main loop ───────────────────────────────────────────────────────────────
+def run_single_case(case_id, config, rng):
+    """Run one Monte Carlo case. Returns (status_string, duration)."""
+    print(f"\n{'='*70}")
+    print(f"  MONTE CARLO — Case {case_id}")
+    print(f"{'='*70}")
+
+    # 1. Generate perturbed params
+    perturbed = generate_perturbed_params(config, rng)
+    write_override_file(perturbed, case_id)
+
+    print(f"  Perturbed params:")
+    for k, v in perturbed.items():
+        nom = config["params"][k]["nominal"]
+        pct = ((v - nom) / nom) * 100 if nom != 0 else 0
+        print(f"    {k:20s} = {v:12.6f}  (nominal={nom:.6f}, Δ={pct:+.2f}%)")
+
+    proc = None
+    conn = None
+    status = "UNKNOWN"
+    t_start = time.time()
+
+    try:
+        # 2. Launch SITL
+        proc = launch_sitl(config)
+        startup_wait = config["sitl"].get("startup_wait_s", 30)
+        print(f"  [SITL] Waiting {startup_wait}s for startup ...")
+        time.sleep(startup_wait)
+
+        # 3. Connect MAVLink
+        conn = connect_mavlink(timeout=60)
+
+        # 4. Wait for GPS/EKF
+        wait_for_gps_and_ekf(conn, timeout=120)
+
+        # 5. Upload mission
+        upload_mission(conn, config)
+        time.sleep(2)
+
+        # 6. Set AUTO and arm
+        set_mode(conn, "AUTO")
+        time.sleep(1)
+        arm_vehicle(conn, timeout=30)
+
+        # 7. Wait for completion
+        mission_timeout = config["mission"].get("mission_timeout_s", 600)
+        completed = wait_for_disarm(conn, timeout=mission_timeout)
+        status = "COMPLETED" if completed else "TIMEOUT"
+
+        # Brief pause for logs to flush
+        post_wait = config["sitl"].get("post_disarm_wait_s", 10)
+        time.sleep(post_wait)
+
+    except KeyboardInterrupt:
+        print("\n  [ABORT] KeyboardInterrupt — stopping.")
+        status = "ABORTED"
+        raise
+    except Exception as e:
+        print(f"  [ERROR] {e}")
+        status = "ERROR"
+    finally:
+        duration = time.time() - t_start
+        # 8. Collect logs
+        try:
+            case_dir = collect_logs(case_id, config)
+            print(f"  [LOG] Saved to: {case_dir}")
+        except Exception as e:
+            print(f"  [LOG] WARNING: log collection failed: {e}")
+
+        # 9. Kill SITL
+        kill_sitl(proc)
+        if conn:
+            conn.close()
+
+        # 10. Clean up override file
+        remove_override_file()
+
+    print(f"  Result: {status}  Duration: {duration:.1f}s")
+    return status, duration, perturbed
+
+
+def main():
+    parser = argparse.ArgumentParser(description="LAT SITL Monte Carlo Runner")
+    parser.add_argument("--config", default=os.path.join(SCRIPT_DIR, "monte_carlo_config.json"),
+                        help="Path to monte_carlo_config.json")
+    parser.add_argument("--num-runs", type=int, default=None,
+                        help="Override number of runs from config")
+    parser.add_argument("--start-case", type=int, default=1,
+                        help="Case number to start from (for resuming)")
+    parser.add_argument("--seed", type=int, default=42,
+                        help="Random seed for reproducibility")
+    args = parser.parse_args()
+
+    config = load_config(args.config)
+    num_runs = args.num_runs if args.num_runs else config["num_runs"]
+    rng = np.random.default_rng(args.seed)
+
+    # Advance RNG to the start case (for reproducibility when resuming)
+    n_params = len(config["params"])
+    for _ in range(args.start_case - 1):
+        rng.normal(0, 1, size=n_params)  # burn samples to stay in sync
+
+    print("="*70)
+    print("  LAT SITL — MONTE CARLO ANALYSIS")
+    print(f"  Cases: {args.start_case} to {args.start_case + num_runs - 1}")
+    print(f"  Params: {list(config['params'].keys())}")
+    print(f"  Seed: {args.seed}")
+    print(f"  Config: {args.config}")
+    print(f"  Log dir: {LOG_BASE_DIR}")
+    print("="*70)
+
+    os.makedirs(LOG_BASE_DIR, exist_ok=True)
+    summary_path = init_summary_csv(config)
+
+    results = {"COMPLETED": 0, "TIMEOUT": 0, "ERROR": 0, "ABORTED": 0}
+
+    try:
+        for i in range(num_runs):
+            case_id = args.start_case + i
+            status, duration, perturbed = run_single_case(case_id, config, rng)
+            results[status] = results.get(status, 0) + 1
+            append_summary(summary_path, case_id, status, duration, perturbed, config)
+
+            # Progress
+            done = i + 1
+            print(f"\n  Progress: {done}/{num_runs}  "
+                  f"(OK={results['COMPLETED']}, TIMEOUT={results['TIMEOUT']}, "
+                  f"ERR={results['ERROR']})")
+
+    except KeyboardInterrupt:
+        print("\n\n  Monte Carlo interrupted by user.")
+
+    # Final summary
+    print("\n" + "="*70)
+    print("  MONTE CARLO COMPLETE")
+    print(f"  Results: {results}")
+    print(f"  Summary CSV: {summary_path}")
+    print(f"  Case logs:   {LOG_BASE_DIR}")
+    print("="*70)
+
+
+if __name__ == "__main__":
+    main()

@@ -823,6 +823,9 @@ void Aircraft::update_dynamics(const Vector3f &rot_accel)
 	vehcle.V_b_tas[1] = velocity_air_bf.y;
 	vehcle.V_b_tas[2] = velocity_air_bf.z;
 
+    vehcle.pos_ned[0] = position.x;
+    vehcle.pos_ned[1] = position.y;
+    vehcle.pos_ned[2] = position.z;
 
     // airspeed
     update_eas_airspeed();
@@ -842,6 +845,8 @@ void Aircraft::update_dynamics(const Vector3f &rot_accel)
         if (vehcle.plane_moving_state == CT_RUNWAY_ROTATING) {
            position.z =0;
         }
+
+        vehcle.pos_ned[2] = position.z;
 
         // get speed of ground movement (for ship takeoff/landing)
         float yaw_rate = 0;

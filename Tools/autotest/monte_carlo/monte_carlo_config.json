@@ -1,0 +1,189 @@
+{
+    "_comment": "Monte Carlo Configuration for LAT SITL FDM — Parallel Runner",
+    "_instructions": [
+        "num_runs: total Monte Carlo cases (100)",
+        "max_workers: number of parallel SITL instances",
+        "Each param: nominal = stored value in vehcle struct, sigma_3 = 3-sigma bound (= pct/100 * |nominal|)",
+        "Mission: TAKEOFF -> GUIDED to nearby point -> LOITER until timeout (no landing)",
+        "Timeout: 600s hard stop per case"
+    ],
+
+    "num_runs": 500,
+    "max_workers": 10,
+    "sigma_multiplier": 3,
+
+    "mission": {
+        "takeoff_alt_m": 100,
+        "circle_radius_m": 200,
+        "guided_offset_m": 400,
+        "loiter_switch_alt_m": 100,
+        "runway_heading_deg": 285,
+        "mission_timeout_s": 90,
+        "takeoff_detect_alt_m": 15,
+        "home_lat": 28.559741,
+        "home_lon": 77.117450,
+        "home_alt_m": 237
+    },
+
+    "sitl": {
+        "vehicle": "ArduPlane",
+        "location": "DELHI",
+        "extra_args": "--no-rebuild --no-extra-ports",
+        "startup_wait_s": 30,
+        "post_disarm_wait_s": 5,
+        "gcs_output": "udpclient:172.20.96.1:14550"
+    },
+
+    "params": {
+        "Ixx": {
+            "nominal": 14.658,
+            "sigma_3": 2.9316,
+            "description": "Roll moment of inertia (20%)"
+        },
+        "Iyy": {
+            "nominal": 16.944,
+            "sigma_3": 3.3888,
+            "description": "Pitch moment of inertia (20%)"
+        },
+        "Izz": {
+            "nominal": 27.412,
+            "sigma_3": 5.4824,
+            "description": "Yaw moment of inertia (20%)"
+        },
+        "rho": {
+            "nominal": 1.15,
+            "sigma_3": 0.115,
+            "description": "Air density (20%)"
+        },
+        "mass": {
+            "nominal": 65.0,
+            "sigma_3": 6.5,
+            "description": "Vehicle mass (10%)"
+        },
+        "cg_x": {
+            "nominal": 1.030,
+            "sigma_3": 0.103,
+            "description": "CG x-location from nose (10%)"
+        },
+        "cg_z": {
+            "nominal": 0.043,
+            "sigma_3": 0.0043,
+            "description": "CG z-location from nose center (10%)"
+        },
+        "CL_0": {
+            "nominal": 0.18,
+            "sigma_3": 0.09,
+            "description": "Zero-alpha lift coefficient (50%)"
+        },
+        "CL_delta_e": {
+            "nominal": 0.69,
+            "sigma_3": 0.345,
+            "description": "Elevator lift effectiveness (50%)"
+        },
+        "CL_alpha": {
+            "nominal": 5.718,
+            "sigma_3": 2.859,
+            "description": "Lift curve slope (50%)"
+        },
+        "CL_q": {
+            "nominal": 12.5,
+            "sigma_3": 6.25,
+            "description": "Pitch rate lift coefficient (50%)"
+        },
+        "CD_0": {
+            "nominal": 0.0763,
+            "sigma_3": 0.03815,
+            "description": "Zero-lift drag coefficient (50%)"
+        },
+        "CD_delta_e": {
+            "nominal": 0.012,
+            "sigma_3": 0.006,
+            "description": "Elevator drag coefficient (50%)"
+        },
+        "CD_delta_f": {
+            "nominal": 0.23,
+            "sigma_3": 0.115,
+            "description": "Flap drag coefficient (50%)"
+        },
+        "CD_delta_e2": {
+            "nominal": 0.004,
+            "sigma_3": 0.002,
+            "description": "Elevator squared drag coefficient (50%)"
+        },
+        "CD_alpha": {
+            "nominal": 0.3,
+            "sigma_3": 0.15,
+            "description": "Alpha drag coefficient (50%)"
+        },
+        "Cl_0": {
+            "nominal": -0.000117,
+            "sigma_3": 0.0000585,
+            "description": "Zero-beta roll moment (50%)"
+        },
+        "Cl_beta": {
+            "nominal": -0.000171887339,
+            "sigma_3": 0.000085943669,
+            "description": "Dihedral effect = -0.000003*R2D (50%)"
+        },
+        "Cl_delta_r": {
+            "nominal": 0.008307888027,
+            "sigma_3": 0.004153944014,
+            "description": "Rudder roll moment = 0.000145*R2D (50%)"
+        },
+        "Cl_delta_aL": {
+            "nominal": 0.062337808096,
+            "sigma_3": 0.031168904048,
+            "description": "Left aileron roll = 0.001088*R2D (50%)"
+        },
+        "Cl_delta_aR": {
+            "nominal": -0.062853470112,
+            "sigma_3": 0.031426735056,
+            "description": "Right aileron roll = -0.001097*R2D (50%)"
+        },
+        "Cl_r": {
+            "nominal": 0.08,
+            "sigma_3": 0.04,
+            "description": "Yaw rate roll moment (50%)"
+        },
+        "Cm_0": {
+            "nominal": 0.249992,
+            "sigma_3": 0.124996,
+            "description": "Zero-alpha pitch moment (50%)"
+        },
+        "Cm_alpha": {
+            "nominal": -4.205166440623,
+            "sigma_3": 2.102583220312,
+            "description": "Pitch moment slope = -0.073394*R2D (50%)"
+        },
+        "Cm_delta_e": {
+            "nominal": -3.303273575514,
+            "sigma_3": 1.651636787757,
+            "description": "Elevator pitch effectiveness = -0.057653*R2D (50%)"
+        },
+        "Cm_Cmu": {
+            "nominal": 0.199495,
+            "sigma_3": 0.0997475,
+            "description": "Thrust pitch moment coefficient (50%)"
+        },
+        "Cm_q": {
+            "nominal": -77.0,
+            "sigma_3": 38.5,
+            "description": "Pitch damping (50%)"
+        },
+        "Cm_delta_f": {
+            "nominal": 0.163407563134,
+            "sigma_3": 0.081703781567,
+            "description": "Flap pitch moment = 0.002852*R2D (50%)"
+        },
+        "Cm_beta2": {
+            "nominal": -3.722702399213,
+            "sigma_3": 1.861351199607,
+            "description": "Beta^2 pitch moment = -0.001134*R2D^2 (50%)"
+        },
+        "max_thrust": {
+            "nominal": 57.63375,
+            "sigma_3": 5.763375,
+            "description": "Per-motor max thrust = 47*9.81/8 (10%)"
+        }
+    }
+}

@@ -1,0 +1,13 @@
+Inside the SITL folder of the libraries folder of the Entire ArduPilot Codebase, I have written all my files whoch have all the equations related to the 6-DOF Dynamics. I need to now run Monte Carlo Simulations on top of these by perturbing the vehicle params
+
+All the Vehicle params are declared inside the function v_plane_param_define_eqx_v1_new_model()
+
+The params I want to perturb are
+vehcle.cg_x, vehcle.cg_z, 
+    vehcle.Ixx = 14.658 ;
+    vehcle.Iyy = 16.944 ;
+    vehcle.Izz = 27.412 ;
+    vehcle.CL_0 = 0.18;
+        vehcle.CL_delta_e = 0.69;
+
+More parameters can be added in the future, for each of the run, the parameters should be changed instead of affecting the nominal/original values, then the whole code should be run while opening Mission Planner, and instead of giving the control input manually, the Vehicle should first be armed, then the mode should be chnaged to AutoTakeoff, once in air circle and then autoland. the control surfaces and servos mapping is done in v_plane_param_define_eqx_v1_new_model(), 

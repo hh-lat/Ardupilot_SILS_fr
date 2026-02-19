@@ -1,0 +1,78 @@
+{
+    "_comment": "Monte Carlo Configuration for LAT SITL FDM",
+    "_instructions": [
+        "num_runs: total number of Monte Carlo cases to run",
+        "sigma_multiplier: how many sigma to use (3 = 3-sigma bounds)",
+        "Each param entry: nominal = your design value, sigma_3 = the 3-sigma uncertainty band.",
+        "The script samples uniformly within +/- sigma_multiplier * (sigma_3 / 3) around nominal.",
+        "To add more params: just add entries here AND ensure LAT_SIM_MonteCarlo.cpp has the mapping."
+    ],
+
+    "num_runs": 100,
+    "sigma_multiplier": 3,
+
+    "mission": {
+        "takeoff_alt_m": 100,
+        "circle_radius_m": 200,
+        "circle_laps": 2,
+        "landing_approach_alt_m": 50,
+        "mission_timeout_s": 600,
+        "home_lat": 28.559741,
+        "home_lon": 77.117450,
+        "home_alt_m": 237
+    },
+
+    "sitl": {
+        "vehicle": "ArduPlane",
+        "location": "DELHI",
+        "extra_args": "--console --debug",
+        "mavproxy_out": "udp:172.20.96.1:14551",
+        "startup_wait_s": 30,
+        "post_disarm_wait_s": 10
+    },
+
+    "params": {
+        "cg_x": {
+            "nominal": 1.030,
+            "sigma_3": 0.015,
+            "unit": "m",
+            "description": "CG x-location from nose"
+        },
+        "cg_z": {
+            "nominal": 0.043,
+            "sigma_3": 0.005,
+            "unit": "m",
+            "description": "CG z-location from nose center"
+        },
+        "Ixx": {
+            "nominal": 14.658,
+            "sigma_3": 1.5,
+            "unit": "kg.m2",
+            "description": "Roll moment of inertia"
+        },
+        "Iyy": {
+            "nominal": 16.944,
+            "sigma_3": 1.7,
+            "unit": "kg.m2",
+            "description": "Pitch moment of inertia"
+        },
+        "Izz": {
+            "nominal": 27.412,
+            "sigma_3": 2.7,
+            "unit": "kg.m2",
+            "description": "Yaw moment of inertia"
+        },
+        "CL_0": {
+            "nominal": 0.18,
+            "sigma_3": 0.03,
+            "unit": "-",
+            "description": "Zero-alpha lift coefficient"
+        },
+        "CL_delta_e": {
+            "nominal": 0.69,
+            "sigma_3": 0.10,
+            "unit": "-",
+            "description": "Elevator lift effectiveness"
+        }
+    }
+}
