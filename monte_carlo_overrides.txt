@@ -1,0 +1,3 @@
+# Custom perturbation — CL_alpha -70.00%, Cm_delta_e +0.00%
+CL_alpha=1.7154000000
+Cm_delta_e=-3.3032735755

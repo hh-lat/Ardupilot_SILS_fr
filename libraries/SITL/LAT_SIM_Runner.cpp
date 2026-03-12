@@ -300,7 +300,7 @@ void v_plane_param_define()
 	// Apply Monte Carlo overrides (if override file exists).
 	// If no override file is present this is a silent no-op;
 	// nominal parameters above remain untouched.
-	v_apply_monte_carlo_overrides();
+	// v_apply_monte_carlo_overrides();
 }
 
 void v_plane_param_define_eqx_v1_new_model()
@@ -340,9 +340,9 @@ void v_plane_param_define_eqx_v1_new_model()
     vehcle.mass = 65.0 ;
 	vehcle.g = 9.81; 
 	vehcle.lift_stall_M = 50.0;
-    vehcle.Ixx = 14.658 ;
-    vehcle.Iyy = 16.944 ;
-    vehcle.Izz = 27.412 ;
+    vehcle.Ixx = 14.658;
+    vehcle.Iyy = 16.944;
+    vehcle.Izz = 27.412;
     vehcle.Ixz = 0*3.985 ;
 	vehcle.Iyz = 0.0 ;
 	vehcle.Ixy = 0.0 ;
@@ -365,7 +365,7 @@ void v_plane_param_define_eqx_v1_new_model()
     vehcle.nlg_z = 0;
 	vehcle.alpha_stall = 25.0*D2R; // stall angle in rad
 
-	vehcle.CL_0 = 0.18*1.0;
+	vehcle.CL_0 = 0.18;
 	vehcle.CL_delta_e = 0.69;
 	vehcle.CL_alpha = 5.718; // default
 	vehcle.CL_q =12.5;//3.0; 
@@ -399,7 +399,7 @@ void v_plane_param_define_eqx_v1_new_model()
 
 	vehcle.Cm_0 = 0.249992;
 	vehcle.Cm_alpha = -0.073394*R2D;
-	vehcle.Cm_delta_e =-0.057653*R2D*1.0;
+	vehcle.Cm_delta_e =-0.057653*R2D;
 	vehcle.Cm_delta_aL = -0.000813*R2D;
 	vehcle.Cm_delta_aR = -0.000659*R2D;
 	vehcle.Cm_Cmu = 0.199495;

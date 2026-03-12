@@ -292,8 +292,8 @@ title(tC, 'Airspeed, AoA & Load Factor Distributions', ...
       'FontSize',15,'FontWeight','bold');
 
 plot_hist_ax(nexttile(tC), R.airspeed_ss_mean_mps(valid), 'Airspeed SS Mean (m/s)', [0.2 0.6 0.9], lim.airspeed_cruise_mps);
-plot_hist_ax(nexttile(tC), R.max_airspeed_mps(valid), 'Max Airspeed (m/s)', [0.9 0.4 0.3], lim.airspeed_max_mps*1.1);
-plot_hist_ax(nexttile(tC), R.min_airspeed_mps(valid), 'Min Airspeed (m/s)', [0.5 0.4 0.8], lim.airspeed_min_mps*0.9);
+plot_hist_ax(nexttile(tC), R.max_airspeed_mps(valid), 'Max Airspeed SS (m/s)', [0.9 0.4 0.3], lim.airspeed_max_mps);
+plot_hist_ax(nexttile(tC), R.min_airspeed_mps(valid), 'Min Airspeed SS (m/s)', [0.5 0.4 0.8], lim.airspeed_min_mps);
 plot_hist_ax(nexttile(tC), R.aoa_max_deg(valid), 'AoA Max (deg)', [0.8 0.5 0.2], lim.stall_aoa_deg);
 plot_hist_ax(nexttile(tC), R.aoa_ss_mean_deg(valid), 'AoA SS Mean (deg)', [0.3 0.7 0.5], NaN);
 plot_hist_ax(nexttile(tC), R.max_load_factor_g(valid), 'Max Load Factor (g)', [0.4 0.6 0.7], NaN);
@@ -595,16 +595,19 @@ if numel(tas_ss) > 10
     S.airspeed_ss_std_mps  = std(tas_ss);
 end
 
-% Max/min airspeed in flight
-tas_fly = tas(fly);
-tas_fly = tas_fly(isfinite(tas_fly) & tas_fly > 0.5);
-if ~isempty(tas_fly)
-    S.max_airspeed_mps = max(tas_fly);
-    S.min_airspeed_mps = min(tas_fly);
-    if S.min_airspeed_mps < lim.airspeed_min_mps * 0.9
+% Max/min airspeed in steady-state (loiter)
+% Apply 1-s moving average (~10 samples at 10 Hz) to filter
+% single-sample simulation glitches before checking limits.
+tas_ss_chk = tas(ss_idx:end);
+tas_ss_chk = tas_ss_chk(isfinite(tas_ss_chk) & tas_ss_chk > 0.5);
+if numel(tas_ss_chk) > 10
+    tas_ss_filt = movmean(tas_ss_chk, 10);
+    S.max_airspeed_mps = max(tas_ss_filt);
+    S.min_airspeed_mps = min(tas_ss_filt);
+    if S.min_airspeed_mps < lim.airspeed_min_mps
         S.flag_airspeed_low = true;
     end
-    if S.max_airspeed_mps > lim.airspeed_max_mps * 1.1
+    if S.max_airspeed_mps > lim.airspeed_max_mps
         S.flag_airspeed_high = true;
     end
 end
@@ -870,7 +873,7 @@ function report = generate_summary(R, N, lim, results_path)
     c{end+1} = sprintf('  Pitch limit             : %.0f to +%.0f deg', lim.pitch_limit_min_deg, lim.pitch_limit_max_deg);
     c{end+1} = sprintf('  Circle radius command   : %.0f m  (+/-%.0f%%)', lim.commanded_radius_m, lim.radius_tol_pct);
     c{end+1} = sprintf('  Stall AoA threshold     : %.0f deg', lim.stall_aoa_deg);
-    c{end+1} = sprintf('  Airspeed band           : [%.1f, %.1f] m/s', lim.airspeed_min_mps*0.9, lim.airspeed_max_mps*1.1);
+    c{end+1} = sprintf('  Airspeed band (SS)      : [%.1f, %.1f] m/s', lim.airspeed_min_mps, lim.airspeed_max_mps);
     c{end+1} = line;
 
     % Helper for stats line

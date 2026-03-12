@@ -1,0 +1,23 @@
+parameter,direction,max_pass_pct,first_fail_pct,fail_flags
+Ixx,+,100.0,-1,
+Ixx,-,90.0,100.0,arm_failed
+cg_x,+,80.0,90.0,flag_pitch_angle
+cg_x,-,30.0,40.0,flag_pitch_angle
+CL_0,+,100.0,-1,
+CL_0,-,100.0,-1,
+CL_delta_e,+,100.0,-1,
+CL_delta_e,-,100.0,-1,
+CL_alpha,+,100.0,-1,
+CL_alpha,-,40.0,50.0,"flag_alt_error, flag_circle_radius"
+Cl_delta_aL,+,100.0,-1,
+Cl_delta_aL,-,100.0,-1,
+Cl_delta_aR,+,100.0,-1,
+Cl_delta_aR,-,100.0,-1,
+Cm_0,+,100.0,-1,
+Cm_0,-,100.0,-1,
+Cm_alpha,+,100.0,-1,
+Cm_alpha,-,100.0,-1,
+Cm_delta_e,+,100.0,-1,
+Cm_delta_e,-,50.0,60.0,flag_pitch_angle
+Cm_q,+,100.0,-1,
+Cm_q,-,100.0,-1,
