@@ -9,12 +9,14 @@
 
 
 // uSTOL v1: wing aerodynamic-center x/c vs flap config (18 or 32) and blowing coeff
-static float ustol_aero_center(int flap_config, float Cmyu)
+static float ustol_aero_center(float flap_config, float Cmyu)
 {
-	float c0, bb, c_lin;
 	const float Cmyu_max = 9.21f;
-	if (flap_config == 18) { c0 = 0.2668f; bb = -0.0833f; c_lin = 0.01399f; }
-	else                   { c0 = 0.4043f; bb = -0.2612f; c_lin = 0.02112f; } 
+	// linearly interpolate the config-18 / config-32 fits (flap_config passes through both)
+	float frac  = (flap_config - 18.0f) / (32.0f - 18.0f);
+	float c0    =  0.2668f + frac*( 0.4043f - 0.2668f);
+	float bb    = -0.0833f + frac*(-0.2612f - (-0.0833f));
+	float c_lin =  0.01399f + frac*(0.02112f - 0.01399f);
 	float Cmyu_clip = constrain_float1(Cmyu, 0.0f, Cmyu_max);
 	return c0 + bb*sqrtf(Cmyu_clip) + c_lin*Cmyu_clip;
 }
@@ -188,11 +190,10 @@ void v_calculate_lift_force()
 			float Cmu_star = vehcle.Cmu;     
 			float alpha    = vehcle.alpha;
 			float delta_f  = vehcle.delta_f;
-			float delta_a  = vehcle.delta_a;
 			float delta_e  = vehcle.delta_e;
 			float V        = vehcle.tas;       
 
-			int flap_config = (delta_f >= 10.0f*D2R) ? 32 : 18;
+			float flap_config = 18.0f + 0.7f*(delta_f*R2D);   // linear: df=0->18, df=20deg->32
 
 			// Wing Conponent
 			float Cmyu    = Cmu_star * vehcle.wing.lambda_b;  
@@ -205,10 +206,9 @@ void v_calculate_lift_force()
 			                 (vehcle.AR + 2.0f + 0.604f*sqrtf(Cmyu) + 0.876f*Cmyu);
 
 			float nu_camber = vehcle.wing.k_fit;
-			float nu_alpha  = (vehcle.wing.lambda_b + (1.0f - vehcle.wing.lambda_b)*cl_alpha0/cla) * vehcle.wing.k_fit;
+			float nu_alpha  = (vehcle.wing.lambda_b + (1.0f - vehcle.wing.lambda_b)*2.0f*pi/cla) * vehcle.wing.k_fit;
 			float nu_tau    = vehcle.wing.lambda_b;
 			float nu_delf   = vehcle.wing.S_f / vehcle.s * vehcle.controls.Kb_f * vehcle.wing.k_fit;
-			float nu_dela   = vehcle.wing.S_a / vehcle.s * vehcle.controls.Kb_a * vehcle.wing.k_fit;
 
 			float tau = (flap_config * 7.0f/9.0f + 18 *2.0f/9.0f) * D2R;
 
@@ -217,6 +217,9 @@ void v_calculate_lift_force()
 			             + nu_alpha*cla*alpha
 			             + nu_delf*cl_delf*delta_f)
 			           - vehcle.t_by_c*(tau + alpha)*Cmyu;
+
+			// wing CL_alpha (analytic — CL_wing is linear in alpha), used by CLq
+			float CL_alpha_w = G*(1.0f + vehcle.t_by_c)*nu_alpha*cla - vehcle.t_by_c*Cmyu;
 
 			// Tail Component
 			float eta_t = vehcle.tail.eta_t_0 - vehcle.tail.eta_t_1*Cmu_star;
@@ -233,9 +236,31 @@ void v_calculate_lift_force()
 			float CLq = 2.0f*CL_alpha_w*(x_ac_w - vehcle.cg.x_cg_c)
 			          + 2.0f*eta_t*vehcle.tail.a_t*vehcle.tail.V_H;
 
-			float CL = CL_w + CL_t + CL_f + CLq*(vehcle.q * vehcle.c / (2.0f*V));
+			// ---- Post-stall blend (wing & rest -> flat-plate surrogates; Beard) ----
+			float Cmu_b = 0.52f*Cmu_star;
+			float f20   = (flap_config - 18.0f) / 14.0f;   // linear flap fraction (0 at 18, 1 at 32)
 
-			vehcle.CL_w = CL_w;   // stash wing/tail lift for drag & pitch-moment cases
+			float Mw  = vehcle.cl_stall.wM0 + vehcle.cl_stall.wM1*Cmu_b;
+			if (Mw < 0.5f) Mw = 0.5f;
+			float a0w = (vehcle.cl_stall.wa00 + vehcle.cl_stall.wa0mu*Cmu_b + vehcle.cl_stall.wa0f*f20)*pi/180.0f;
+			float ew1 = constrain_float1(-Mw*(alpha - a0w), -88.0f, 88.0f);
+			float ew2 = constrain_float1( Mw*(alpha + a0w), -88.0f, 88.0f);
+			float Ww  = (1.0f + expf(ew1) + expf(ew2)) / ((1.0f + expf(ew1))*(1.0f + expf(ew2)));
+			Ww = constrain_float1(Ww, 0.0f, 1.0f);
+
+			float a0r = (vehcle.cl_stall.ra0 + vehcle.cl_stall.rkcu*Cmu_b)*pi/180.0f;
+			float er1 = constrain_float1(-vehcle.cl_stall.rM*(alpha - a0r), -88.0f, 88.0f);
+			float er2 = constrain_float1( vehcle.cl_stall.rM*(alpha + a0r), -88.0f, 88.0f);
+			float Wr  = (1.0f + expf(er1) + expf(er2)) / ((1.0f + expf(er1))*(1.0f + expf(er2)));
+			Wr = constrain_float1(Wr, 0.0f, 1.0f);
+
+			float CL_wing_post = (1.0f - Ww)*CL_w + Ww*vehcle.cl_stall.wkflat*sinf(2.0f*alpha);
+			float CL_rest_post = (1.0f - Wr)*(CL_t + CL_f)
+			                   + Wr*vehcle.cl_stall.rkflat*(2.0f*sign_1(alpha)*sinf(alpha)*sinf(alpha)*cosf(alpha));
+
+			float CL = CL_wing_post + CL_rest_post + CLq*(vehcle.q * vehcle.c / (2.0f*V));
+
+			vehcle.CL_w = CL_w;  
 			vehcle.CL_t = CL_t;
 			vehcle.CL = CL;
 			vehcle.all_lift_force = vehcle.Q*vehcle.s*vehcle.CL;
@@ -751,13 +776,14 @@ void v_calculate_aero_pitch_moment()
 			// Uses RAW Cmu* (not 0.52-rescaled). CL_w/CL_t come from the lift calc.
 			// NOTE: the classdef Cm_total has NO Cmq pitch-damping term — none added here.
 			float Cmu_star = vehcle.Cmu;
-			int flap_config = (vehcle.delta_f >= 10.0f*D2R) ? 32 : 18;
+			float flap_config = 18.0f + 0.7f*(vehcle.delta_f*R2D);   // linear: df=0->18, df=20deg->32
 
-			// Cm about wing aero center (flap-config polynomial in Cmu*)
+			// Cm about wing aero center — linearly interpolate config-18 / config-32 fits
 			float Cmyu_clip = constrain_float1(Cmu_star, 0.0f, 9.21f);
-			float a_p, b_p, c_p;
-			if (flap_config == 18) { a_p = -0.0803f; b_p = -0.103f;  c_p = -0.083f;  }
-			else                   { a_p =  0.0170f; b_p = -0.2442f; c_p = -0.0459f; } // 32
+			float frac = (flap_config - 18.0f) / 14.0f;
+			float a_p = -0.0803f + frac*( 0.0170f - (-0.0803f));
+			float b_p = -0.103f  + frac*(-0.2442f - (-0.103f));
+			float c_p = -0.083f  + frac*(-0.0459f - (-0.083f));
 			float Cm0_ac_wing = a_p + b_p*sqrtf(Cmyu_clip) + c_p*Cmyu_clip;
 
 			float x_ac_w = ustol_aero_center(flap_config, Cmu_star);

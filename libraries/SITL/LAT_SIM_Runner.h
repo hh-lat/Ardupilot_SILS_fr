@@ -362,6 +362,16 @@ typedef struct
 		float k;            // blend sharpness [1/rad]
 	} stall;
 
+	// Post-stall LIFT blend (wing + rest -> flat-plate surrogates; Beard)
+	struct {
+		float wM0, wM1;          // wing blend sharpness: M = wM0 + wM1*Cmu [1/rad]
+		float wa00, wa0mu, wa0f; // wing onset: (wa00 + wa0mu*Cmu + wa0f*[flap=32]) [deg]
+		float wkflat;            // wing flat-plate (sin 2a) scale [-]
+		float rM;                // rest blend sharpness [1/rad]
+		float ra0, rkcu;         // rest onset: (ra0 + rkcu*Cmu) [deg]
+		float rkflat;            // rest flat-plate scale [-]
+	} cl_stall;
+
 	// Lateral side force (CY; fit in degrees)
 	struct {
 		float theta0, theta_b, theta_aL, theta_aR, theta_r, theta_bcu;

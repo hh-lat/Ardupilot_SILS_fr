@@ -53,7 +53,7 @@ void v_derivative(float Plane_state[],float t,float dydt[])
 	// 	atmind(fabsf(Plane_state[11]), &vehcle.pressure, &vehcle.sound_speed, &vehcle.rho); //atmind function call. Use of fabsf inplace of norm
 	// }
 	
-	vehcle.rho = 1.15;
+	vehcle.rho = (vehcle.plane_model == PLANE_USTOL_V1) ? 1.225f : 1.15f;  // uSTOL matches MATLAB atmos (ISA SL); others keep 1.15
 	float friction_coff = 0.001;
 
 	v_rotation_matrices_update(vehcle.phi,  vehcle.theta,  vehcle.psi,  vehcle.alpha,  vehcle.beta);

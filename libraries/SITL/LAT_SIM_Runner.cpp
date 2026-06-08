@@ -883,6 +883,18 @@ void v_plane_param_define_ustol_v1()
 	vehcle.stall.a0_Cmyu  = -0.125111;
 	vehcle.stall.k        = 25.6810;
 
+	// Post-stall lift blend
+	vehcle.cl_stall.wM0    = 21.8813;
+	vehcle.cl_stall.wM1    = -2.4776;
+	vehcle.cl_stall.wa00   = 19.9997;
+	vehcle.cl_stall.wa0mu  = 1.4955;
+	vehcle.cl_stall.wa0f   = -5.2527;
+	vehcle.cl_stall.wkflat = 4.0284;
+	vehcle.cl_stall.rM     = 14.3286;
+	vehcle.cl_stall.ra0    = 13.2261;
+	vehcle.cl_stall.rkcu   = 0.4765;
+	vehcle.cl_stall.rkflat = 1.3514;
+
 	// Lateral side force 
 	vehcle.lateral.theta0    = 0.000424;
 	vehcle.lateral.theta_b   = -0.014394;
