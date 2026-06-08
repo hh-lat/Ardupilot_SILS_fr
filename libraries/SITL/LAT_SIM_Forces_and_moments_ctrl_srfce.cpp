@@ -8,6 +8,17 @@
 #include "LAT_SIM_Conversions_Frame_rotations.h"
 
 
+// uSTOL v1: wing aerodynamic-center x/c vs flap config (18 or 32) and blowing coeff
+static float ustol_aero_center(int flap_config, float Cmyu)
+{
+	float c0, bb, c_lin;
+	const float Cmyu_max = 9.21f;
+	if (flap_config == 18) { c0 = 0.2668f; bb = -0.0833f; c_lin = 0.01399f; }
+	else                   { c0 = 0.4043f; bb = -0.2612f; c_lin = 0.02112f; } 
+	float Cmyu_clip = constrain_float1(Cmyu, 0.0f, Cmyu_max);
+	return c0 + bb*sqrtf(Cmyu_clip) + c_lin*Cmyu_clip;
+}
+
 void v_calculate_lift_force()
 {
 	vehcle.all_lift_force=0.0;
@@ -171,6 +182,66 @@ void v_calculate_lift_force()
 			vehcle.all_lift_force = vehcle.Q*vehcle.s*vehcle.CL;
 			break;
 		}
+
+		case PLANE_USTOL_V1:
+		{
+			float Cmu_star = vehcle.Cmu;     
+			float alpha    = vehcle.alpha;
+			float delta_f  = vehcle.delta_f;
+			float delta_a  = vehcle.delta_a;
+			float delta_e  = vehcle.delta_e;
+			float V        = vehcle.tas;       
+
+			int flap_config = (delta_f >= 10.0f*D2R) ? 32 : 18;
+
+			// Wing Conponent
+			float Cmyu    = Cmu_star * vehcle.wing.lambda_b;  
+
+			float cla     = 2.0f*pi*(1.0f + 0.151f*sqrtf(Cmu_star) + 0.219f*Cmu_star);                 
+			float clt     = sqrtf(4.0f*pi*Cmu_star*(1.0f + 0.151f*sqrtf(Cmu_star) + 0.139f*Cmu_star));
+			float cl_delf = 2.0f*pi*vehcle.controls.tau_f;
+
+			float G       = (vehcle.AR + 0.637f*Cmyu) /
+			                 (vehcle.AR + 2.0f + 0.604f*sqrtf(Cmyu) + 0.876f*Cmyu);
+
+			float nu_camber = vehcle.wing.k_fit;
+			float nu_alpha  = (vehcle.wing.lambda_b + (1.0f - vehcle.wing.lambda_b)*cl_alpha0/cla) * vehcle.wing.k_fit;
+			float nu_tau    = vehcle.wing.lambda_b;
+			float nu_delf   = vehcle.wing.S_f / vehcle.s * vehcle.controls.Kb_f * vehcle.wing.k_fit;
+			float nu_dela   = vehcle.wing.S_a / vehcle.s * vehcle.controls.Kb_a * vehcle.wing.k_fit;
+
+			float tau = (flap_config * 7.0f/9.0f + 18 *2.0f/9.0f) * D2R;
+
+			float CL_w = G*(1.0f + vehcle.t_by_c)*( nu_camber*vehcle.wing.cl0_camber
+			             + nu_tau*clt*tau
+			             + nu_alpha*cla*alpha
+			             + nu_delf*cl_delf*delta_f)
+			           - vehcle.t_by_c*(tau + alpha)*Cmyu;
+
+			// Tail Component
+			float eta_t = vehcle.tail.eta_t_0 - vehcle.tail.eta_t_1*Cmu_star;
+			float deps  = (alpha < 0.0f) ? vehcle.tail.deps_neg : vehcle.tail.deps_pos;
+			float CL_t  = eta_t * vehcle.tail.S_ht_S * vehcle.tail.a_t *
+			              (-vehcle.tail.eps0 + (1.0f - deps)*alpha + vehcle.controls.tau_e*delta_e);
+
+			// Fuselage Component
+			float CL_f = (0.030384f + 0.004932f*sqrtf(Cmu_star))
+			           + (0.196106f + 0.073289f*sqrtf(Cmu_star) - 0.016049f*Cmu_star)*alpha;
+
+			// Dynamic Coefficient component
+			float x_ac_w = ustol_aero_center(flap_config, Cmu_star);
+			float CLq = 2.0f*CL_alpha_w*(x_ac_w - vehcle.cg.x_cg_c)
+			          + 2.0f*eta_t*vehcle.tail.a_t*vehcle.tail.V_H;
+
+			float CL = CL_w + CL_t + CL_f + CLq*(vehcle.q * vehcle.c / (2.0f*V));
+
+			vehcle.CL_w = CL_w;   // stash wing/tail lift for drag & pitch-moment cases
+			vehcle.CL_t = CL_t;
+			vehcle.CL = CL;
+			vehcle.all_lift_force = vehcle.Q*vehcle.s*vehcle.CL;
+			break;
+		}
+		
 	}
 }
 
@@ -251,7 +322,54 @@ void v_calculate_drag_force()
 			CD = ((1.0f - W)*CD + W*CD_fp);
 
 			vehcle.CD = CD;
-			
+
+			vehcle.all_drag_force = vehcle.Q*vehcle.s*vehcle.CD;
+			break;
+		}
+
+		case PLANE_USTOL_V1:
+		{
+			// CD = (1-W)*CD_baseline + W*CD_flat + CD_rest + CD_rate.
+			// All drag terms use the 0.52-rescaled Cmu; CL_w/CL_t come from the lift calc.
+			float alpha = vehcle.alpha;
+			float beta  = vehcle.beta;
+			float Cmu   = 0.52f*vehcle.Cmu;
+			float CL_w  = vehcle.CL_w;
+			float CL_t  = vehcle.CL_t;
+			float de = vehcle.delta_e, df = vehcle.delta_f, da = vehcle.delta_a, dr = vehcle.delta_r;
+
+			// attached baseline polar
+			float CD_baseline = vehcle.fuse.CD0
+			                  + vehcle.wing.k_w*CL_w*CL_w / (pi*vehcle.AR + 2.0f*Cmu)
+			                  + vehcle.fuse.CD_a2*alpha*alpha
+			                  + vehcle.fuse.CD_a2_Cmyu*alpha*alpha*Cmu;
+
+			// fully-stalled flat-plate surrogate
+			float CD_flat = vehcle.stall.K_flat*(2.0f*sinf(alpha)*sinf(alpha));
+
+			// Beard stall-blend weight
+			float a0 = (vehcle.stall.a0_const + vehcle.stall.a0_Cmyu*Cmu)*pi/180.0f;
+			float e1 = constrain_float1(-vehcle.stall.k*(alpha - a0), -88.0f, 88.0f);
+			float e2 = constrain_float1( vehcle.stall.k*(alpha + a0), -88.0f, 88.0f);
+			float W = (1.0f + expf(e1) + expf(e2)) / ((1.0f + expf(e1))*(1.0f + expf(e2)));
+			W = constrain_float1(W, 0.0f, 1.0f);
+
+			// always-present terms (sideslip, blowing, controls, tail induced)
+			float CD_rest = vehcle.fuse.CD_b2*beta*beta
+			              + vehcle.wing.r*Cmu
+			              + vehcle.controls.CD_df2*df*df
+			              + vehcle.controls.CD_de2*de*de + vehcle.controls.CD_de*de
+			              + vehcle.controls.CD_da2*da*da + vehcle.controls.CD_da*da
+			              + vehcle.controls.CD_dr2*dr*dr
+			              + vehcle.tail.CD_ht0
+			              + vehcle.tail.k_ht*CL_t*CL_t / (pi*vehcle.tail.AR_ht);
+
+			// rate (blowing cross) terms — rates in rad/s
+			float CD_rate = vehcle.fuse.CDp_cu*Cmu*vehcle.p
+			              + vehcle.fuse.CDq_cu*Cmu*vehcle.q
+			              + vehcle.fuse.CDr_cu*Cmu*vehcle.r;
+
+			vehcle.CD = (1.0f - W)*CD_baseline + W*CD_flat + CD_rest + CD_rate;
 			vehcle.all_drag_force = vehcle.Q*vehcle.s*vehcle.CD;
 			break;
 		}
@@ -369,6 +487,52 @@ void v_calculate_side_force()
 			vehcle.all_side_force = vehcle.Q*vehcle.s*vehcle.CY;
 			break;
 		}
+
+		case PLANE_USTOL_V1:
+		{
+			// CY: attached linear + Beard post-stall blend + rate terms. Fits in DEGREES.
+			float Cmu = 0.52f*vehcle.Cmu;
+			float beta_d = vehcle.beta*R2D;
+			float daL_d  = vehcle.delta_aL*R2D;
+			float daR_d  = vehcle.delta_aR*R2D;
+			float dr_d   = vehcle.delta_r*R2D;
+			float df_d   = vehcle.delta_f*R2D;
+			float alpha_d= vehcle.alpha*R2D;
+
+			float CY_att = vehcle.lateral.theta0 + vehcle.lateral.theta_b*beta_d
+			             + vehcle.lateral.theta_aL*daL_d + vehcle.lateral.theta_aR*daR_d
+			             + vehcle.lateral.theta_r*dr_d + vehcle.lateral.theta_bcu*(beta_d*Cmu);
+			float CY_base  = vehcle.lateral.theta_b*beta_d;
+			float CY_other = CY_att - CY_base;
+
+			// stall onset [deg] & post-stall effective sideslip [rad]
+			float beta_stall = vehcle.lateral.beta0
+			                 + vehcle.lateral.kr*dr_d
+			                 + vehcle.lateral.kaf*(0.5f*(daL_d + daR_d) + df_d)
+			                 + vehcle.lateral.kcu*Cmu
+			                 + vehcle.lateral.kalpha*alpha_d;
+			float beta_eff = (beta_d + vehcle.lateral.kps_r*dr_d)*pi/180.0f;
+
+			float b0 = beta_stall*pi/180.0f;
+			float e1 = constrain_float1(-vehcle.lateral.M*(beta_eff - b0), -88.0f, 88.0f);
+			float e2 = constrain_float1( vehcle.lateral.M*(beta_eff + b0), -88.0f, 88.0f);
+			float W = (1.0f + expf(e1) + expf(e2)) / ((1.0f + expf(e1))*(1.0f + expf(e2)));
+			W = constrain_float1(W, 0.0f, 1.0f);
+
+			float CY_flat = 2.0f*sign_1(beta_eff)*sinf(beta_eff)*sinf(beta_eff)*cosf(beta_eff);
+
+			// rate terms: p_hat = p*b/2V, r_hat = r*c/2V  (CY uses chord for r_hat)
+			float V = vehcle.tas;
+			float p_hat = vehcle.p*vehcle.b/(2.0f*V);
+			float r_hat = vehcle.r*vehcle.c/(2.0f*V);
+			float CY_rate = vehcle.lateral.CYp*p_hat + vehcle.lateral.CYr*r_hat
+			              + vehcle.lateral.CYp_cu*(p_hat*Cmu) + vehcle.lateral.CYr_cu*(r_hat*Cmu)
+			              + vehcle.lateral.CYp2_cu*(p_hat*p_hat*Cmu) + vehcle.lateral.CYr2_cu*(r_hat*r_hat*Cmu);
+
+			vehcle.CY = CY_base*(1.0f - W) + W*(vehcle.lateral.kv*CY_flat) + CY_other + CY_rate;
+			vehcle.all_side_force = vehcle.Q*vehcle.s*vehcle.CY;
+			break;
+		}
 	}
 }
 
@@ -429,6 +593,32 @@ void v_calculate_aero_roll_moment()
 			vehcle.Cl = vehcle.Cl + vehcle.Cl_p*vehcle.p*vehcle.b/(2.0f*vehcle.tas) +
 							vehcle.Cl_r*vehcle.r*vehcle.b/(2.0f*vehcle.tas);
 
+			vehcle.all_aero_moment[0] = vehcle.Q*vehcle.s*vehcle.b*vehcle.Cl;
+			break;
+		}
+
+		case PLANE_USTOL_V1:
+		{
+			// Cml: attached (no stall blend) + rate terms. Fits in DEGREES.
+			float Cmu = 0.52f*vehcle.Cmu;
+			float beta_d = vehcle.beta*R2D;
+			float daL_d  = vehcle.delta_aL*R2D;
+			float daR_d  = vehcle.delta_aR*R2D;
+			float dr_d   = vehcle.delta_r*R2D;
+
+			float A_L = vehcle.roll.theta_aL*daL_d + vehcle.roll.theta_aLcu*(daL_d*Cmu);
+			float A_R = vehcle.roll.theta_aR*daR_d + vehcle.roll.theta_aRcu*(daR_d*Cmu);
+			float R_att = vehcle.roll.theta0 + vehcle.roll.theta_b*beta_d
+			            + vehcle.roll.theta_r*dr_d + vehcle.roll.theta_b_cu*(beta_d*Cmu);
+
+			// rate terms: p_hat = p*b/2V, r_hat = r*b/2V
+			float V = vehcle.tas;
+			float p_hat = vehcle.p*vehcle.b/(2.0f*V);
+			float r_hat = vehcle.r*vehcle.b/(2.0f*V);
+			float Cml_rate = vehcle.roll.Clp*p_hat + vehcle.roll.Clr*r_hat
+			               + vehcle.roll.Clp_cu*(p_hat*Cmu) + vehcle.roll.Clr_cu*(r_hat*Cmu);
+
+			vehcle.Cl = A_L + A_R + R_att + Cml_rate;
 			vehcle.all_aero_moment[0] = vehcle.Q*vehcle.s*vehcle.b*vehcle.Cl;
 			break;
 		}
@@ -551,7 +741,31 @@ void v_calculate_aero_pitch_moment()
 
 
 			vehcle.all_aero_moment[1] = vehcle.Q*vehcle.s*vehcle.c*vehcle.Cm;
-			
+
+			break;
+		}
+
+		case PLANE_USTOL_V1:
+		{
+			// Cm about design CG = Cm0_ac_wing + CL_w*|x_cg_c - x_ac_w| - CL_t*x_cg_tac_abs.
+			// Uses RAW Cmu* (not 0.52-rescaled). CL_w/CL_t come from the lift calc.
+			// NOTE: the classdef Cm_total has NO Cmq pitch-damping term — none added here.
+			float Cmu_star = vehcle.Cmu;
+			int flap_config = (vehcle.delta_f >= 10.0f*D2R) ? 32 : 18;
+
+			// Cm about wing aero center (flap-config polynomial in Cmu*)
+			float Cmyu_clip = constrain_float1(Cmu_star, 0.0f, 9.21f);
+			float a_p, b_p, c_p;
+			if (flap_config == 18) { a_p = -0.0803f; b_p = -0.103f;  c_p = -0.083f;  }
+			else                   { a_p =  0.0170f; b_p = -0.2442f; c_p = -0.0459f; } // 32
+			float Cm0_ac_wing = a_p + b_p*sqrtf(Cmyu_clip) + c_p*Cmyu_clip;
+
+			float x_ac_w = ustol_aero_center(flap_config, Cmu_star);
+
+			vehcle.Cm = Cm0_ac_wing
+			          + vehcle.CL_w*fabsf(vehcle.cg.x_cg_c - x_ac_w)
+			          - vehcle.CL_t*vehcle.cg.x_cg_tac_abs;
+			vehcle.all_aero_moment[1] = vehcle.Q*vehcle.s*vehcle.c*vehcle.Cm;
 			break;
 		}
 	}
@@ -664,6 +878,46 @@ void v_calculate_aero_yaw_moment()
 							
 			vehcle.all_aero_moment[2] = vehcle.Q*vehcle.s*vehcle.b*vehcle.Cn;
 
+			break;
+		}
+
+		case PLANE_USTOL_V1:
+		{
+			// Cn: attached linear + Beard post-stall blend + rate terms. Fits in DEGREES.
+			// NOTE: yaw-rate terms use RAW p, r (per classdef), not non-dimensionalized.
+			float Cmu = 0.52f*vehcle.Cmu;
+			float beta_d = vehcle.beta*R2D;
+			float daL_d  = vehcle.delta_aL*R2D;
+			float daR_d  = vehcle.delta_aR*R2D;
+			float dr_d   = vehcle.delta_r*R2D;
+			float df_d   = vehcle.delta_f*R2D;
+			float alpha_d= vehcle.alpha*R2D;
+
+			float Cn_att = vehcle.yaw.theta0 + vehcle.yaw.theta_b*beta_d
+			             + vehcle.yaw.theta_aL*daL_d + vehcle.yaw.theta_aR*daR_d
+			             + vehcle.yaw.theta_r*dr_d + vehcle.yaw.theta_bcu*(beta_d*Cmu)
+			             + vehcle.yaw.theta_aLcu*(daL_d*Cmu) + vehcle.yaw.theta_aRcu*(daR_d*Cmu);
+			float Cn_base  = vehcle.yaw.theta_b*beta_d;
+			float Cn_other = Cn_att - Cn_base;
+
+			float beta_stall = vehcle.yaw.beta0 + vehcle.yaw.kr*dr_d
+			                 + vehcle.yaw.kaf*(0.5f*(daL_d + daR_d) + df_d)
+			                 + vehcle.yaw.kcu*Cmu + vehcle.yaw.kalpha*alpha_d;
+			float beta_eff = (beta_d + vehcle.yaw.kps_r*dr_d)*pi/180.0f;
+
+			float b0 = beta_stall*pi/180.0f;
+			float e1 = constrain_float1(-vehcle.yaw.M*(beta_eff - b0), -88.0f, 88.0f);
+			float e2 = constrain_float1( vehcle.yaw.M*(beta_eff + b0), -88.0f, 88.0f);
+			float W = (1.0f + expf(e1) + expf(e2)) / ((1.0f + expf(e1))*(1.0f + expf(e2)));
+			W = constrain_float1(W, 0.0f, 1.0f);
+
+			float Cn_flat = 2.0f*sign_1(beta_eff)*sinf(beta_eff)*sinf(beta_eff)*cosf(beta_eff);
+
+			float Cn_rate = (vehcle.yaw.Cnp + vehcle.yaw.Cnp_cu*Cmu)*vehcle.p
+			              + (vehcle.yaw.Cnr + vehcle.yaw.Cnr_cu*Cmu)*vehcle.r;
+
+			vehcle.Cn = Cn_base*(1.0f - W) + W*(vehcle.yaw.kv*Cn_flat) + Cn_other + Cn_rate;
+			vehcle.all_aero_moment[2] = vehcle.Q*vehcle.s*vehcle.b*vehcle.Cn;
 			break;
 		}
 	}

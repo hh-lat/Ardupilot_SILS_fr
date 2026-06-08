@@ -98,6 +98,11 @@ void v_throttle_to_thrust_torque(float t_step_rot)
 			v_update_dynamic_thrust_parameters();
 		break;
 		}
+		case PLANE_USTOL_V1:
+		{
+			v_update_dynamic_thrust_parameters();
+		break;
+		}
 	}
 
 }
@@ -246,6 +251,16 @@ void v_update_rotors_rpm_from_throttle()
 				}
 			break;
 			}
+
+			case PLANE_USTOL_V1:
+			{
+				s_motor[i].rpm = s_motor[i].throttle_cmd * s_motor[i].rpm_max;
+				if (s_motor[i].rpm < 0.0f)
+				{
+					s_motor[i].rpm = 0.0f;
+				}
+			break;
+			}
 		}
 	}
 }
@@ -255,14 +270,36 @@ void v_update_rotors_advance_ratio(float V_inf)
 	for (int i=0;i<(s_motor_manager.num_motors);i++)
 	{
 		s_motor[i].J = V_inf/(((s_motor[i].rpm + 1e-6)/60.0)*s_motor[i].dia_prop);
-		if (s_motor[i].J > 1.4)
+		switch(vehcle.plane_model)
 		{
-			s_motor[i].J = 1.4;
-		}
+			case PLANE_EQX:
+			case PLANE_EQX_V1_NEW_MODEL:
+			{		
+				if (s_motor[i].J > 1.4)
+				{
+					s_motor[i].J = 1.4;
+				}
 
-		if (s_motor[i].J < 0.001)
-		{
-			s_motor[i].J = 0.001;
+				if (s_motor[i].J < 0.001)
+				{
+					s_motor[i].J = 0.001;
+				}
+			break;
+			}
+
+			case PLANE_USTOL_V1:    // TODO - USED BALLPARK VALUES FOR NOW
+			{		
+				if (s_motor[i].J > 5)
+				{
+					s_motor[i].J = 5;
+				}
+
+				if (s_motor[i].J < 0.001)
+				{
+					s_motor[i].J = 0.001;
+				}
+			break;
+			}
 		}
 	}
 }
@@ -304,7 +341,23 @@ void v_update_rotors_Cmu()
 				{
 					s_motor[i].Cmu = 15.0f;
 				}
-				break;
+			break;
+			}
+
+			case PLANE_USTOL_V1:
+			{
+				s_motor[i].Cmu = vehcle.prop.cmyu_J2 / (s_motor[i].J*s_motor[i].J) + vehcle.prop.cmyu_0;
+
+    			if (s_motor[i].Cmu > vehcle.prop.Cmyu_max) 
+				{
+					s_motor[i].Cmu = vehcle.prop.Cmyu_max;
+				}
+
+    			if (s_motor[i].Cmu < 0.0f) 
+				{
+				    s_motor[i].Cmu = 0.0f;
+				}
+			break;
 			}
 		}
 	}
@@ -335,6 +388,17 @@ void v_update_rotors_thrust_coefficient()
 				{
 					s_motor[i].CT = 0.0f;
 				}
+			break;
+			}
+
+			case PLANE_USTOL_V1:
+			{
+				float n_rev = s_motor[i].rpm / 60.0f;                     
+				float Mtip  = pi * n_rev * s_motor[i].dia_prop / vehcle.sound_speed;
+				s_motor[i].CT = vehcle.prop.CT_1
+							+ vehcle.prop.CT_J  * s_motor[i].J
+							+ vehcle.prop.CT_JM * s_motor[i].J * Mtip;
+				if (s_motor[i].CT < 0.0f) s_motor[i].CT = 0.0f;
 			break;
 			}
 		}
@@ -373,6 +437,16 @@ void v_update_vehcle_Cmu()
 
 			case PLANE_EQX:
 			case PLANE_EQX_V1_NEW_MODEL:
+			{
+				for (int i=0;i<(s_motor_manager.num_motors);i++)
+				{
+					Cmu = Cmu + s_motor[i].Cmu;
+				}
+				vehcle.Cmu = Cmu / s_motor_manager.num_motors;
+			break;
+			}
+
+			case PLANE_USTOL_V1:
 			{
 				for (int i=0;i<(s_motor_manager.num_motors);i++)
 				{

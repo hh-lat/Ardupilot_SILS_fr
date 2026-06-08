@@ -22,11 +22,11 @@ void v_set_aircraft_instance(SITL::Aircraft* aircraft) {
 
 void v_lat_fdm_init()
 {	
-	vehcle.plane_model =PLANE_EQX_V1_NEW_MODEL;// PLANE_ARDU_DEFAULT;//PLANE_EQX_V1_NEW_MODEL;//PLANE_EQX;////PLANE_EQX//PLANE_ARDU_DEFAULT // 0 for default simple model, 1 for equinox model
-    vehcle.dof = DOF_ALL_MOTION;//DOF_LONGITUDINAL_ONLY;
+	vehcle.plane_model =PLANE_USTOL_V1;   // PLANE_ARDU_DEFAULT;//PLANE_EQX_V1_NEW_MODEL;//PLANE_EQX;////PLANE_EQX//PLANE_ARDU_DEFAULT // 0 for default simple model, 1 for equinox model
+    vehcle.dof = DOF_ALL_MOTION;          // DOF_LONGITUDINAL_ONLY;
 	vehcle.plane_on_ground = 1;
     v_plane_param_define();
-	v_output_log_init();  // open CSV log file for this run
+	v_output_log_init();                  // open CSV log file for this run
 }
 
 void v_update_vehcle_state_from_ardu_ekf()
@@ -288,6 +288,11 @@ void v_plane_param_define()
 		case PLANE_EQX_V1_NEW_MODEL:
 		{
 			 v_plane_param_define_eqx_v1_new_model();
+			 break;
+		}
+		case PLANE_USTOL_V1:
+		{
+			 v_plane_param_define_ustol_v1();
 			 break;
 		}
 		default:
@@ -743,6 +748,213 @@ void v_plane_param_define_equinox()
 	s_motor[6].rotor_r_direction = -1.0;             s_motor[7].rotor_r_direction = 1.0;
 
 
+}
+
+
+
+void v_plane_param_define_ustol_v1()
+{
+	// Actuators
+	s_servo_manager.num_servos = 16;
+	s_motor_manager.num_motors = 18; 
+
+	//v_set_servo_params(pwm_min, pwm_max, angle_pwm_min, angle_pwm_max, omega, zeta, min_rate, max_rate, min_accel, max_accel, type)
+	v_set_servo_params(1100,1900,-20*D2R, 20*D2R, 10.0, 0.7, -200*D2R, 200*D2R, -720*D2R, 720*D2R, AILERON_COMMON);
+	v_set_servo_params(1100,1900,-15*D2R, 15*D2R, 10.0, 0.7, -200*D2R, 200*D2R, -720*D2R, 720*D2R, ELEVATOR_COMMON);
+	v_set_servo_params(1100,1900,-15*D2R, 15*D2R, 10.0, 0.7, -200*D2R, 200*D2R, -720*D2R, 720*D2R, RUDDER_COMMON);
+	v_set_servo_params(1100,1900, 20*D2R,-20*D2R, 10.0, 0.7, -200*D2R, 200*D2R, -720*D2R, 720*D2R, AILERON_LEFT);
+	v_set_servo_params(1100,1900,-20*D2R, 20*D2R, 10.0, 0.7, -200*D2R, 200*D2R, -720*D2R, 720*D2R, AILERON_RIGHT);
+	v_set_servo_params(1100,1900, 0,      32*D2R, 10.0, 0.7, -200*D2R, 200*D2R, -720*D2R, 720*D2R, FLAP);
+	v_set_servo_params(1100,1900,-15*D2R, 15*D2R, 10.0, 0.7, -200*D2R, 200*D2R, -720*D2R, 720*D2R, NOSE_LG_SERVO);
+
+	// Shared physical params (read by the common EOM / force assembly)
+	vehcle.mass = 17.0;
+	vehcle.g    = 9.81;
+	vehcle.Ixx  = 11.41;
+	vehcle.Iyy  = 5.23;
+	vehcle.Izz  = 16.497;
+	vehcle.Ixz  = 0.0;
+	vehcle.Ixy  = 0.0;
+	vehcle.Iyz  = 0.0;
+
+	vehcle.s       = 1.681;   
+	vehcle.b       = 4.1;    
+	vehcle.c       = 0.41;   
+	vehcle.s_blown = 0.8856;  
+	vehcle.t_by_c  = 0.15;    
+	vehcle.AR      = (vehcle.b*vehcle.b)/vehcle.s;  
+	vehcle.e       = 0.7;     // placeholder (uSTOL CD uses wing.k_w, not e)
+
+	vehcle.rho             = 1.225;    // ISA SL (atmos.rho); runtime atmosphere model may update
+	vehcle.sound_speed     = 340.294;  // ISA SL (atmos.a) — needed for prop Mtip
+	vehcle.aero_zero_speed = 5.0;
+	vehcle.alpha_stall     = 18.459054*D2R;  // not used by uSTOL lift; kept non-garbage
+	vehcle.lift_stall_M    = 50.0;
+
+	// Ground / CG geometry (dimensional) --- TODO
+	vehcle.ground_yaw_gain = 0.5;
+	vehcle.cg_x = 0.5;    // TODO dimensional CG from nose reference
+	vehcle.cg_z = 0.0;    // TODO
+	vehcle.MLG_x = 0.04;  // lg.x_lg (aft +)   TODO refine
+	vehcle.MLG_z = 0.25;  // lg.z_lg (down +)  TODO refine
+	vehcle.FLG_x = 0.5;   // TODO nose-gear longitudinal
+	vehcle.FLG_z = 0.25;  // TODO
+	vehcle.delta_r_deadzone = 3.0*D2R;
+	vehcle.theta_tolerance_for_ground = 0.0*D2R;
+	vehcle.altitude_tolerance_for_ground = -0.1;
+	vehcle.mg_b[0] = 0; vehcle.mg_b[1] = 0; vehcle.mg_b[2] = 0;
+
+	// Motors (18 EDFs)  --- TODO
+	for (int i=0; i<s_motor_manager.num_motors; i++) {
+		s_motor[i].pwm_min = 1100;
+		s_motor[i].pwm_max = 1900;
+		s_motor[i].omega_tf = 30.0;     // rad/s
+		s_motor[i].zeta_tf  = 0.7;
+		s_motor[i].rpm_max  = 12000.0;  // n_max [rpm]
+		s_motor[i].rpm_min  = 0.0;
+		s_motor[i].dia_prop = 0.120;    // Dia [m]
+		s_motor[i].max_thrust = 50.0;   // TODO per-EDF thrust clamp
+		s_motor[i].min_thrust = 0.0;
+		s_motor[i].thrust_2_torque_factor = 0;
+		s_motor[i].CT_static = s_motor[i].max_thrust /
+			(vehcle.rho*powf(s_motor[i].dia_prop,4)*powf(s_motor[i].rpm_max/60.0f,2));
+		s_motor[i].rate_limit_throttle = (1.0/0.01);
+		// TODO: real 18-EDF layout. Zero offsets => thrust through CG (no thrust moment),
+		//       fine for coefficient validation; set rotor_xyz before trusting moments.
+		s_motor[i].rotor_xyz[0] = 0.0;  s_motor[i].rotor_xyz[1] = 0.0;  s_motor[i].rotor_xyz[2] = 0.0;
+		s_motor[i].rotor_tilt[0] = 0.0; s_motor[i].rotor_tilt[1] = 0.0; s_motor[i].rotor_tilt[2] = 0.0;
+		s_motor[i].rotor_r_direction = (i % 2 == 0) ? 1.0 : -1.0;
+	}
+
+	// Wing
+	vehcle.wing.lambda_b   = 0.503*0.8;
+	vehcle.wing.S_f        = 0.20664;
+	vehcle.wing.S_a        = 0.05904;
+	vehcle.wing.k_fit      = 0.535;
+	vehcle.wing.cl0_camber = 0.519;
+	vehcle.wing.k_w        = 2.632757;
+	vehcle.wing.r          = -0.005473;
+
+	// Tail
+	vehcle.tail.a_t      = 4.27;
+	vehcle.tail.eta_t_0  = 1.0271;
+	vehcle.tail.eta_t_1  = 0.010824;
+	vehcle.tail.eps0     = 0.030729;
+	vehcle.tail.deps_pos = -0.018088;
+	vehcle.tail.deps_neg = 0.283491;
+	vehcle.tail.k_ht     = 3.13292;
+	vehcle.tail.CD_ht0   = 0.004050;
+	vehcle.tail.S_ht_S   = 0.23805;
+	vehcle.tail.V_H      = 0.95;
+	vehcle.tail.AR_ht    = 5.0;
+
+	// Fuselage
+	vehcle.fuse.CD_a2      = 1.956124;
+	vehcle.fuse.CD_b2      = 0.453343;
+	vehcle.fuse.CD_a2_Cmyu = 0.010846;
+	vehcle.fuse.CD0        = 0.045249;
+	vehcle.fuse.CDp_cu     = 0.000252791;
+	vehcle.fuse.CDq_cu     = -0.0120005;
+	vehcle.fuse.CDr_cu     = -0.023006;
+
+	// Controls
+	vehcle.controls.tau_f  = 0.297565;
+	vehcle.controls.tau_a  = 0.086943;
+	vehcle.controls.Kb_f   = 0.506727;
+	vehcle.controls.Kb_a   = 0.131584;
+	vehcle.controls.tau_e  = 0.625;
+	vehcle.controls.CD_df2 = 0.217554;
+	vehcle.controls.CD_da2 = 0.030418;
+	vehcle.controls.CD_da  = 0.013566;
+	vehcle.controls.CD_de2 = 0.164864;
+	vehcle.controls.CD_de  = 0.010177;
+	vehcle.controls.CD_dr2 = 0.142042;
+
+	vehcle.controls.del_e_max = 15;   vehcle.controls.del_e_min = -15;
+	vehcle.controls.del_a_max = 20;   vehcle.controls.del_a_min = -20;
+	vehcle.controls.del_r_max = 15;   vehcle.controls.del_r_min = -15;
+	vehcle.controls.del_thr_max = 0.9; vehcle.controls.del_thr_min = 0.05;
+	vehcle.controls.alpha_max = 10;   vehcle.controls.alpha_min = -10;
+	vehcle.controls.beta_max  = 15;   vehcle.controls.beta_min  = -15;
+
+	// Stall (drag blend)
+	vehcle.stall.K_flat   = 5.057530;
+	vehcle.stall.a0_const = 18.459054;
+	vehcle.stall.a0_Cmyu  = -0.125111;
+	vehcle.stall.k        = 25.6810;
+
+	// Lateral side force 
+	vehcle.lateral.theta0    = 0.000424;
+	vehcle.lateral.theta_b   = -0.014394;
+	vehcle.lateral.theta_aL  = -0.000145;
+	vehcle.lateral.theta_aR  = 0.000141;
+	vehcle.lateral.theta_r   = 0.004425;
+	vehcle.lateral.theta_bcu = -0.006646;
+	vehcle.lateral.beta0     = 12.00000;
+	vehcle.lateral.kr        = 0.0;
+	vehcle.lateral.kaf       = 0.0;
+	vehcle.lateral.kcu       = 0.0;
+	vehcle.lateral.kalpha    = 0.0;
+	vehcle.lateral.kv        = -1.370707;
+	vehcle.lateral.kps_r     = 0.606335;
+	vehcle.lateral.M         = 59.998281;
+	vehcle.lateral.CYp     = -0.13707;
+	vehcle.lateral.CYr     = 0.35017;
+	vehcle.lateral.CYp_cu  = -0.057771;
+	vehcle.lateral.CYr_cu  = 0.042414;
+	vehcle.lateral.CYp2_cu = 0.40687;
+	vehcle.lateral.CYr2_cu = -1.3478;
+
+	// Rolling moment
+	vehcle.roll.theta0     = -0.000102;
+	vehcle.roll.theta_aL   = 0.000638;
+	vehcle.roll.theta_aR   = -0.000677;
+	vehcle.roll.theta_aLcu = 0.000108;
+	vehcle.roll.theta_aRcu = -0.000094;
+	vehcle.roll.theta_b    = -0.000381;
+	vehcle.roll.theta_b_cu = 0.000069;
+	vehcle.roll.theta_r    = 0.000497;
+	vehcle.roll.Clp    = -0.54644;
+	vehcle.roll.Clr    = -0.57722;
+	vehcle.roll.Clp_cu = 0.061697;
+	vehcle.roll.Clr_cu = 0.025503;
+
+	// Yawing moment 
+	vehcle.yaw.theta0     = 0.000281;
+	vehcle.yaw.theta_b    = 0.003317;
+	vehcle.yaw.theta_aL   = -0.000016;
+	vehcle.yaw.theta_aR   = 0.000001;
+	vehcle.yaw.theta_r    = -0.001842;
+	vehcle.yaw.theta_bcu  = -0.000090;
+	vehcle.yaw.theta_aLcu = -0.000029;
+	vehcle.yaw.theta_aRcu = 0.000027;
+	vehcle.yaw.Cnp        = 0.0437962;
+	vehcle.yaw.Cnp_cu     = -0.00190315;
+	vehcle.yaw.Cnr        = -0.244335;
+	vehcle.yaw.Cnr_cu     = 0.0239989;
+	vehcle.yaw.beta0      = 11.999974;
+	vehcle.yaw.kr         = 0.0;
+	vehcle.yaw.kaf        = 0.0;
+	vehcle.yaw.kcu        = 0.000009;
+	vehcle.yaw.kalpha     = 0.0;
+	vehcle.yaw.kv         = 0.290114;
+	vehcle.yaw.kps_r      = 0.655515;
+	vehcle.yaw.M          = 59.998281;
+
+	// Propulsion
+	vehcle.prop.cmyu_J2  = 0.53211;
+	vehcle.prop.cmyu_0   = 0.03669;
+	vehcle.prop.CT_1     = 0.691683;
+	vehcle.prop.CT_J     = -0.734466;
+	vehcle.prop.CT_JM    = 1.64705;
+	vehcle.prop.J_min    = 1e-3;
+	vehcle.prop.J_max    = 5;
+	vehcle.prop.Cmyu_max = 9.21;
+
+	// CG (non-dimensional)
+	vehcle.cg.x_cg_c       = 0.5;
+	vehcle.cg.x_cg_tac_abs = 1.5/vehcle.c;
+	vehcle.cg.z_cg         = 0.0;
 }
 
 

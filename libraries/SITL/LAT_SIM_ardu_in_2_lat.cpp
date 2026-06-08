@@ -100,6 +100,33 @@ void  v_ardu_input_to_lat_input(struct sitl_input input)
             s_motor[7].pwm_in = input.servos[0]; // motor 8  
             break;
         }
+
+        case PLANE_USTOL_V1:
+        {
+            // ---- Output-channel map (set SERVOn_FUNCTION in the uSTOL .parm to match) ----
+            //   SERVO1..9 -> 18 EDFs, 2 EDFs per channel (throttle/motor outputs)
+            //   SERVO10 -> aileron   SERVO11 -> elevator   SERVO12 -> rudder
+            //   SERVO13 -> flap (rotation; drives aero delta_f)
+            //   SERVO14 -> flap (linear/Fowler extension; NOT used aerodynamically here)
+
+            // Control surfaces. One aileron channel drives both ailerons; AILERON_LEFT
+            // has reversed travel in the param block, so the same PWM -> opposite L/R.
+            s_servo[AILERON_COMMON].pwm_in  = input.servos[9];
+            s_servo[AILERON_LEFT].pwm_in    = input.servos[9];
+            s_servo[AILERON_RIGHT].pwm_in   = input.servos[9];
+            s_servo[ELEVATOR_COMMON].pwm_in = input.servos[10];
+            s_servo[RUDDER_COMMON].pwm_in   = input.servos[11];
+            s_servo[FLAP].pwm_in            = input.servos[12];   // rotation flap -> delta_f
+            s_servo[NOSE_LG_SERVO].pwm_in   = 1500;               // not modelled; neutral
+
+            // 18 EDFs on 9 throttle channels (2 EDFs per channel)
+            for (int p = 0; p < 9; p++)
+            {
+                s_motor[2*p].pwm_in     = input.servos[p];
+                s_motor[2*p + 1].pwm_in = input.servos[p];
+            }
+            break;
+        }
     }
 }
 

@@ -47,7 +47,7 @@ typedef enum
 	STATIONARY=0,
 	CT_RUNWAY_MOVING=1,
 	CT_RUNWAY_ROTATING=2,
-	IN_AIR=3,	
+	IN_AIR=3,
 }enum_plane_moving_state;
 
 typedef struct
@@ -63,6 +63,7 @@ typedef enum
 	PLANE_ARDU_DEFAULT = 0,
 	PLANE_EQX = 1,
 	PLANE_EQX_V1_NEW_MODEL = 2,
+	PLANE_USTOL_V1 = 3,
 }struct_enum_plane_model;
 
 typedef enum
@@ -225,7 +226,7 @@ typedef struct
     float Cm_beta2;
     float Cm_beta2_Cmu;
 	float Cm_q;
-	
+
 
     float Cn_0;
     float Cn_beta;
@@ -272,6 +273,8 @@ typedef struct
 
 	float aero_zero_speed;
 	float CL_alpha_tot;
+	float CL_w;   // uSTOL: wing lift component (set in lift, reused by drag & pitch)
+	float CL_t;   // uSTOL: tail lift component
 	float theta_tolerance_for_ground;
 	float altitude_tolerance_for_ground;
 	float step_dt;
@@ -279,8 +282,126 @@ typedef struct
 
 	struct_enum_plane_model plane_model;
 	enum_plane_moving_state plane_moving_state;
-	
+
 	struct_enum_dof dof;
+
+	// =====================================================================
+	//  uSTOL v1 aerodynamic parameters (PLANE_USTOL_V1)
+	//  DECLARATIONS ONLY — values are assigned in v_plane_param_define_ustol_v1().
+	//  Grouped to mirror the MATLAB geom_ac / geom_ad component structs, and
+	//  declared as direct (un-wrapped) members so the switch case can set them
+	//  as vehcle.wing.k_fit = ... etc.
+	//  Shared physical params (mass, Ixx.., s, b, c, AR, t_by_c, rho) are NOT
+	//  duplicated here — they reuse the existing vehcle fields above, because
+	//  the common EOM / force-assembly code reads those by name.
+	// =====================================================================
+
+	// Wing (uSTOL-only geometry + blown-lift / induced-drag fits)
+	struct {
+		float lambda_b;     // blown fraction (0.503*0.8) [-]
+		float S_f;          // flap area    [m^2]
+		float S_a;          // aileron area [m^2]
+		float k_fit;        // Spence amplitude scaling [-]
+		float cl0_camber;   // zero-alpha camber lift (2-D) [-]
+		float k_w;          // induced drag factor 1/(pi*e) [-]
+		float r;            // blown-wing momentum drag coeff [-]
+	} wing;
+
+	// Horizontal tail
+	struct {
+		float a_t;          // 3-D lift-curve slope [1/rad]
+		float eta_t_0;      // tail efficiency offset [-]
+		float eta_t_1;      // tail efficiency Cmyu slope [-]
+		float eps0;         // zero-AoA downwash [rad]
+		float deps_pos;     // d(eps)/d(alpha), alpha >= 0 [-]
+		float deps_neg;     // d(eps)/d(alpha), alpha <  0 [-]
+		float k_ht;         // HT induced drag factor [-]
+		float CD_ht0;       // HT zero-lift drag [-]
+		float S_ht_S;       // S_ht / S [-]
+		float V_H;          // tail volume coefficient [-]
+		float AR_ht;        // tail aspect ratio [-]
+	} tail;
+
+	// Fuselage + baseline parasite drag
+	struct {
+		float CD_a2;        // alpha^2 coeff [rad^-2]
+		float CD_b2;        // beta^2 coeff  [rad^-2]
+		float CD_a2_Cmyu;   // alpha^2*Cmyu cross term [rad^-2]
+		float CD0;          // zero-lift parasite drag [-]
+		float CDp_cu;       // d(CD)/d(p*Cmyu) [per rate]
+		float CDq_cu;       // d(CD)/d(q*Cmyu) [per rate]
+		float CDr_cu;       // d(CD)/d(r*Cmyu) [per rate]
+	} fuse;
+
+	// Control-surface effectiveness, control drag, and deflection limits
+	struct {
+		float tau_f;        // 2-D Fowler-flap effectiveness [-]
+		float tau_a;        // 2-D aileron effectiveness [-]
+		float Kb_f;         // Fowler-flap span effectiveness [-]
+		float Kb_a;         // aileron span effectiveness [-]
+		float tau_e;        // 3-D elevator effectiveness [-]
+		float CD_df2;       // delta_f^2 [rad^-2]
+		float CD_da2;       // delta_a^2 [rad^-2]
+		float CD_da;        // delta_a (linear) [rad^-1]
+		float CD_de2;       // delta_e^2 [rad^-2]
+		float CD_de;        // delta_e (linear) [rad^-1]
+		float CD_dr2;       // delta_r^2 [rad^-2]
+		float del_e_max, del_e_min;     // elevator limits [deg]
+		float del_a_max, del_a_min;     // aileron limits  [deg]
+		float del_r_max, del_r_min;     // rudder limits   [deg]
+		float del_thr_max, del_thr_min; // throttle limits [-]
+		float alpha_max, alpha_min;     // AoA limits      [deg]
+		float beta_max, beta_min;       // sideslip limits [deg]
+	} controls;
+
+	// Post-stall drag (flat-plate surrogate + stall blend)
+	struct {
+		float K_flat;       // flat-plate drag scaling [-]
+		float a0_const;     // stall-angle offset [deg]
+		float a0_Cmyu;      // stall-angle Cmyu sensitivity [deg]
+		float k;            // blend sharpness [1/rad]
+	} stall;
+
+	// Lateral side force (CY; fit in degrees)
+	struct {
+		float theta0, theta_b, theta_aL, theta_aR, theta_r, theta_bcu;
+		float beta0, kr, kaf, kcu, kalpha, kv, kps_r, M;
+		float CYp, CYr, CYp_cu, CYr_cu, CYp2_cu, CYr2_cu;
+	} lateral;
+
+	// Rolling moment (Cml; fit in degrees)
+	struct {
+		float theta0, theta_aL, theta_aR, theta_aLcu, theta_aRcu;
+		float theta_b, theta_b_cu, theta_r;
+		float Clp, Clr, Clp_cu, Clr_cu;
+	} roll;
+
+	// Yawing moment (Cn; fit in degrees)
+	struct {
+		float theta0, theta_b, theta_aL, theta_aR, theta_r, theta_bcu;
+		float theta_aLcu, theta_aRcu, Cnp, Cnp_cu, Cnr, Cnr_cu;
+		float beta0, kr, kaf, kcu, kalpha, kv, kps_r, M;
+	} yaw;
+
+	// Propulsion (blowing momentum coeff & thrust coeff fits)
+	struct {
+		float cmyu_J2;      // 1/J^2 coeff [-]
+		float cmyu_0;       // constant offset [-]
+		float CT_1;         // CT constant [-]
+		float CT_J;         // CT J term [-]
+		float CT_JM;        // CT J*Mtip term [-]
+		float J_min;        // advance-ratio lower clamp [-]
+		float J_max;        // advance-ratio upper clamp [-]
+		float Cmyu_max;     // blowing-coeff upper clamp [-]
+	} prop;
+
+	// CG / balance (NON-dimensional — distinct from the dimensional cg_x/cg_y/cg_z above)
+	struct {
+		float x_cg_c;       // x_cg / c, from wing LE, aft + [-]
+		float x_cg_tac_abs; // |x_cg - x_ac_t| / c [-]
+		float z_cg;         // CG height above A/C base, up + [m]
+	} cg;
+
 }vehcle_STATES;
 
 extern vehcle_STATES vehcle;
@@ -296,6 +417,7 @@ extern void v_fill_lla_to_vehcle_state(float, float , float );
 extern void v_plane_param_define();
 extern void v_plane_param_define_equinox();
 extern void v_plane_param_define_eqx_v1_new_model();
+extern void v_plane_param_define_ustol_v1();
 extern void v_plane_param_define_ardupilot_default();
 extern void v_update_vehcle_state_from_ardu_ekf();
 
