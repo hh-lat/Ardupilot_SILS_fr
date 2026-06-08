@@ -774,7 +774,7 @@ void v_calculate_aero_pitch_moment()
 		{
 			// Cm about design CG = Cm0_ac_wing + CL_w*|x_cg_c - x_ac_w| - CL_t*x_cg_tac_abs.
 			// Uses RAW Cmu* (not 0.52-rescaled). CL_w/CL_t come from the lift calc.
-			// NOTE: the classdef Cm_total has NO Cmq pitch-damping term — none added here.
+			// Cmq pitch-damping added on top of the static classdef Cm (q non-dimensionalized).
 			float Cmu_star = vehcle.Cmu;
 			float flap_config = 18.0f + 0.7f*(vehcle.delta_f*R2D);   // linear: df=0->18, df=20deg->32
 
@@ -788,9 +788,13 @@ void v_calculate_aero_pitch_moment()
 
 			float x_ac_w = ustol_aero_center(flap_config, Cmu_star);
 
+			// pitch-rate damping (uses raw Cmu*; q non-dimensionalized q_hat = q*c/2V)
+			float Cmq = -329.962f + 101.129f*sqrtf(Cmu_star);
+
 			vehcle.Cm = Cm0_ac_wing
 			          + vehcle.CL_w*fabsf(vehcle.cg.x_cg_c - x_ac_w)
-			          - vehcle.CL_t*vehcle.cg.x_cg_tac_abs;
+			          - vehcle.CL_t*vehcle.cg.x_cg_tac_abs
+			          + Cmq*(vehcle.q * vehcle.c / (2.0f*vehcle.tas));
 			vehcle.all_aero_moment[1] = vehcle.Q*vehcle.s*vehcle.c*vehcle.Cm;
 			break;
 		}
