@@ -272,9 +272,15 @@ void v_update_rotors_advance_ratio(float V_inf)
 		s_motor[i].J = V_inf/(((s_motor[i].rpm + 1e-6)/60.0)*s_motor[i].dia_prop);
 		switch(vehcle.plane_model)
 		{
+			case PLANE_ARDU_DEFAULT:
+			{
+				// advance ratio is unused for the ArduPilot default model (Cmu = 0)
+			break;
+			}
+
 			case PLANE_EQX:
 			case PLANE_EQX_V1_NEW_MODEL:
-			{		
+			{
 				if (s_motor[i].J > 1.4)
 				{
 					s_motor[i].J = 1.4;
