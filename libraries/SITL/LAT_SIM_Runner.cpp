@@ -785,22 +785,23 @@ void v_plane_param_define_ustol_v1()
 	vehcle.AR      = (vehcle.b*vehcle.b)/vehcle.s;  
 	vehcle.e       = 0.7;     // placeholder (uSTOL CD uses wing.k_w, not e)
 
-	vehcle.rho             = 1.225;    // ISA SL (atmos.rho); runtime atmosphere model may update
+	vehcle.rho             = 1.15;    // ISA SL (atmos.rho); runtime atmosphere model may update
 	vehcle.sound_speed     = 340.294;  // ISA SL (atmos.a) — needed for prop Mtip
 	vehcle.aero_zero_speed = 5.0;
 	vehcle.alpha_stall     = 18.459054*D2R;  // not used by uSTOL lift; kept non-garbage
 	vehcle.lift_stall_M    = 50.0;
 
-	// Ground / CG geometry (dimensional) --- TODO
+	// Ground / CG geometry (dimensional)
 	vehcle.ground_yaw_gain = 0.5;
-	vehcle.cg_x = 0.5;    // TODO dimensional CG from nose reference
-	vehcle.cg_z = 0.0;    // TODO
-	vehcle.MLG_x = 0.04;  // lg.x_lg (aft +)   TODO refine
-	vehcle.MLG_z = 0.25;  // lg.z_lg (down +)  TODO refine
-	vehcle.FLG_x = 0.5;   // TODO nose-gear longitudinal
-	vehcle.FLG_z = 0.25;  // TODO
+	vehcle.cg_x = 0.8613;   // CG aft of nose (x_cg_from_nose = 861.34 mm)        [m]
+	vehcle.cg_z = 0.0537;   // CG above nose centre (z_cg_from_nose = 53.68 mm)   [m]
+	vehcle.MLG_x = 0.040;   // CG->main-gear longitudinal: main LG 0.743 - CG 0.703 (40 mm aft of CG)  [m]
+	vehcle.MLG_z = 0.25;    // CG->gear vertical = CG height above ground (z_cg_from_ground = 250 mm)
+	vehcle.FLG_x = 0.534;   // CG->nose-gear longitudinal: CG 0.703 - nose LG 0.169 (534 mm fwd of CG)  [m]
+	vehcle.FLG_z = 0.25;    // CG->gear vertical = CG height above ground
 	vehcle.delta_r_deadzone = 3.0*D2R;
 	vehcle.theta_tolerance_for_ground = 0.0*D2R;
+	vehcle.theta_max_ground = 11.0*D2R;   // tail-strike rotation limit (entire config) [rad]
 	vehcle.altitude_tolerance_for_ground = -0.1;
 	vehcle.mg_b[0] = 0; vehcle.mg_b[1] = 0; vehcle.mg_b[2] = 0;
 
@@ -819,9 +820,16 @@ void v_plane_param_define_ustol_v1()
 		s_motor[i].CT_static = s_motor[i].max_thrust /
 			(vehcle.rho*powf(s_motor[i].dia_prop,4)*powf(s_motor[i].rpm_max/60.0f,2));
 		s_motor[i].rate_limit_throttle = (1.0/0.01);
-		// TODO: real 18-EDF layout. Zero offsets => thrust through CG (no thrust moment),
-		//       fine for coefficient validation; set rotor_xyz before trusting moments.
-		s_motor[i].rotor_xyz[0] = 0.0;  s_motor[i].rotor_xyz[1] = 0.0;  s_motor[i].rotor_xyz[2] = 0.0;
+		// 18-EDF spanwise layout: 9 per side, innermost 585 mm from centreline, 125 mm pitch.
+		// rotor_xyz = EDF position relative to the CG, body axes (x fwd +, y right +, z down +).
+		// Thrust is purely axial (rotor_tilt = 0), so M = r x F = (0, z*T, -y*T): only the y
+		// offset (yaw via differential thrust) and z offset (pitch) create moments; the fore/aft
+		// x offset is moment-neutral, set to the wing-LE station (CG 703 - wing LE 500) for completeness.
+		int edf_side_idx = i % 9;                            // 0..8 outboard step (motors 0-8 left, 9-17 right)
+		float edf_y = 0.585f + 0.125f*edf_side_idx;          // |spanwise offset| from centreline [m]
+		s_motor[i].rotor_xyz[0] = 0.203f;                    // 203 mm forward of CG [m]
+		s_motor[i].rotor_xyz[1] = (i < 9) ? -edf_y : edf_y;  // motors 0-8 left wing (y<0), 9-17 right (y>0)
+		s_motor[i].rotor_xyz[2] = 0.03336f;                  // thrust line 33.36 mm below CG (down +) [m]
 		s_motor[i].rotor_tilt[0] = 0.0; s_motor[i].rotor_tilt[1] = 0.0; s_motor[i].rotor_tilt[2] = 0.0;
 		s_motor[i].rotor_r_direction = (i % 2 == 0) ? 1.0 : -1.0;
 	}
@@ -863,6 +871,10 @@ void v_plane_param_define_ustol_v1()
 	vehcle.controls.Kb_f   = 0.506727;
 	vehcle.controls.Kb_a   = 0.131584;
 	vehcle.controls.tau_e  = 0.625;
+	vehcle.controls.de_eff_pos_break_deg = 10.0f;   // +del_e beyond this loses authority (TE-down)
+	vehcle.controls.de_eff_pos_factor    = 0.25f;   // marginal effectiveness beyond +break
+	vehcle.controls.de_eff_neg_break_deg = 6.0f;    // -del_e beyond this loses authority (TE-up)
+	vehcle.controls.de_eff_neg_factor    = 0.5f;    // marginal effectiveness beyond -break
 	vehcle.controls.CD_df2 = 0.217554;
 	vehcle.controls.CD_da2 = 0.030418;
 	vehcle.controls.CD_da  = 0.013566;
@@ -964,9 +976,9 @@ void v_plane_param_define_ustol_v1()
 	vehcle.prop.Cmyu_max = 9.21;
 
 	// CG (non-dimensional)
-	vehcle.cg.x_cg_c       = 0.5;
-	vehcle.cg.x_cg_tac_abs = 1.5/vehcle.c;
-	vehcle.cg.z_cg         = 0.0;
+	vehcle.cg.x_cg_c       = 0.4951;        // (x_cg 703 - wing LE 500)/c = 203/410, aft of wing LE
+	vehcle.cg.x_cg_tac_abs = 1.5/vehcle.c;  // |x_cg 703 - x_ac_ht 2203|/c = 1500/410 (tail arm 1.5 m)
+	vehcle.cg.z_cg         = 0.25;          // CG height above A/C base (z_cg_from_ground = 250 mm) [m]
 }
 
 

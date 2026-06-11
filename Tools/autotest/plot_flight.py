@@ -93,8 +93,8 @@ def main():
     t = column(rows, "time_s")
     segments = phase_segments(rows, t)
 
-    fig, axes = plt.subplots(4, 1, figsize=(13, 11), sharex=True)
-    fig.suptitle("auto_flight2 telemetry  -  %s" % args.csv, fontsize=13)
+    fig, axes = plt.subplots(5, 1, figsize=(13, 13.5), sharex=True)
+    fig.suptitle("flight telemetry  -  %s" % args.csv, fontsize=13)
 
     # --- 1. altitude + speeds --------------------------------------------- #
     ax = axes[0]
@@ -118,6 +118,9 @@ def main():
     ax.plot(t, column(rows, "roll_deg"), label="roll")
     ax.plot(t, column(rows, "pitch_deg"), label="pitch")
     ax.plot(t, column(rows, "yaw_deg"), label="yaw")
+    # commanded attitude (only present in newer logs; NaN columns draw nothing)
+    ax.plot(t, column(rows, "navroll_deg"), label="roll cmd", ls="--", alpha=0.6)
+    ax.plot(t, column(rows, "navpitch_deg"), label="pitch cmd", ls=":", alpha=0.6)
     ax.set_ylabel("Euler (deg)")
     ax.grid(True, alpha=0.3)
     ax.legend(loc="upper left", fontsize=8)
@@ -139,12 +142,22 @@ def main():
     ax.plot(t, column(rows, "climb_mps"), color="tab:green", ls="--", label="climb (m/s)")
     ax.set_ylabel("gamma (deg) / climb (m/s)")
     ax.grid(True, alpha=0.3)
-    ax.set_xlabel("time (s)")
     axthr = ax.twinx()
     axthr.plot(t, column(rows, "throttle_pct"), color="tab:gray", alpha=0.6, label="throttle (%)")
     axthr.set_ylabel("throttle (%)")
     axthr.set_ylim(0, 100)
     combined_legend(ax, axthr, loc="upper left", fontsize=8)
+
+    # --- 5. angle of attack + sideslip ------------------------------------ #
+    ax = axes[4]
+    shade(ax, segments)
+    ax.plot(t, column(rows, "aoa_deg"), color="tab:red", label="angle of attack alpha (deg)")
+    ax.plot(t, column(rows, "ssa_deg"), color="tab:blue", label="sideslip beta (deg)")
+    ax.axhline(0, color="k", lw=0.6, alpha=0.4)
+    ax.set_ylabel("alpha / beta (deg)")
+    ax.grid(True, alpha=0.3)
+    ax.legend(loc="upper left", fontsize=8)
+    ax.set_xlabel("time (s)")
 
     fig.tight_layout(rect=(0, 0, 1, 0.97))
     if args.save:

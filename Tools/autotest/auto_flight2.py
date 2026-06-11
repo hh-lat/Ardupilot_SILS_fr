@@ -55,7 +55,12 @@ LIFTOFF_ALT_M = 0.8            # alt (AGL) above which we consider the wheels of
 TOUCHDOWN_ALT_M = 1.0          # alt (AGL) below which we consider it touched down
 GROUND_STOP_SPEED = 1.0        # m/s ground speed below which we consider it stopped
 LANDED_DISARM_ALT = 5.0        # disarm below this alt == real landing; above == anomaly
+AIL_CH, ELEV_CH, RUD_CH = 10, 11, 12   # SERVO_OUTPUT_RAW output channels (this airframe)
 LAND_METHODS = ("AUTO", "RTL", "QRTL", "QLAND")
+
+
+class MissionAborted(Exception):
+    """Raised when the aircraft crashes/disarms in flight, to stop the mission early."""
 
 
 # --------------------------------------------------------------------------- #
@@ -125,6 +130,8 @@ class MissionParams:
     cruise_alt: float = 150.0       # m, mission altitude (GUIDED climb target)
     cruise_airspeed: float = 12.0   # m/s, AIRSPEED_CRUISE (this airframe cruises ~12)
     rotate_speed: float = 9.0       # m/s, TKOFF_ROTATE_SPD (below cruise, above stall)
+    use_flaps: bool = False         # deploy flaps (FLAP ON = 20deg) for takeoff/climb-out
+    flap_percent: int = 100         # flap % when ON (100 = full throw = 20deg on this aircraft)
     cruise_time: float = 30.0       # s in CRUISE mode
     fbwa_time: float = 20.0         # s in FBWA mode
     fbwa_throttle: int = 60         # %, held throttle during FBWA
@@ -143,6 +150,9 @@ class MissionParams:
     auto_arm: bool = True           # arm from the script vs wait for manual arm
     apply_reversals: bool = True    # apply the uSTOL FDM servo sign reversals
     configure_flare: bool = True    # set takeoff-rotation + landing-flare params
+    wind_speed: float = 0.0         # m/s, SIM_WIND_SPD (0 = calm)
+    wind_dir: float = 0.0           # deg, SIM_WIND_DIR (direction the wind comes FROM)
+    wind_turb: float = 0.0          # SIM_WIND_TURB turbulence intensity (0 = steady)
 
     def resolved_land_airspeed(self):
         return self.land_airspeed if self.land_airspeed > 0 else round(0.85 * self.cruise_airspeed, 1)
@@ -159,6 +169,7 @@ def prompt_parameters():
         "Takeoff climb-out altitude (m)  [TAKEOFF finishes here; = cruise alt to skip climb]",
         p.climbout_alt, float)
     p.rotate_speed = ask("Takeoff rotation speed (m/s)", p.rotate_speed, float)
+    p.use_flaps = ask_yes_no("Deploy flaps (20deg) for takeoff/climb-out?", p.use_flaps)
     p.cruise_alt = ask("Cruise altitude (m)", p.cruise_alt, float)
     p.cruise_airspeed = ask("Cruise airspeed (m/s)", p.cruise_airspeed, float)
     print()
@@ -186,6 +197,11 @@ def prompt_parameters():
     p.auto_arm = ask_yes_no("Arm automatically from the script?", p.auto_arm)
     p.apply_reversals = ask_yes_no(
         "Apply uSTOL FDM servo reversals (SERVO10/11/12)?", p.apply_reversals)
+    print()
+    p.wind_speed = ask("Wind speed (m/s, 0 = calm)", p.wind_speed, float)
+    if p.wind_speed > 0:
+        p.wind_dir = ask("  wind direction (deg, FROM)", p.wind_dir, float)
+        p.wind_turb = ask("  wind turbulence (0 = steady, ~0.1-0.5 typical)", p.wind_turb, float)
     return p
 
 
@@ -196,6 +212,8 @@ def summarise(p, csv_path):
     print("  cruise alt ......... %.0f m" % p.cruise_alt)
     print("  cruise airspeed .... %.1f m/s   (rotate at %.1f m/s)"
           % (p.cruise_airspeed, p.rotate_speed))
+    print("  flaps .............. %s" % (
+        "ON (%d%% = 20deg) for takeoff/climb-out" % p.flap_percent if p.use_flaps else "off"))
     print("  CRUISE/FBWA/FBWB/LOITER  %.0f / %.0f / %.0f / %.0f s"
           % (p.cruise_time, p.fbwa_time, p.fbwb_time, p.loiter_time))
     print("  FBWA throttle ...... %d %%   (THR_MIN/MAX %d / %d %%)"
@@ -209,6 +227,9 @@ def summarise(p, csv_path):
     print("  flare config ....... %s" % ("yes" if p.configure_flare else "no"))
     print("  auto-arm ........... %s" % ("yes" if p.auto_arm else "no (arm manually)"))
     print("  servo reversals .... %s" % ("yes" if p.apply_reversals else "no"))
+    print("  wind ............... %s" % (
+        "calm" if p.wind_speed <= 0 else
+        "%.1f m/s from %.0f deg, turb %.2f" % (p.wind_speed, p.wind_dir, p.wind_turb)))
     print("  CSV log ............ %s" % (csv_path or "(none)"))
 
 
@@ -250,6 +271,10 @@ class Plane:
         self.armed = False
         self.custom_mode = None
         self.crashed = False
+        self.navroll = self.navpitch = 0.0                # deg, commanded attitude
+        self.ail = self.elev = self.rud = 0               # us, servo outputs
+        self.airborne = False
+        self.phase = ""
 
         self.home_lat = self.home_lon = None
         self.mode_names = {}
@@ -280,6 +305,10 @@ class Plane:
         self.m.mav.request_data_stream_send(
             self.m.target_system, self.m.target_component,
             mavutil.mavlink.MAV_DATA_STREAM_ALL, 10, 1)
+        for msgid in (62, 36):   # NAV_CONTROLLER_OUTPUT, SERVO_OUTPUT_RAW
+            self.m.mav.command_long_send(
+                self.m.target_system, self.m.target_component,
+                mavutil.mavlink.MAV_CMD_SET_MESSAGE_INTERVAL, 0, msgid, 100000, 0, 0, 0, 0, 0)
         if self.csv_path:
             self.csv_file = open(self.csv_path, "w", newline="")
             self.csv_writer = csv.writer(self.csv_file)
@@ -287,7 +316,8 @@ class Plane:
                 "time_s", "phase", "mode", "armed", "lat", "lon", "alt_agl_m",
                 "airspeed", "groundspeed", "roll_deg", "pitch_deg", "yaw_deg",
                 "p_dps", "q_dps", "r_dps", "gamma_deg", "vN", "vE", "vD",
-                "climb_mps", "throttle_pct"])
+                "climb_mps", "throttle_pct",
+                "navroll_deg", "navpitch_deg", "ail_out", "elev_out", "rud_out"])
             print("  logging telemetry to %s" % self.csv_path)
 
     def close(self):
@@ -344,6 +374,12 @@ class Plane:
         elif t == "ATTITUDE":
             self.roll, self.pitch, self.yaw = msg.roll, msg.pitch, msg.yaw
             self.p, self.q, self.r = msg.rollspeed, msg.pitchspeed, msg.yawspeed
+        elif t == "NAV_CONTROLLER_OUTPUT":
+            self.navroll, self.navpitch = msg.nav_roll, msg.nav_pitch
+        elif t == "SERVO_OUTPUT_RAW":
+            self.ail = getattr(msg, "servo%d_raw" % AIL_CH, 0)
+            self.elev = getattr(msg, "servo%d_raw" % ELEV_CH, 0)
+            self.rud = getattr(msg, "servo%d_raw" % RUD_CH, 0)
         elif t == "STATUSTEXT":
             self._handle_statustext(msg)
 
@@ -375,8 +411,10 @@ class Plane:
 
     # -- the master tick: pump, track events, print + log on cadence -------- #
     def tick(self, phase, note=""):
+        self.phase = phase
         self.pump(0.1)
         self._track_events()
+        self._check_alive()
         now = time.time()
         if self.csv_writer and now - self._last_csv >= 0.2:        # ~5 Hz
             self._write_csv(phase)
@@ -387,12 +425,11 @@ class Plane:
 
     def _print_telemetry(self, phase, note):
         d = self.derived()
-        print("  t=%6.1f %-7s alt=%6.1f AS=%5.1f GS=%5.1f | RPY %6.1f/%6.1f/%6.1f deg"
-              " | pqr %6.1f/%6.1f/%6.1f deg/s | g=%5.1f | V_NED %5.1f/%5.1f/%5.1f"
-              " | thr %3.0f%% %s"
-              % (self._t(), phase, self.alt or 0.0, self.airspeed, self.groundspeed,
-                 d["roll"], d["pitch"], d["yaw"], d["p"], d["q"], d["r"], d["gamma"],
-                 d["vN"], d["vE"], d["vD"], self.throttle, note))
+        print("  t=%6.1f %-7s alt=%6.1f AS=%5.1f | roll %6.1f (cmd %6.1f) pitch %6.1f yaw %6.1f"
+              " | pqr %5.0f/%5.0f/%5.0f | g=%5.1f | ail=%4d thr %3.0f%% %s"
+              % (self._t(), phase, self.alt or 0.0, self.airspeed,
+                 d["roll"], self.navroll, d["pitch"], d["yaw"],
+                 d["p"], d["q"], d["r"], d["gamma"], self.ail, self.throttle, note))
 
     def _write_csv(self, phase):
         d = self.derived()
@@ -403,7 +440,9 @@ class Plane:
             "%.2f" % d["roll"], "%.2f" % d["pitch"], "%.2f" % d["yaw"],
             "%.2f" % d["p"], "%.2f" % d["q"], "%.2f" % d["r"],
             "%.2f" % d["gamma"], "%.2f" % d["vN"], "%.2f" % d["vE"], "%.2f" % d["vD"],
-            "%.2f" % d["climb"], "%.0f" % self.throttle])
+            "%.2f" % d["climb"], "%.0f" % self.throttle,
+            "%.2f" % self.navroll, "%.2f" % self.navpitch,
+            self.ail, self.elev, self.rud])
         self.csv_file.flush()
 
     def _track_events(self):
@@ -439,6 +478,17 @@ class Plane:
                         self.lat, self.lon)
         self.prev_alt = alt
 
+    def _check_alive(self):
+        """Abort the mission if the aircraft crashed/disarmed while airborne."""
+        if self.alt is not None and self.alt > 8.0:
+            self.airborne = True
+        if self.phase == "LAND":
+            return                          # a disarm during landing is expected
+        if self.crashed:
+            raise MissionAborted("autopilot reported a CRASH")
+        if self.airborne and not self.armed:
+            raise MissionAborted("disarmed in flight (crash / failsafe)")
+
     # -- parameters --------------------------------------------------------- #
     def set_param(self, name, value):
         print("  param %-18s = %s" % (name, value))
@@ -462,6 +512,12 @@ class Plane:
             if msg and msg.param_id.strip("\x00") == name:
                 return msg.param_value
         return None
+
+    def flaps_set(self, percent):
+        """Deploy/retract flaps via the auto-flap percentage. FLAP_1_SPEED is held
+        high (set in apply_setup_params) so the percentage always governs:
+        100 = full (20 deg = FLAP ON), 0 = retracted (FLAP OFF)."""
+        self.set_param("FLAP_1_PERCNT", percent)
 
     # -- modes / arming ----------------------------------------------------- #
     def set_mode(self, mode_name):
@@ -713,6 +769,12 @@ def apply_setup_params(plane, p):
     plane.set_param("THR_MIN", p.thr_min)
     plane.set_param("THR_MAX", p.thr_max)
 
+    if p.use_flaps:
+        # Hold FLAP_1_SPEED high so the flap percentage always applies; the script
+        # then toggles FLAP_1_PERCNT (100 -> deployed, 0 -> retracted) at the events.
+        plane.set_param("FLAP_1_SPEED", 100)
+        plane.set_param("FLAP_1_PERCNT", 0)     # start retracted; deployed at takeoff
+
     if p.configure_flare:
         # Takeoff rotation: speed at which the nose rotates up on an auto take-off.
         plane.set_param("TKOFF_ROTATE_SPD", p.rotate_speed)
@@ -728,6 +790,11 @@ def apply_setup_params(plane, p):
         plane.set_param("SERVO11_REVERSED", 1)   # elevator
         plane.set_param("SERVO10_REVERSED", 1)   # aileron
         plane.set_param("SERVO12_REVERSED", 1)   # rudder
+
+    # SITL wind (0 = calm). Direction is where the wind blows FROM.
+    plane.set_param("SIM_WIND_SPD", p.wind_speed)
+    plane.set_param("SIM_WIND_DIR", p.wind_dir)
+    plane.set_param("SIM_WIND_TURB", p.wind_turb)
 
 
 def do_landing(plane, p):
@@ -774,8 +841,14 @@ def fly_mission(plane, p):
     try:
         banner("PHASE 1/7  TAKEOFF  (rotate %.0f m/s, climb-out %.0f m)"
                % (p.rotate_speed, p.climbout_alt))
+        if p.use_flaps:
+            print("  flaps -> ON (%d%% = 20deg) for takeoff" % p.flap_percent)
+            plane.flaps_set(p.flap_percent)
         plane.set_mode("TAKEOFF")
         plane.wait_climb_to(p.climbout_alt, "TAKEOFF")
+        if p.use_flaps:
+            print("  flaps -> OFF (takeoff height %.0f m reached)" % p.climbout_alt)
+            plane.flaps_set(0)
 
         banner("PHASE 2/7  CLIMB to %.0f m" % p.cruise_alt)
         if p.cruise_alt > p.climbout_alt + 1:
@@ -800,6 +873,10 @@ def fly_mission(plane, p):
         plane.fly_mode("LOITER", p.loiter_time, "LOITER", hold=None)
 
         result = do_landing(plane, p)
+    except MissionAborted as exc:
+        print("\n  !! MISSION ABORTED during %s phase: %s" % (plane.phase, exc))
+        print("  The remaining phases are skipped (the aircraft is no longer flying).")
+        result = "aborted-in-%s" % plane.phase
     finally:
         # Always report what we measured, even if a phase failed mid-flight.
         plane.print_performance(result)

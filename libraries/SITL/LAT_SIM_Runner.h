@@ -276,6 +276,7 @@ typedef struct
 	float CL_w;   // uSTOL: wing lift component (set in lift, reused by drag & pitch)
 	float CL_t;   // uSTOL: tail lift component
 	float theta_tolerance_for_ground;
+	float theta_max_ground;   // max nose-up pitch on the runway (tail-strike limit) [rad]
 	float altitude_tolerance_for_ground;
 	float step_dt;
 	float p_dot,q_dot,r_dot;
@@ -340,6 +341,8 @@ typedef struct
 		float Kb_f;         // Fowler-flap span effectiveness [-]
 		float Kb_a;         // aileron span effectiveness [-]
 		float tau_e;        // 3-D elevator effectiveness [-]
+		float de_eff_pos_break_deg, de_eff_pos_factor;  // elevator rolloff: +del_e break [deg] & marginal factor [-]
+		float de_eff_neg_break_deg, de_eff_neg_factor;  // elevator rolloff: -del_e break [deg] & marginal factor [-]
 		float CD_df2;       // delta_f^2 [rad^-2]
 		float CD_da2;       // delta_a^2 [rad^-2]
 		float CD_da;        // delta_a (linear) [rad^-1]
