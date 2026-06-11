@@ -549,7 +549,7 @@ void v_calculate_side_force()
 			// rate terms: p_hat = p*b/2V, r_hat = r*c/2V  (CY uses chord for r_hat)
 			float V = vehcle.tas;
 			float p_hat = vehcle.p*vehcle.b/(2.0f*V);
-			float r_hat = vehcle.r*vehcle.c/(2.0f*V);
+			float r_hat = vehcle.r*vehcle.b/(2.0f*V);
 			float CY_rate = vehcle.lateral.CYp*p_hat + vehcle.lateral.CYr*r_hat
 			              + vehcle.lateral.CYp_cu*(p_hat*Cmu) + vehcle.lateral.CYr_cu*(r_hat*Cmu)
 			              + vehcle.lateral.CYp2_cu*(p_hat*p_hat*Cmu) + vehcle.lateral.CYr2_cu*(r_hat*r_hat*Cmu);
@@ -789,7 +789,7 @@ void v_calculate_aero_pitch_moment()
 			float x_ac_w = ustol_aero_center(flap_config, Cmu_star);
 
 			// pitch-rate damping (uses raw Cmu*; q non-dimensionalized q_hat = q*c/2V)
-			float Cmq = -329.962f + 101.129f*sqrtf(Cmu_star);
+			float Cmq = (-329.962f + 101.129f*sqrtf(Cmu_star))*0.1;
 
 			vehcle.Cm = Cm0_ac_wing
 			          + vehcle.CL_w*fabsf(vehcle.cg.x_cg_c - x_ac_w)

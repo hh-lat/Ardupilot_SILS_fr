@@ -1,0 +1,722 @@
+% =====================================================================
+%  ArduPlane Controller / Gain Tuning & Gain Scheduling
+%  for a custom uSTOL FDM in SITL (Software-in-the-Loop)
+%
+%  HOW TO COMPILE (any of these):
+%     pdflatex ArduPlane_Tuning_Guide.tex   (run twice for the table of contents)
+%   or
+%     latexmk -pdf ArduPlane_Tuning_Guide.tex
+%
+%  Requires a standard TeX Live / MiKTeX install. No special packages.
+% =====================================================================
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage[margin=2cm]{geometry}
+\usepackage{longtable}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{fancyhdr}
+\usepackage{parskip}
+\usepackage{listings}
+\usepackage{underscore} % lets RLL_RATE_P be typed with literal underscores
+\usepackage{url}
+
+\definecolor{codebg}{RGB}{245,245,245}
+\definecolor{rulecol}{RGB}{120,120,120}
+
+\lstset{
+  basicstyle=\ttfamily\small,
+  backgroundcolor=\color{codebg},
+  breaklines=true,
+  frame=single,
+  rulecolor=\color{rulecol},
+  columns=fullflexible,
+  keepspaces=true,
+  showstringspaces=false,
+  xleftmargin=4pt,
+  framexleftmargin=4pt
+}
+
+\newcommand{\pp}[1]{\texttt{#1}} % parameter name
+
+\pagestyle{fancy}
+\fancyhf{}
+\lhead{\small ArduPlane Tuning Guide --- custom uSTOL FDM}
+\rhead{\small\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+\title{\textbf{ArduPlane Controller, Gain Tuning \& Gain Scheduling}\\[4pt]
+\large for a custom uSTOL FDM in SITL}
+\author{Prepared as a teaching reference}
+\date{June 2026}
+
+\begin{document}
+
+\maketitle
+
+\noindent This guide covers controller tuning, gain tuning, and gain scheduling
+for fixed-wing \textbf{ArduPlane}, written for a \emph{custom flight-dynamics
+model} (the \pp{libraries/SITL/LAT\_SIM\_*} files) modelling a uSTOL /
+distributed-propulsion aircraft running in SITL. It is built entirely from the
+official ArduPilot Plane documentation. The aircraft here is pure fixed-wing
+(\pp{Q\_ENABLE,0}), with nine throttle channels (distributed propulsion) plus
+conventional aileron / elevator / rudder / flaps. Part~9 shows how to do
+everything \textbf{with Mission Planner}; Part~10 shows the same \textbf{without
+Mission Planner} (headless / MAVProxy), which suits a SITL workflow.
+
+\tableofcontents
+\newpage
+
+% =====================================================================
+\section{Part 0 --- The mental model}
+% =====================================================================
+
+ArduPlane control is a \textbf{cascade of nested loops}. Outer loops are slow and
+set \emph{goals}; inner loops are fast and \emph{achieve} them. You always tune
+\textbf{inner-to-outer}.
+
+\begin{lstlisting}
+ GPS waypoint  --> L1 Nav ------> roll-angle demand --+
+                                                      +--> ATTITUDE --> RATE demand --> RATE PID-FF --> servo
+ Altitude/speed --> TECS ------> pitch + throttle ----+                                                (ail/elev/rudder)
+\end{lstlisting}
+
+\begin{longtable}{@{}p{3.1cm}p{6.0cm}p{4.6cm}p{1.7cm}@{}}
+\toprule
+\textbf{Layer} & \textbf{What it decides} & \textbf{Main parameters} & \textbf{Order}\\
+\midrule
+\endhead
+Rate (innermost) & Surface deflection to hit a demanded rate (deg/s) & \pp{RLL\_RATE\_*}, \pp{PTCH\_RATE\_*}, \pp{YAW\_RATE\_*} & 1st\\
+Attitude & deg/s needed to reach a demanded angle & \pp{*2SRV\_TCONST}, \pp{*2SRV\_RMAX*} & with rate\\
+Speed/Height (TECS) & pitch + throttle for altitude \& airspeed & \pp{TECS\_*}, \pp{THR\_*}, \pp{PTCH\_LIM\_*} & 2nd\\
+Navigation (L1) & bank angle to follow the ground track & \pp{NAVL1\_PERIOD}, \pp{NAVL1\_DAMPING}, \pp{WP\_RADIUS} & 3rd\\
+\bottomrule
+\end{longtable}
+
+\textbf{Why this order matters:} TECS asks the pitch loop for a pitch angle. If
+the pitch loop is sloppy, TECS looks broken even though the bug is one layer
+down. Same with L1 $\rightarrow$ roll. Never tune an outer loop until the inner
+one is solid.
+
+\subsection*{The PID-FF building block (identical on roll, pitch, yaw rate loops)}
+\begin{itemize}[leftmargin=1.4em]
+  \item \textbf{FF (feedforward)} --- the dominant term for planes. Maps the
+  \emph{demanded rate} straight to surface deflection. A well-set FF flies the
+  plane; PID just cleans up the error. (This is why planes are FF-led and
+  multirotors are P-led.)
+  \item \textbf{P} --- reacts to current rate \emph{error}. Too high $\rightarrow$
+  overshoot / porpoising.
+  \item \textbf{I} --- integrates persistent error (trim, CG offset, wind). Acts
+  like auto-trim.
+  \item \textbf{D} --- damping on rate-of-change. Too high $\rightarrow$ amplifies
+  noise, heats servos, buzzes.
+  \item Plus limiters/filters: \pp{IMAX}, \pp{FLTT}, \pp{FLTE}, \pp{FLTD},
+  \pp{SMAX} (Part~2).
+\end{itemize}
+
+% =====================================================================
+\section{Part 1 --- Prerequisites (before touching a gain)}
+% =====================================================================
+
+Tuning a bad setup just bakes the badness into your gains.
+
+\begin{enumerate}[leftmargin=1.6em]
+  \item \textbf{Control-surface signs.} In \textbf{FBWA}, nose-up $\rightarrow$
+  elevator down; roll right $\rightarrow$ right aileron up; etc. In a custom FDM
+  this doubly matters: a sign error in
+  \pp{LAT\_SIM\_Forces\_and\_moments\_ctrl\_srfce.cpp} \emph{looks} like a tuning
+  problem but is a model bug. Verify the servo outputs in SITL before blaming
+  gains.
+  \item \textbf{Set \pp{SCALING\_SPEED} first, and never move it later.} Set it
+  to cruise. It is the anchor for gain scheduling (Part~3). Changing it after
+  tuning rescales every PID and corrupts the tune.
+  \item \textbf{Airspeed.} In SITL airspeed is synthesised from your FDM, so it is
+  effectively perfect --- but the envelope (\pp{AIRSPEED\_MIN}, \pp{AIRSPEED\_MAX},
+  \pp{AIRSPEED\_CRUISE}) must match what the FDM can actually do. If the model
+  stalls at 22 m/s, \pp{AIRSPEED\_MIN}=20 is dangerous.
+  \item \textbf{CG / trim.} Bench-trim neutral. In FBWA at cruise the surfaces
+  should sit near-neutral ($<10\%$ throw). If not, it is CG or level-calibration.
+  \item \textbf{Servo rate limits.} Set \pp{RLL\_RATE\_SMAX} / \pp{PTCH\_RATE\_SMAX}
+  to the servo slew capability. Your FDM has \pp{LAT\_SIM\_servo\_dynamics.cpp};
+  make SMAX consistent with the servo model's rate or the limiter and the model
+  will fight.
+\end{enumerate}
+
+% =====================================================================
+\section{Part 2 --- Controller \& gain tuning (the core)}
+% =====================================================================
+
+\subsection{The rate controller (firmware 4.1+)}
+
+Per axis (\pp{RLL\_}, \pp{PTCH\_}, \pp{YAW\_}). The right-hand column shows this
+aircraft's current roll / pitch values.
+
+\begin{longtable}{@{}p{2.7cm}p{4.7cm}p{5.4cm}p{2.4cm}@{}}
+\toprule
+\textbf{Param} & \textbf{Meaning} & \textbf{How to set} & \textbf{Value (R/P)}\\
+\midrule
+\endhead
+\pp{\_RATE\_FF}   & Feedforward, demand$\rightarrow$surface & \textbf{Tune first}; from logs, scale until commanded surface $\approx$ needed & 0.400 / 0.660\\
+\pp{\_RATE\_P}    & Proportional on rate error & Raise 0.01 steps until overshoot, back off 25--50\% & 0.214 / 0.516\\
+\pp{\_RATE\_I}    & Integral & Start $\approx$ FF (approx 1 s correction) & 0.214 / 0.660\\
+\pp{\_RATE\_D}    & Derivative damping & Raise 0.001 steps until oscillation, then \textbf{halve} & 0.034 / 0.020\\
+\pp{\_RATE\_IMAX} & Integrator clamp & Default 0.666 (two-thirds throw) & 0.666\\
+\pp{\_RATE\_FLTT} & Target filter (Hz) & approx loop bandwidth; lower for slow airframe & 3.18 / 2.12\\
+\pp{\_RATE\_FLTE} & Error filter (Hz) & Usually 0 (off) & 0\\
+\pp{\_RATE\_FLTD} & D-term filter (Hz) & Knock down noise feeding D & 10 / 10\\
+\pp{\_RATE\_SMAX} & Slew limit; auto-degains if exceeded & Servo rate capability & 150\\
+\bottomrule
+\end{longtable}
+
+Attitude (angle $\rightarrow$ rate) layer:
+
+\begin{longtable}{@{}p{4.6cm}p{8.7cm}p{2.2cm}@{}}
+\toprule
+\textbf{Param} & \textbf{Meaning} & \textbf{Value}\\
+\midrule
+\endhead
+\pp{RLL2SRV\_TCONST} / \pp{PTCH2SRV\_TCONST} & Time constant to reach demanded angle (smaller = snappier) & 0.5 / 0.75\\
+\pp{RLL2SRV\_RMAX} / \pp{PTCH2SRV\_RMAX\_UP/DN} & Max rate limits. Pitch trick: $560/V$ (m/s) $\approx \pm 1$ g & 75 / 75,75\\
+\pp{PTCH2SRV\_RLL} & Pitch-up added in turns to hold altitude. Default 1.0, range 0.8--1.3 & 1.0\\
+\bottomrule
+\end{longtable}
+
+\textbf{Manual tuning sequence (canonical order):}
+\begin{enumerate}[leftmargin=1.6em]
+  \item \textbf{FF first.} Fly FBWA, log, plot demanded rate vs achieved surface,
+  scale FF so they match. FF doing most of the work is the goal.
+  \item \textbf{I = FF} as a starting point.
+  \item \textbf{P} up in 0.01 steps until overshoot/porpoising $\rightarrow$ back off.
+  \item \textbf{D} up in 0.001 steps until it oscillates $\rightarrow$ halve.
+  \item Re-touch P slightly if D let you go higher.
+\end{enumerate}
+
+This aircraft's tune already shows the fingerprints of this method:
+\pp{RLL\_RATE\_I} = \pp{RLL\_RATE\_P} = 0.214, and \pp{PTCH\_RATE\_I} =
+\pp{PTCH\_RATE\_FF} = 0.660 --- exactly the ``I approx FF'' rule and an AUTOTUNE
+result.
+
+\subsection{Yaw (damper + sideslip)}
+\begin{itemize}[leftmargin=1.4em]
+  \item \pp{YAW2SRV\_DAMP} --- raise 0.05 until tail-wag, then halve. Tune first.
+  \item \pp{YAW2SRV\_RLL} --- turn coordination, default 1.0 (range 0.7--1.4).
+  \item \pp{YAW2SRV\_SLIP} / \pp{YAW2SRV\_INT} --- sideslip control; only useful if
+  the FDM has meaningful side-force. Slender/flying-wing $\rightarrow$ skip slip,
+  keep damper.
+  \item \pp{KFF\_RDDRMIX} --- feedforward rudder during rolls to kill adverse yaw
+  ($\leq 1.0$).
+  \item Rate-based yaw (4.2+): \pp{YAW\_RATE\_ENABLE}=1 plus \pp{YAW\_RATE\_P/I/D/FF},
+  autotunable.
+\end{itemize}
+
+\subsection{AUTOTUNE --- the recommended path (works great in SITL)}
+
+AUTOTUNE flies like FBWA but learns roll/pitch (and yaw if enabled) FF/P/I/D plus
+slew limits from your stick inputs.
+
+\begin{longtable}{@{}p{1.6cm}p{2.6cm}p{10.5cm}@{}}
+\toprule
+\textbf{Level} & \textbf{Target rate} & \textbf{Use}\\
+\midrule
+\endhead
+2--3 & 30--40 deg/s & slow gliders\\
+6 (default) & 75 deg/s & beginner--intermediate, good default (this aircraft)\\
+7 & 90 deg/s & sharper, experienced\\
+8 & 120 deg/s & light foam under 2 kg\\
+9--11 & 160--300 deg/s & advanced, post-initial only\\
+0 & --- & special: keeps your rates/TCONST, only optimizes FF/P/I/D\\
+\bottomrule
+\end{longtable}
+
+Yaw is always tuned to 90 deg/s. Pick the level by what the aircraft can
+\emph{physically} roll/pitch --- overshooting capability gives a bad tune.
+
+\begin{itemize}[leftmargin=1.4em]
+  \item \textbf{How to fly it:} put it on a switch (\pp{RCx\_OPTION}=107) or a
+  flight mode, then make sharp stick doublets --- tuning only engages when the
+  demanded rate exceeds 40\% of the level's max. Do at least 20 inputs per axis,
+  finish all axes before disarming. P and D save per-axis as you go; FF and I save
+  on mode exit. Bailing mid-axis reverts that axis.
+  \item \textbf{Compare:} \pp{RCx\_OPTION}=180 toggles original vs tuned gains in
+  any mode to A/B them.
+  \item \textbf{Light / no-airspeed edge cases:} \pp{FLIGHT\_OPTIONS} bit 6 (+64)
+  stops PID inflation on takeoff without airspeed; raise \pp{SCHED\_LOOP\_RATE} to
+  200 Hz for very light/fast craft.
+\end{itemize}
+
+\textbf{In SITL specifically:} AUTOTUNE is the fastest way to re-baseline a tune
+after \emph{any} FDM revision. Every aero change (e.g.\ ``\pp{Cmq} updated'',
+``post-stall \pp{CL} added'') shifts the right gains; a 2-minute SITL AUTOTUNE
+re-baselines instantly, with no servo to burn out.
+
+% =====================================================================
+\section{Part 3 --- Gain scheduling (airspeed speed-scaling)}
+% =====================================================================
+
+\subsection{The fundamental problem}
+Control-surface effectiveness scales with dynamic pressure, proportional to
+$V^2$. A deflection that gives 30 deg/s at 20 m/s gives roughly $4\times$ the
+moment at 40 m/s. A fixed gain that is stable at cruise will be sluggish at min
+speed and oscillate at max speed. So gains \emph{must} change with speed.
+
+\subsection{ArduPlane's primary mechanism: automatic airspeed scaling}
+ArduPlane does this continuously, on the rate-loop output:
+
+\begin{lstlisting}
+ scale     = (SCALING_SPEED / current_airspeed)^2     (clamped)
+ servo_out = scale * PID_FF_output
+\end{lstlisting}
+
+\begin{itemize}[leftmargin=1.4em]
+  \item At \textbf{high speed} $\rightarrow$ scale $<1$ $\rightarrow$ surfaces move
+  \textbf{less}.
+  \item At \textbf{low speed} $\rightarrow$ scale $>1$ $\rightarrow$ surfaces move
+  \textbf{more}.
+  \item \pp{SCALING\_SPEED} is the anchor where scale $=1$. \textbf{You tune at
+  this speed}, and the controller extrapolates everywhere else.
+  \item Works \textbf{with or without} an airspeed sensor: with \pp{ARSPD\_USE}=1
+  it uses measured speed; without, it uses the EKF estimated speed (GPS+IMU). In
+  SITL the FDM feeds a clean airspeed, so scheduling is essentially ideal.
+  \item The scaling range is bounded by \pp{AIRSPEED\_MIN}/\pp{AIRSPEED\_MAX}.
+  Rule of thumb: \pp{AIRSPEED\_MAX} $\approx 2\times$ cruise, \pp{AIRSPEED\_MIN}
+  $\geq 1.25\times$ stall. The factor is clamped so you do not get insane gains
+  near zero speed.
+\end{itemize}
+
+\textbf{The critical footgun:} because scheduling keys off \pp{SCALING\_SPEED},
+changing it after tuning silently rescales all PIDs and ruins the tune. If you
+change cruise speed, revert PIDs to default and retune at the new speed.
+
+\subsection{Other adaptive (scheduling-like) mechanisms}
+\begin{itemize}[leftmargin=1.4em]
+  \item \pp{*\_RATE\_SMAX} (slew-rate limiting) --- if surface slew exceeds SMAX,
+  ArduPilot automatically reduces effective gain until back in limits. An adaptive
+  de-gain that protects against high-frequency oscillation / servo damage.
+  \item \pp{PTCH2SRV\_RMAX} $=560/V$ --- manually scheduling the pitch \emph{rate
+  limit} with speed to cap g-loading ($\pm 1$ g).
+  \item D-term \& target filters (\pp{FLTD}, \pp{FLTT}) --- not speed-scheduled,
+  but they keep the (speed-boosted) gains from amplifying noise at the low-speed
+  end where scale is largest.
+\end{itemize}
+
+\subsection{What this means for your custom FDM}
+\begin{enumerate}[leftmargin=1.6em]
+  \item \textbf{One tune, whole envelope.} If your FDM computes moments as
+  $\bar q\, S\, c\, C_m$ (i.e.\ moments scale with dynamic pressure), ArduPilot's
+  $V^2$ scaling correctly covers 20--40 m/s from a single 30 m/s tune. This is a
+  \textbf{validation test of the FDM}: tune at 30, fly at 20 and 40 --- if it
+  stays stable, the aero model's speed dependence is physically consistent. If it
+  oscillates at 40 but is fine at 30, either the FDM is not scaling moments with
+  $\bar q$ correctly, or \pp{SCALING\_SPEED} is wrong.
+  \item \textbf{uSTOL caveat --- blown wing / prop-wash.} Distributed propulsion
+  augments the \emph{effective} dynamic pressure over the surfaces beyond
+  freestream $V^2$. ArduPilot schedules only on airspeed, so in high-thrust /
+  low-speed STOL regimes the real surface authority is higher than
+  $(\text{\pp{SCALING\_SPEED}}/V)^2$ predicts --- the scheduler over-commands and
+  you can get low-speed oscillation. Handles: tune (or AUTOTUNE at a low level,
+  2--3) in the slow / high-blowing regime, or keep \pp{*\_RATE\_SMAX} set so the
+  adaptive de-gain catches the over-command.
+  \item \textbf{No per-throttle / per-flap table exists} in stock ArduPlane ---
+  scheduling is airspeed-only. Thrust-dependent scheduling would be a model /
+  firmware extension, not a parameter.
+\end{enumerate}
+
+% =====================================================================
+\section{Part 4 --- TECS (height + speed), tune after pitch}
+% =====================================================================
+
+TECS coordinates \textbf{throttle and pitch} by managing total energy (potential
+= height, kinetic = $\tfrac12 V^2$). Throttle adds/removes \emph{total} energy;
+pitch \emph{shifts} energy between height and speed.
+
+\textbf{Hard prerequisite:} the pitch rate loop must be solid first. About 90\% of
+``TECS oscillation'' reports are actually a bad pitch loop one layer down.
+
+\textbf{Setup order (measure in FBWA, then set):}
+\begin{enumerate}[leftmargin=1.6em]
+  \item \pp{THR\_MAX} --- enough to climb at \pp{PTCH\_LIM\_MAX\_DEG} at cruise
+  (default 75\%).
+  \item \pp{TRIM\_THROTTLE} --- throttle for level flight at cruise (from CTUN
+  logs); also the airspeed-sensor-failure fallback.
+  \item \pp{AIRSPEED\_MIN/MAX}, \pp{PTCH\_LIM\_MAX/MIN\_DEG}.
+  \item \pp{TECS\_CLMB\_MAX} --- measured best climb rate at full throttle/cruise,
+  set to 80\% of measured.
+  \item \pp{TECS\_SINK\_MIN} --- sink at idle throttle, cruise speed.
+  \item \pp{TECS\_SINK\_MAX} --- max safe descent without exceeding
+  \pp{AIRSPEED\_MAX}.
+\end{enumerate}
+
+\textbf{Verify in a loiter:} holds altitude within approx 10 m, no porpoising.
+Climb test: throttle should settle approx 80\% of MAX (not pinned), speed held,
+pitch approx 5 deg below limit. If speed sags with throttle pinned: lower
+\pp{TECS\_CLMB\_MAX} or raise \pp{THR\_MAX}.
+
+\textbf{Fine-tune knobs (only if needed):}
+
+\begin{longtable}{@{}p{3.4cm}p{2.0cm}p{9.4cm}@{}}
+\toprule
+\textbf{Param} & \textbf{Default} & \textbf{Effect}\\
+\midrule
+\endhead
+\pp{TECS\_TIME\_CONST} & approx 5 s & Overall response. +1 to damp oscillation (max approx 10; if you need $>10$, the pitch loop is the real problem)\\
+\pp{TECS\_PTCH\_DAMP} & 0.0 & +0.1 to damp height oscillation (do not exceed 0.5 without checking nav\_pitch noise)\\
+\pp{TECS\_THR\_DAMP} & --- & Throttle-loop damping (needs airspeed sensor)\\
+\pp{TECS\_INTEG\_GAIN} & 0.05--0.15 & How fast offsets trim out\\
+\pp{TECS\_RLL2THR} & approx 10 & Extra throttle in turns (approx $10\times$ the m/s sink in a 45 deg bank). Low-aspect / draggy $\rightarrow$ higher. A uSTOL is likely draggy $\rightarrow$ expect higher\\
+\pp{TECS\_SPDWEIGHT} & 1.0 & 0 = pitch holds height (ignores speed); 2.0 = pitch holds speed (gliders). Needs airspeed sensor\\
+\pp{TECS\_PTCH\_FF\_K} / \pp{\_V0} & --- & Pitch feedforward vs speed demand (gliders $-0.04$, draggy $-0.08$)\\
+\bottomrule
+\end{longtable}
+
+% =====================================================================
+\section{Part 5 --- Navigation (L1), tune last}
+% =====================================================================
+
+L1 turns crosstrack/heading error into a \textbf{bank-angle demand}.
+
+\begin{longtable}{@{}p{3.0cm}p{1.8cm}p{10.0cm}@{}}
+\toprule
+\textbf{Param} & \textbf{Value} & \textbf{Meaning}\\
+\midrule
+\endhead
+\pp{NAVL1\_PERIOD} & 15 & Lower = sharper/tighter; too low = weaving/tail-wag. Higher = gentle. Tune $-5$ if turns lag, $+1$--$2$ if it weaves\\
+\pp{NAVL1\_DAMPING} & 0.75 & Fine adjust in 0.05 steps after PERIOD; floor approx 0.6\\
+\pp{WP\_RADIUS} & --- & approx distance flown in 2 s at cruise (approx 60 m at 30 m/s). Small = fly through WP then turn; large = cut the corner\\
+\pp{WP\_LOITER\_RAD} & --- & Loiter/RTL/GUIDED circle radius\\
+\pp{ROLL\_LIMIT\_DEG} & 30 & Max bank L1 may command (\pp{LEVEL\_ROLL\_LIMIT}=5)\\
+\bottomrule
+\end{longtable}
+
+\textbf{Method:} fly a small rectangular AUTO loop you can watch; adjust
+\pp{NAVL1\_PERIOD} until corners are crisp without weaving. A value of 15 is on
+the tight/aggressive side (default 17--20) --- appropriate for a responsive
+uSTOL, but watch for tail-wag.
+
+% =====================================================================
+\section{Part 6 --- Cruise, airspeed calibration, ground steering}
+% =====================================================================
+
+\begin{itemize}[leftmargin=1.4em]
+  \item \textbf{Cruise tuning:} \pp{TRIM\_THROTTLE} = avg cruise throttle (from
+  CTUN); \pp{PTCH\_TRIM\_DEG} = the few degrees of nose-up the aircraft flies at
+  (preferred over re-levelling the accel). \pp{AIRSPEED\_CRUISE} is your hands-off
+  target.
+  \item \textbf{Airspeed calibration:} \pp{ARSPD\_RATIO} (approx 2.0) converts
+  pressure to speed; \pp{ARSPD\_AUTOCAL}=1 learns it over a 5-min flight \emph{with
+  turns} (never on a long straight leg --- bad estimates can cause a crash). In
+  SITL this is largely moot --- the FDM provides truth airspeed; just keep the
+  envelope honest. On real hardware: cover the pitot at boot for the offset cal.
+  \item \textbf{Ground steering} (matters for a STOL with real takeoff/landing
+  rolls): \pp{STEER2SRV\_P} = the aircraft's turn-circle \emph{diameter in metres}
+  (measure by pushing it in a full-rudder circle, approx 4 m typical),
+  \pp{\_I}=0.1, \pp{\_D}=0.02, \pp{\_TCONST}=0.5 (planes), \pp{GROUND\_STEER\_ALT}
+  =5 m (hand-off to aero control above this). Tune takeoff in FBWA until it tracks
+  straight with no rudder input, then move to AUTO takeoff. For a fast uSTOL the
+  \pp{STEER2SRV\_DRT*} derating params reduce steering authority as you accelerate
+  down the runway.
+\end{itemize}
+
+% =====================================================================
+\section{Part 7 --- Doing it in SITL with a moving FDM}
+% =====================================================================
+
+\begin{enumerate}[leftmargin=1.6em]
+  \item \textbf{Treat every FDM change as ``retune required''.} Aero edits like
+  \pp{Cmq} (pitch-rate damping) directly change what \pp{PTCH\_RATE\_D} should be;
+  ``post-stall \pp{CL}'' changes the low-speed / high-alpha behaviour. Old PIDs go
+  stale.
+  \item \textbf{Loop:} edit FDM $\rightarrow$ rebuild SITL $\rightarrow$ AUTOTUNE
+  (level 6) $\rightarrow$ save params $\rightarrow$ envelope check (20/30/40 m/s)
+  $\rightarrow$ inspect logs.
+  \item \textbf{Logs are your truth} (this is where the real learning is):
+  \begin{itemize}[leftmargin=1.2em]
+    \item \pp{ATRP} --- AUTOTUNE progress (Type 0=roll, 1=pitch), demanded vs
+    achieved rate, P evolution.
+    \item \pp{RATE} / \pp{PIDR},\pp{PIDP},\pp{PIDY} --- per-axis target vs achieved
+    rate and the P/I/D/FF contributions. This is how you see whether FF carries the
+    load (good) or P does (under-tuned FF).
+    \item \pp{CTUN} --- throttle, nav\_pitch vs pitch, airspeed (TECS health).
+    \item \pp{NTUN} --- L1 crosstrack, desired vs actual bank (nav health).
+    \item \pp{ATT} --- demanded vs actual roll/pitch/yaw.
+  \end{itemize}
+  \item \textbf{Use SITL to do what you cannot risk on hardware:} sweep
+  \pp{SCALING\_SPEED} deliberately and watch the tune break; push to stall to
+  validate post-stall \pp{CL}; run Monte-Carlo perturbation sweeps
+  (\pp{LAT\_SIM\_MonteCarlo.cpp}, \pp{monte\_carlo\_overrides.txt}) to check tune
+  robustness across CG/mass dispersions.
+\end{enumerate}
+
+% =====================================================================
+\section{Part 8 --- This aircraft's current state \& next steps}
+% =====================================================================
+
+The current \pp{Latest.parm} is already a coherent, AUTOTUNE-derived tune:
+
+\begin{longtable}{@{}p{4.2cm}p{2.6cm}p{6.8cm}@{}}
+\toprule
+\textbf{Parameter} & \textbf{Value} & \textbf{Note}\\
+\midrule
+\endhead
+\pp{AIRSPEED\_CRUISE} & 30 & cruise target\\
+\pp{AIRSPEED\_MIN / MAX} & 20 / 40 & envelope; MAX approx $2\times$ cruise (good)\\
+\pp{SCALING\_SPEED} & 30 & matches cruise (correct anchor)\\
+\pp{ARSPD\_USE / TYPE} & 1 / 2 & airspeed enabled in SITL\\
+\pp{RLL\_RATE\_P/I/D/FF} & 0.214/0.214/0.034/0.400 & I = P signature\\
+\pp{PTCH\_RATE\_P/I/D/FF} & 0.516/0.660/0.020/0.660 & I = FF signature\\
+\pp{RLL2SRV\_TCONST} & 0.5 & \\
+\pp{PTCH2SRV\_TCONST} & 0.75 & \\
+\pp{PTCH\_LIM\_MAX/MIN\_DEG} & +20 / $-20$ & \\
+\pp{ROLL\_LIMIT\_DEG} & 30 & \\
+\pp{NAVL1\_PERIOD / DAMPING} & 15 / 0.75 & tight nav\\
+\pp{AUTOTUNE\_LEVEL / AXES} & 6 / 7 & all 3 axes at 75 deg/s\\
+\bottomrule
+\end{longtable}
+
+\textbf{High-value next moves:}
+\begin{enumerate}[leftmargin=1.6em]
+  \item \textbf{Verify gain scheduling holds:} fly steady at 20, 30, 40 m/s and
+  check \pp{RATE}/\pp{PIDR}/\pp{PIDP} for oscillation at the extremes. If 40
+  oscillates, the FDM may not scale moments with $\bar q$ correctly, or the rate
+  D term is too hot at high $\bar q$.
+  \item \textbf{Re-AUTOTUNE after \pp{Cmq} / post-stall changes} (the pitch D term
+  especially).
+  \item \textbf{Confirm \pp{AIRSPEED\_MIN}=20 is $\geq 1.25\times$ the FDM's actual
+  stall} (you now have a real stall to measure).
+  \item \textbf{Set \pp{TECS\_RLL2THR} deliberately} (a draggy uSTOL likely wants
+  $>10$) and check loiter energy in turns.
+\end{enumerate}
+
+% =====================================================================
+\section{Part 9 --- Doing it WITH Mission Planner}
+% =====================================================================
+
+Mission Planner has four places that matter for tuning, plus two live tools.
+
+\subsection{The CONFIG tab --- where parameters live}
+Top menu \textbf{CONFIG} (older builds: CONFIG/TUNING). Left column = sub-screens:
+
+\begin{longtable}{@{}p{3.4cm}p{6.6cm}p{4.4cm}@{}}
+\toprule
+\textbf{Sub-screen} & \textbf{What it gives you} & \textbf{Use it for}\\
+\midrule
+\endhead
+Basic Tuning & Curated panel of attitude/nav params & Quick edits to headline gains\\
+Standard Params & Commonly-adjusted params, with descriptions/dropdowns & TECS, airspeed, L1, cruise\\
+Advanced Params & Everything advanced users touch & Filters, SMAX, scaling, edge params\\
+Full Parameter List & Every parameter, flat, searchable (the workhorse) & Anything not on the panels\\
+Full Parameter Tree & Same data, hierarchical by prefix & Browsing a family (all \pp{TECS\_})\\
+\bottomrule
+\end{longtable}
+
+\textbf{Full Parameter List buttons:}
+\begin{itemize}[leftmargin=1.4em]
+  \item \textbf{Search} --- type \pp{RLL\_RATE}, \pp{PTCH\_RATE}, \pp{TECS},
+  \pp{NAVL1}, \pp{SCALING}, \pp{ARSPD}, \pp{STEER2SRV} to jump to a family.
+  \item \textbf{Write Params} --- pushes edits to the autopilot (edits are not live
+  until written; changed cells show green).
+  \item \textbf{Refresh Params} --- re-read from vehicle (after enabling a feature).
+  \item \textbf{Save to File / Load from File} --- backup/restore (critical for the
+  FDM workflow).
+  \item \textbf{Compare Params} --- diff current-vs-file, cherry-pick which to
+  apply. This is how you A/B two tunes.
+  \item \textbf{Reset to Default} --- factory reset (forces recalibration).
+\end{itemize}
+
+\textbf{Where each thing lives:} rate PIDs, attitude, yaw, ground steering,
+airspeed cal $\rightarrow$ Full Parameter List (search the family). Gain
+scheduling (\pp{SCALING\_SPEED}, \pp{AIRSPEED\_*}), TECS, nav $\rightarrow$
+Standard Params or Full List.
+
+\subsection{AUTOTUNE through Mission Planner}
+There is no Autotune button for Plane --- it is a flight mode:
+\begin{enumerate}[leftmargin=1.6em]
+  \item Flight Data $\rightarrow$ Actions tab (or flight-mode dropdown)
+  $\rightarrow$ set mode \textbf{AUTOTUNE}, or assign a switch via CONFIG
+  $\rightarrow$ Flight Modes. Set \pp{AUTOTUNE\_LEVEL} and \pp{AUTOTUNE\_AXES}
+  first.
+  \item Fly the doublets (Part 2.3). Watch the Messages tab / HUD for autotune
+  progress and ``saved'' notifications.
+  \item Land, disarm $\rightarrow$ gains auto-save. Immediately Full Parameter List
+  $\rightarrow$ Save to File to snapshot.
+  \item A/B old vs new in the air: assign \pp{RCx\_OPTION}=180 and flip the switch.
+\end{enumerate}
+
+\subsection{The real-time Tuning graph (your manual-tuning feedback loop)}
+\begin{enumerate}[leftmargin=1.6em]
+  \item Flight Data screen $\rightarrow$ bottom edge of the map, tick
+  \textbf{Tuning} $\rightarrow$ a black scrolling graph opens above the map.
+  \item Double-click in that black window $\rightarrow$ a checklist of fields
+  $\rightarrow$ tick what to plot.
+  \item Classic plots from the manual-tuning docs:
+  \begin{itemize}[leftmargin=1.2em]
+    \item \pp{roll} vs \pp{nav\_roll} --- demanded vs achieved bank; spot overshoot
+    while raising \pp{RLL\_RATE\_P/D}.
+    \item \pp{pitch} vs \pp{nav\_pitch} --- pitch loop health (and TECS pitch
+    demand).
+    \item \pp{roll\_speed} / \pp{pitch\_speed} (rad/s) --- verify \pp{RMAX} limits.
+    \item lateral accel --- tune \pp{YAW2SRV\_SLIP}/\pp{DAMP} (want approx 0).
+  \end{itemize}
+  \item Status tab: double-click any telemetry value to add it to the graph.
+\end{enumerate}
+
+\subsection{In-flight ``tuning knob'' (live gain tuning)}
+ArduPlane can adjust a chosen gain live with a spare transmitter knob, so you dial
+P/D in flight and watch the Tuning graph respond.
+\begin{itemize}[leftmargin=1.4em]
+  \item The mechanism is the \pp{TUNE} parameter family: \pp{TUNE} selects
+  \emph{what} the knob adjusts, a tuning channel carries the knob, and min/max set
+  the range. The knob updates approx $3\times$/s.
+  \item In MP: Full Parameter List $\rightarrow$ search \pp{TUNE} $\rightarrow$ set
+  the selector, channel, and min/max. (Confirm exact names in your firmware via
+  that search; they vary slightly by version.)
+  \item Workflow: pick the gain, set a min/max bracketing the current value, fly,
+  twist until it just oscillates, back off, land, read the value, Write it.
+  \item Note: the ``Extended Tuning'' screen with the CH6 \pp{TUNE} dropdown is the
+  \emph{Copter} screen. For Plane you use the Full Parameter List \pp{TUNE} params.
+\end{itemize}
+
+\subsection{Dataflash log review (the real evidence)}
+\begin{itemize}[leftmargin=1.4em]
+  \item Flight Data $\rightarrow$ DataFlash Logs $\rightarrow$ ``Download DataFlash
+  Log Via Mavlink'' (or pull the \pp{.bin} from the SITL log dir) $\rightarrow$
+  opens the log graph. The web UAV LogViewer does the same and can re-fly in 3D.
+  \item Graph \pp{RATE}/\pp{PIDR}/\pp{PIDP}/\pp{PIDY}, \pp{ATT}, \pp{CTUN},
+  \pp{NTUN}, \pp{ATRP} (same messages as Part 7).
+  \item Gain-scheduling check: fly steady at 20/30/40 m/s, overlay \pp{RATE}
+  target-vs-achieved at each speed. Clean at all three = scheduling holds and the
+  FDM's moments scale with $\bar q$ physically.
+\end{itemize}
+
+\subsection{Connecting MP to your SITL}
+SITL exposes MAVLink on TCP \pp{127.0.0.1:5760} (and UDP 14550). Pick TCP in MP's
+connection dropdown $\rightarrow$ \pp{127.0.0.1:5760}. \textbf{WSL2 caveat:} if MP
+runs on Windows and SITL in WSL2, \pp{127.0.0.1} will not reach it --- use the
+WSL2 VM IP (\pp{ip addr} in WSL), or run SITL with
+\pp{--out=udp:<windows-ip>:14550} and have MP listen on UDP. If you drive SITL from
+MAVProxy you can \pp{output add} a port for MP and keep MAVProxy too.
+
+% =====================================================================
+\section{Part 10 --- Doing it WITHOUT Mission Planner (headless / MAVProxy)}
+% =====================================================================
+
+This is often the better fit for a SITL / custom-FDM loop because it scripts.
+
+\subsection{Launch SITL}
+\begin{lstlisting}
+# from the ardupilot root; builds + runs SITL with the console + map
+Tools/autotest/sim_vehicle.py -v ArduPlane --console --map
+
+# load your tuned parameters at startup
+Tools/autotest/sim_vehicle.py -v ArduPlane --add-param-file=Latest.parm
+\end{lstlisting}
+This drops you into the \textbf{MAVProxy} console (the \pp{STABILIZE>} prompt).
+
+\subsection{Read / set / save parameters (replaces the Full Parameter List)}
+\begin{lstlisting}
+param show RLL_RATE_*          # show a family (wildcards allowed)
+param set PTCH_RATE_D 0.018    # set one value (live, no separate "write" step)
+param fetch                    # re-read all from the vehicle
+param save mytune.parm         # save current params to a file
+param load mytune.parm         # load params from a file
+param diff other.parm          # compare current vs a file  (A/B two tunes)
+\end{lstlisting}
+
+\subsection{AUTOTUNE without Mission Planner}
+\begin{lstlisting}
+param set AUTOTUNE_LEVEL 6
+param set AUTOTUNE_AXES 7
+mode FBWA                      # take off / get airborne first
+mode AUTOTUNE                  # then switch in
+# fly doublets via your RC / joystick, or with rc overrides:
+rc 1 1800 ; rc 1 1200 ; rc 1 1500     # roll doublet (channel 1), repeat 20x+
+rc 2 1800 ; rc 2 1200 ; rc 2 1500     # pitch doublet (channel 2)
+mode FBWA                      # exit AUTOTUNE -> FF and I are saved
+param save tune_post.parm
+\end{lstlisting}
+Autotune progress / ``saved'' messages print straight into the MAVProxy console.
+
+\subsection{Real-time graphs (replaces the MP Tuning window)}
+\begin{lstlisting}
+module load graph
+graph ATT.Roll ATT.DesRoll              # achieved vs demanded roll
+graph ATT.Pitch ATT.DesPitch
+graph RATE.R RATE.RDes                  # rate loop: achieved vs target
+graph CTUN.Airspeed CTUN.ThrOut         # TECS / cruise
+\end{lstlisting}
+
+\subsection{Live ``knob'' tuning by script}
+Without a physical knob you simply step the gain from the console and watch the
+graph --- the scripted equivalent of the transmitter knob:
+\begin{lstlisting}
+param set RLL_RATE_D 0.030
+# observe graph; if it oscillates, back off:
+param set RLL_RATE_D 0.020
+\end{lstlisting}
+
+\subsection{Log review (replaces MP DataFlash review)}
+SITL writes \pp{.BIN} logs under \pp{logs/} (and \pp{ArduPlane/logs/}).
+\begin{lstlisting}
+MAVExplorer.py logs/00000001.BIN        # interactive graphing + FFT + map
+mavgraph.py    logs/00000001.BIN RATE.R RATE.RDes
+mavlogdump.py  logs/00000001.BIN --type CTUN     # dump a message type to text
+\end{lstlisting}
+In \pp{MAVExplorer} use \pp{graph RATE.P*}, \pp{graph CTUN.*}, \pp{graph NTUN.*},
+\pp{graph ATRP.*} --- the same messages as Part 7.
+
+\subsection{Scripted / automated tuning (ties into your Monte-Carlo tooling)}
+Because everything above is text, you can drive it from \textbf{pymavlink} to run
+gain sweeps automatically and score them against log metrics --- the natural
+companion to \pp{LAT\_SIM\_MonteCarlo.cpp}. Sketch:
+\begin{lstlisting}
+from pymavlink import mavutil
+m = mavutil.mavlink_connection('udp:127.0.0.1:14550')
+m.wait_heartbeat()
+# set a candidate gain
+m.mav.param_set_send(m.target_system, m.target_component,
+                     b'PTCH_RATE_D', 0.018, mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
+# ... fly a scripted mission, pull the log, compute overshoot / RMS error,
+#     loop over candidate gains, keep the best.
+\end{lstlisting}
+
+\subsection{Quick equivalence table}
+\begin{longtable}{@{}p{6.6cm}p{8.0cm}@{}}
+\toprule
+\textbf{Mission Planner} & \textbf{Headless equivalent}\\
+\midrule
+\endhead
+Full Parameter List + Write & \pp{param set} / \pp{param show} (live)\\
+Save to File / Load from File & \pp{param save} / \pp{param load}\\
+Compare Params & \pp{param diff}\\
+AUTOTUNE via Actions tab & \pp{mode AUTOTUNE} + \pp{rc} doublets\\
+Real-time Tuning graph & MAVProxy \pp{graph} module\\
+Transmitter \pp{TUNE} knob & scripted \pp{param set} steps\\
+DataFlash log review & \pp{MAVExplorer.py} / \pp{mavgraph.py}\\
+\bottomrule
+\end{longtable}
+
+% =====================================================================
+\section{Sources (official ArduPilot documentation)}
+% =====================================================================
+\begin{itemize}[leftmargin=1.4em]
+  \item \url{https://ardupilot.org/plane/docs/common-tuning.html}
+  \item \url{https://ardupilot.org/plane/docs/tuning-quickstart.html}
+  \item \url{https://ardupilot.org/plane/docs/automatic-tuning-with-autotune.html}
+  \item \url{https://ardupilot.org/plane/docs/new-roll-and-pitch-tuning.html}
+  \item \url{https://ardupilot.org/plane/docs/roll-pitch-controller-tuning.html}
+  \item \url{https://ardupilot.org/plane/docs/navigation-tuning.html}
+  \item \url{https://ardupilot.org/plane/docs/tuning-cruise.html}
+  \item \url{https://ardupilot.org/plane/docs/tecs-total-energy-control-system-for-speed-height-tuning-guide.html}
+  \item \url{https://ardupilot.org/plane/docs/calibrating-an-airspeed-sensor.html}
+  \item \url{https://ardupilot.org/plane/docs/tuning-ground-steering-for-a-plane.html}
+  \item \url{https://ardupilot.org/plane/docs/airspeed-parameters-setup.html}
+  \item \url{https://ardupilot.org/planner/docs/mission-planner-configuration-and-tuning.html}
+  \item \url{https://ardupilot.org/planner/docs/mission-planner-flight-data.html}
+  \item \url{https://ardupilot.org/planner/docs/common-uavlogviewer.html}
+\end{itemize}
+
+\end{document}
