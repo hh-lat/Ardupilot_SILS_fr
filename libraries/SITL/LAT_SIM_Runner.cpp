@@ -305,7 +305,7 @@ void v_plane_param_define()
 	// Apply Monte Carlo overrides (if override file exists).
 	// If no override file is present this is a silent no-op;
 	// nominal parameters above remain untouched.
-	// v_apply_monte_carlo_overrides();
+	v_apply_monte_carlo_overrides();
 }
 
 void v_plane_param_define_eqx_v1_new_model()
@@ -760,7 +760,7 @@ void v_plane_param_define_ustol_v1()
 
 	//v_set_servo_params(pwm_min, pwm_max, angle_pwm_min, angle_pwm_max, omega, zeta, min_rate, max_rate, min_accel, max_accel, type)
 	v_set_servo_params(1100,1900,-20*D2R, 20*D2R, 10.0, 0.7, -200*D2R, 200*D2R, -720*D2R, 720*D2R, AILERON_COMMON);
-	v_set_servo_params(1100,1900,-15*D2R, 15*D2R, 10.0, 0.7, -200*D2R, 200*D2R, -720*D2R, 720*D2R, ELEVATOR_COMMON);
+	v_set_servo_params(1100,1900,-10*D2R, 10*D2R, 10.0, 0.7, -200*D2R, 200*D2R, -720*D2R, 720*D2R, ELEVATOR_COMMON);
 	v_set_servo_params(1100,1900,-15*D2R, 15*D2R, 10.0, 0.7, -200*D2R, 200*D2R, -720*D2R, 720*D2R, RUDDER_COMMON);
 	v_set_servo_params(1100,1900, 20*D2R,-20*D2R, 10.0, 0.7, -200*D2R, 200*D2R, -720*D2R, 720*D2R, AILERON_LEFT);
 	v_set_servo_params(1100,1900,-20*D2R, 20*D2R, 10.0, 0.7, -200*D2R, 200*D2R, -720*D2R, 720*D2R, AILERON_RIGHT);
@@ -814,7 +814,7 @@ void v_plane_param_define_ustol_v1()
 		s_motor[i].rpm_max  = 12000.0;  // n_max [rpm]
 		s_motor[i].rpm_min  = 0.0;
 		s_motor[i].dia_prop = 0.120;    // Dia [m]
-		s_motor[i].max_thrust = 50.0;   // TODO per-EDF thrust clamp
+		s_motor[i].max_thrust = 0.5*9.81;   // TODO per-EDF thrust clamp
 		s_motor[i].min_thrust = 0.0;
 		s_motor[i].thrust_2_torque_factor = 0;
 		s_motor[i].CT_static = s_motor[i].max_thrust /
@@ -861,9 +861,7 @@ void v_plane_param_define_ustol_v1()
 	vehcle.fuse.CD_b2      = 0.453343;
 	vehcle.fuse.CD_a2_Cmyu = 0.010846;
 	vehcle.fuse.CD0        = 0.045249;
-	vehcle.fuse.CDp_cu     = 0.000252791;
-	vehcle.fuse.CDq_cu     = -0.0120005;
-	vehcle.fuse.CDr_cu     = -0.023006;
+	vehcle.fuse.CD_q	   = -0.373360;
 
 	// Controls
 	vehcle.controls.tau_f  = 0.297565;
@@ -882,7 +880,7 @@ void v_plane_param_define_ustol_v1()
 	vehcle.controls.CD_de  = 0.010177;
 	vehcle.controls.CD_dr2 = 0.142042;
 
-	vehcle.controls.del_e_max = 15;   vehcle.controls.del_e_min = -15;
+	vehcle.controls.del_e_max = 10;   vehcle.controls.del_e_min = -10;
 	vehcle.controls.del_a_max = 20;   vehcle.controls.del_a_min = -20;
 	vehcle.controls.del_r_max = 15;   vehcle.controls.del_r_min = -15;
 	vehcle.controls.del_thr_max = 0.9; vehcle.controls.del_thr_min = 0.05;
@@ -922,12 +920,8 @@ void v_plane_param_define_ustol_v1()
 	vehcle.lateral.kv        = -1.370707;
 	vehcle.lateral.kps_r     = 0.606335;
 	vehcle.lateral.M         = 59.998281;
-	vehcle.lateral.CYp     = -0.13707;
-	vehcle.lateral.CYr     = 0.35017;
-	vehcle.lateral.CYp_cu  = -0.057771;
-	vehcle.lateral.CYr_cu  = 0.042414;
-	vehcle.lateral.CYp2_cu = 0.40687;
-	vehcle.lateral.CYr2_cu = -1.3478;
+	vehcle.lateral.CYp     = 0.156542;
+	vehcle.lateral.CYr     = 0.364915;
 
 	// Rolling moment
 	vehcle.roll.theta0     = -0.000102;
@@ -938,10 +932,11 @@ void v_plane_param_define_ustol_v1()
 	vehcle.roll.theta_b    = -0.000381;
 	vehcle.roll.theta_b_cu = 0.000069;
 	vehcle.roll.theta_r    = 0.000497;
-	vehcle.roll.Clp    = -0.54644;
-	vehcle.roll.Clr    = -0.57722;
-	vehcle.roll.Clp_cu = 0.061697;
-	vehcle.roll.Clr_cu = 0.025503;
+	vehcle.roll.Clp    = -0.642739;
+	vehcle.roll.Clr    =  0.398063;
+
+	// Pitching momet
+	vehcle.pitch.Cmq = -29.186868;
 
 	// Yawing moment 
 	vehcle.yaw.theta0     = 0.000281;
@@ -952,10 +947,8 @@ void v_plane_param_define_ustol_v1()
 	vehcle.yaw.theta_bcu  = -0.000090;
 	vehcle.yaw.theta_aLcu = -0.000029;
 	vehcle.yaw.theta_aRcu = 0.000027;
-	vehcle.yaw.Cnp        = 0.0437962;
-	vehcle.yaw.Cnp_cu     = -0.00190315;
-	vehcle.yaw.Cnr        = -0.244335;
-	vehcle.yaw.Cnr_cu     = 0.0239989;
+	vehcle.yaw.Cnp        = -0.139344;
+	vehcle.yaw.Cnr        = -0.162811;
 	vehcle.yaw.beta0      = 11.999974;
 	vehcle.yaw.kr         = 0.0;
 	vehcle.yaw.kaf        = 0.0;

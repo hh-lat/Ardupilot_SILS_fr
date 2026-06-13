@@ -329,9 +329,7 @@ typedef struct
 		float CD_b2;        // beta^2 coeff  [rad^-2]
 		float CD_a2_Cmyu;   // alpha^2*Cmyu cross term [rad^-2]
 		float CD0;          // zero-lift parasite drag [-]
-		float CDp_cu;       // d(CD)/d(p*Cmyu) [per rate]
-		float CDq_cu;       // d(CD)/d(q*Cmyu) [per rate]
-		float CDr_cu;       // d(CD)/d(r*Cmyu) [per rate]
+		float CDq;     // d(CD)/d(r*Cmyu) [per rate]
 	} fuse;
 
 	// Control-surface effectiveness, control drag, and deflection limits
@@ -365,6 +363,10 @@ typedef struct
 		float k;            // blend sharpness [1/rad]
 	} stall;
 
+	struct {
+		float Cmq;
+	} pitch;
+
 	// Post-stall LIFT blend (wing + rest -> flat-plate surrogates; Beard)
 	struct {
 		float wM0, wM1;          // wing blend sharpness: M = wM0 + wM1*Cmu [1/rad]
@@ -379,20 +381,20 @@ typedef struct
 	struct {
 		float theta0, theta_b, theta_aL, theta_aR, theta_r, theta_bcu;
 		float beta0, kr, kaf, kcu, kalpha, kv, kps_r, M;
-		float CYp, CYr, CYp_cu, CYr_cu, CYp2_cu, CYr2_cu;
+		float CYp, CYr;
 	} lateral;
 
 	// Rolling moment (Cml; fit in degrees)
 	struct {
 		float theta0, theta_aL, theta_aR, theta_aLcu, theta_aRcu;
 		float theta_b, theta_b_cu, theta_r;
-		float Clp, Clr, Clp_cu, Clr_cu;
+		float Clp, Clr;
 	} roll;
 
 	// Yawing moment (Cn; fit in degrees)
 	struct {
 		float theta0, theta_b, theta_aL, theta_aR, theta_r, theta_bcu;
-		float theta_aLcu, theta_aRcu, Cnp, Cnp_cu, Cnr, Cnr_cu;
+		float theta_aLcu, theta_aRcu, Cnp, Cnr;
 		float beta0, kr, kaf, kcu, kalpha, kv, kps_r, M;
 	} yaw;
 

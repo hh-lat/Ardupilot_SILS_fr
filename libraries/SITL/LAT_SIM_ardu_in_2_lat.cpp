@@ -4,7 +4,7 @@
 #include "LAT_SIM_rotor_dynamics.h"
 #include "LAT_SIM_Runner.h"
 
-#define flap_pwm_hardcoded 1500
+#define flap_pwm_hardcoded 1600   // 20 deg flap: FLAP range 0-32 deg over PWM 1100-1900, so 1100+(20/32)*800 = 1600
 
 // Sign convention Ardupilot follows in non revered ticked state:
 // Elevator: 1900 means elevator down in both manual and stabalise mode
@@ -116,7 +116,7 @@ void  v_ardu_input_to_lat_input(struct sitl_input input)
             s_servo[AILERON_RIGHT].pwm_in   = input.servos[9];
             s_servo[ELEVATOR_COMMON].pwm_in = input.servos[10];
             s_servo[RUDDER_COMMON].pwm_in   = input.servos[11];
-            s_servo[FLAP].pwm_in            = input.servos[12];   // rotation flap -> delta_f
+            s_servo[FLAP].pwm_in            = flap_pwm_hardcoded;  // HARD-CODED 20 deg flap, all phases (ignores ArduPlane flap output)
             s_servo[NOSE_LG_SERVO].pwm_in   = 1500;               // not modelled; neutral
 
             // 18 EDFs on 9 throttle channels (2 EDFs per channel)

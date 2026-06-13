@@ -209,7 +209,7 @@ void v_calculate_lift_force()
 			float nu_alpha  = (vehcle.wing.lambda_b + (1.0f - vehcle.wing.lambda_b)*2.0f*pi/cla) * vehcle.wing.k_fit;
 			float nu_tau    = vehcle.wing.lambda_b;
 			float nu_delf   = vehcle.wing.S_f / vehcle.s * vehcle.controls.Kb_f * vehcle.wing.k_fit;
-			float nu_dela   = vehcle.wing.S_a / vehcle.s * vehcle.controls.Kb_a * vehcle.wing.k_fit;
+			[[maybe_unused]] float nu_dela = vehcle.wing.S_a / vehcle.s * vehcle.controls.Kb_a * vehcle.wing.k_fit;
 
 			float tau = (flap_config * 7.0f/9.0f + 18 *2.0f/9.0f) * D2R;
 
@@ -397,9 +397,7 @@ void v_calculate_drag_force()
 			              + vehcle.tail.k_ht*CL_t*CL_t / (pi*vehcle.tail.AR_ht);
 
 			// rate (blowing cross) terms — rates in rad/s
-			float CD_rate = vehcle.fuse.CDp_cu*Cmu*vehcle.p
-			              + vehcle.fuse.CDq_cu*Cmu*vehcle.q
-			              + vehcle.fuse.CDr_cu*Cmu*vehcle.r;
+			float CD_rate = vehcle.fuse.CDq*vehcle.q*vehcle.c/(2.0f*vehcle.tas);
 
 			vehcle.CD = (1.0f - W)*CD_baseline + W*CD_flat + CD_rest + CD_rate;
 			vehcle.all_drag_force = vehcle.Q*vehcle.s*vehcle.CD;
@@ -557,9 +555,7 @@ void v_calculate_side_force()
 			float V = vehcle.tas;
 			float p_hat = vehcle.p*vehcle.b/(2.0f*V);
 			float r_hat = vehcle.r*vehcle.b/(2.0f*V);
-			float CY_rate = vehcle.lateral.CYp*p_hat + vehcle.lateral.CYr*r_hat
-			              + vehcle.lateral.CYp_cu*(p_hat*Cmu) + vehcle.lateral.CYr_cu*(r_hat*Cmu)
-			              + vehcle.lateral.CYp2_cu*(p_hat*p_hat*Cmu) + vehcle.lateral.CYr2_cu*(r_hat*r_hat*Cmu);
+			float CY_rate = vehcle.lateral.CYp*p_hat + vehcle.lateral.CYr*r_hat;
 
 			vehcle.CY = CY_base*(1.0f - W) + W*(vehcle.lateral.kv*CY_flat) + CY_other + CY_rate;
 			vehcle.all_side_force = vehcle.Q*vehcle.s*vehcle.CY;
@@ -647,8 +643,7 @@ void v_calculate_aero_roll_moment()
 			float V = vehcle.tas;
 			float p_hat = vehcle.p*vehcle.b/(2.0f*V);
 			float r_hat = vehcle.r*vehcle.b/(2.0f*V);
-			float Cml_rate = vehcle.roll.Clp*p_hat + vehcle.roll.Clr*r_hat
-			               + vehcle.roll.Clp_cu*(p_hat*Cmu) + vehcle.roll.Clr_cu*(r_hat*Cmu);
+			float Cml_rate = vehcle.roll.Clp*p_hat + vehcle.roll.Clr*r_hat;
 
 			vehcle.Cl = A_L + A_R + R_att + Cml_rate;
 			vehcle.all_aero_moment[0] = vehcle.Q*vehcle.s*vehcle.b*vehcle.Cl;
@@ -821,7 +816,7 @@ void v_calculate_aero_pitch_moment()
 			                + Wr*vehcle.cl_stall.rkflat*(2.0f*sign_1(alpha)*sinf(alpha)*sinf(alpha)*cosf(alpha));
 
 			// pitch-rate damping (uses raw Cmu*; q non-dimensionalized q_hat = q*c/2V)
-			float Cmq = (-329.962f + 101.129f*sqrtf(Cmu_star))*0.1;
+			float Cmq = vehcle.pitch.Cmq;
 
 			vehcle.Cm = Cm0_ac_wing
 			          + CL_w_post*(vehcle.cg.x_cg_c - x_ac_w)
@@ -975,8 +970,8 @@ void v_calculate_aero_yaw_moment()
 
 			float Cn_flat = 2.0f*sign_1(beta_eff)*sinf(beta_eff)*sinf(beta_eff)*cosf(beta_eff);
 
-			float Cn_rate = (vehcle.yaw.Cnp + vehcle.yaw.Cnp_cu*Cmu)*vehcle.p
-			              + (vehcle.yaw.Cnr + vehcle.yaw.Cnr_cu*Cmu)*vehcle.r;
+			float Cn_rate = vehcle.yaw.Cnp*vehcle.p*vehcle.b/(2.0f*vehcle.tas) +
+							vehcle.yaw.Cnr*vehcle.r*vehcle.b/(2.0f*vehcle.tas);
 
 			vehcle.Cn = Cn_base*(1.0f - W) + W*(vehcle.yaw.kv*Cn_flat) + Cn_other + Cn_rate;
 			vehcle.all_aero_moment[2] = vehcle.Q*vehcle.s*vehcle.b*vehcle.Cn;

@@ -19,7 +19,7 @@
 #include <limits.h>
 
 static FILE* log_fp = nullptr;
-static const char LOG_DIR_DEFAULT[] = "/home/lag/SITL_Workspace/Ardupilot_SILS/Logs_Simulations/";
+static const char LOG_DIR_DEFAULT[] = "/home/sushanthvenkata/Projects/Ardupilot_SILS/ustol_sims/logs/";
 
 static const char* get_log_dir()
 {
@@ -33,10 +33,23 @@ static const char* get_log_dir()
 
 static void ensure_dir_exists(const char* dir)
 {
-    struct stat st;
-    if (stat(dir, &st) != 0) {
-        mkdir(dir, 0755);
+    // Recursively create the directory path (mkdir -p semantics), so a missing
+    // parent (e.g. ustol_sims/ on a fresh checkout) can't silently fail and
+    // leave the run without a log, as the old single-level mkdir did.
+    char tmp[512];
+    snprintf(tmp, sizeof(tmp), "%s", dir);
+    size_t len = strlen(tmp);
+    if (len > 0 && tmp[len - 1] == '/') {
+        tmp[len - 1] = '\0';
     }
+    for (char* p = tmp + 1; *p != '\0'; p++) {
+        if (*p == '/') {
+            *p = '\0';
+            mkdir(tmp, 0755);
+            *p = '/';
+        }
+    }
+    mkdir(tmp, 0755);
 }
 
 static void build_filename(char* buf, size_t len)
@@ -127,7 +140,11 @@ void v_output_log_init()
         "mot1_thr_cmd,"
         "total_rotor_force,"
         "Lift_Coeff,"
-        "Moment_Coeff"
+        "Moment_Coeff,"
+        "Drag_Coeff,"
+        "Lift_N,"
+        "Drag_N,"
+        "Side_N"
         "\n");
 
     fflush(log_fp);
@@ -162,7 +179,8 @@ void v_output_log_write(float t)
         "%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,"
         "%.1f,"
         "%.5f,%.5f,"
-        "%.5f,%.5f,%.5f\n",
+        "%.5f,%.5f,%.5f,"
+        "%.5f,%.5f,%.5f,%.5f\n",
         t,
         (int)vehcle.plane_moving_state,
         vehcle.tas,
@@ -211,7 +229,11 @@ void v_output_log_write(float t)
         s_motor[1].throttle_cmd,
         vehcle.all_rotors_force[0],
         vehcle.CL,
-        vehcle.Cm
+        vehcle.Cm,
+        vehcle.CD,
+        vehcle.all_lift_force,
+        vehcle.all_drag_force,
+        vehcle.all_side_force
         );
 
     fflush(log_fp);

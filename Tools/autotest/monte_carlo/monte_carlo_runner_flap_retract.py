@@ -58,7 +58,7 @@ SCRIPT_DIR   = Path(__file__).resolve().parent            # monte_carlo/
 AUTOTEST_DIR = SCRIPT_DIR.parent                          # Tools/autotest/
 WORKSPACE    = AUTOTEST_DIR.parent.parent                 # repo root
 BINARY       = WORKSPACE / "build" / "sitl" / "bin" / "arduplane"
-DEFAULT_CFG  = SCRIPT_DIR / "monte_carlo_config.json"
+DEFAULT_CFG  = SCRIPT_DIR / "monte_carlo_config_ustol_v1.json"
 DEFAULTS_PARM = WORKSPACE / "Latest.parm"                    # user's tuned params
 FALLBACK_PARM = AUTOTEST_DIR / "models" / "plane.parm"
 
@@ -805,7 +805,7 @@ def main():
     parser = argparse.ArgumentParser(
         description="Monte Carlo Runner — FLAP RETRACTION VARIANT")
     parser.add_argument("--config", default=str(DEFAULT_CFG),
-                        help="Path to monte_carlo_config.json")
+                        help="Path to monte_carlo_config_ustol_v1.json")
     parser.add_argument("--runs", type=int, default=None,
                         help="Override number of runs")
     parser.add_argument("--workers", type=int, default=None,

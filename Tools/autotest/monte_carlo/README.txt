@@ -9,7 +9,9 @@ QUICK START
        ./waf plane
 
 2. Edit configuration:
-       Tools/autotest/monte_carlo/monte_carlo_config.json
+       Tools/autotest/monte_carlo/monte_carlo_config_ustol_v1.json
+       (the runners default to this uSTOL_v1 config; the original
+        monte_carlo_config.json is kept as the Equinox-model reference)
        - Set "num_runs" (e.g. 100)
        - Set 3-sigma values for each parameter
        - Adjust mission profile (takeoff alt, circle radius, etc.)
@@ -47,7 +49,7 @@ HOW IT WORKS
 
 ADDING NEW PARAMETERS
 ---------------------
-1. In monte_carlo_config.json: add entry with nominal + sigma_3
+1. In monte_carlo_config_ustol_v1.json: add entry with nominal + sigma_3
 2. In LAT_SIM_MonteCarlo.cpp: add an  else if  line in apply_override()
 3. Rebuild:  ./waf plane
    (Only needed once, not per Monte Carlo case)
@@ -58,7 +60,8 @@ FILES CREATED (no main files disturbed)
 libraries/SITL/LAT_SIM_MonteCarlo.h       ← C++ header
 libraries/SITL/LAT_SIM_MonteCarlo.cpp     ← Override file reader
 Tools/autotest/monte_carlo/
-    monte_carlo_config.json               ← User config
+    monte_carlo_config_ustol_v1.json      ← User config (uSTOL_v1, active)
+    monte_carlo_config.json               ← Equinox-model reference (unused)
     monte_carlo_runner.py                 ← Main orchestrator
     README.txt                            ← This file
 

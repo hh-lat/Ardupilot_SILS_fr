@@ -51,8 +51,8 @@ SCRIPT_DIR   = Path(__file__).resolve().parent            # monte_carlo/
 AUTOTEST_DIR = SCRIPT_DIR.parent                          # Tools/autotest/
 WORKSPACE    = AUTOTEST_DIR.parent.parent                 # repo root
 BINARY       = WORKSPACE / "build" / "sitl" / "bin" / "arduplane"
-DEFAULT_CFG  = SCRIPT_DIR / "monte_carlo_config_ustol_v1.json"
-DEFAULTS_PARM = WORKSPACE / "ustol_sims" / "params_ustol.parm"   # uSTOL_v1 tuned params (Latest.parm is Equinox)
+DEFAULT_CFG  = SCRIPT_DIR / "monte_carlo_config.json"
+DEFAULTS_PARM = WORKSPACE / "Latest.parm"                    # user's tuned params
 FALLBACK_PARM = AUTOTEST_DIR / "models" / "plane.parm"
 
 
@@ -402,54 +402,9 @@ def _run_case(case_id: int, instance_id: int, config: dict,
         set_param(conn, 'TKOFF_THR_MAX', 100)
         set_param(conn, 'TKOFF_THR_DELAY', 0)
         set_param(conn, 'THR_MAX', 100)
-        _log(case_id, "TKOFF throttle params set (TKOFF_THR_MAX=100)")
-
-        # ---- Per-case mission profile + airframe params (auto_flight2 style) ----
-        RC_NEUTRAL     = 1500
-        climbout_alt   = mission_cfg.get("climbout_alt_m", 80)
-        cruise_alt     = mission_cfg.get("cruise_alt_m", 150)
-        cruise_airspd  = mission_cfg.get("cruise_airspeed_mps", 12)
-        rotate_speed   = mission_cfg.get("rotate_speed_mps", 9)
-        cruise_time    = mission_cfg.get("cruise_time_s", 30)
-        fbwa_time      = mission_cfg.get("fbwa_time_s", 20)
-        fbwa_throttle  = mission_cfg.get("fbwa_throttle_pct", 60)
-        thr_min        = mission_cfg.get("thr_min_pct", 0)
-        thr_max        = mission_cfg.get("thr_max_pct", 90)
-        fbwb_time      = mission_cfg.get("fbwb_time_s", 20)
-        loiter_time    = mission_cfg.get("loiter_time_s", 30)
-        loiter_radius  = mission_cfg.get("loiter_radius_m", 120)
-        land_method    = str(mission_cfg.get("land_method", "AUTO")).upper()
-        approach_dist  = mission_cfg.get("approach_dist_m", 600)
-        approach_alt   = mission_cfg.get("approach_alt_m", 60)
-        flare_alt      = mission_cfg.get("flare_alt_m", 3)
-        flare_sec      = mission_cfg.get("flare_sec_s", 2)
-        land_sink      = mission_cfg.get("land_sink_mps", 0.30)
-        flap_pct       = mission_cfg.get("flap_pct", 50)
-        land_airspd    = round(0.85 * cruise_airspd, 1)
-
-        set_param(conn, 'TKOFF_ALT', climbout_alt)
-        set_param(conn, 'TKOFF_ROTATE_SPD', rotate_speed)
-        set_param(conn, 'AIRSPEED_CRUISE', cruise_airspd)
-        set_param(conn, 'WP_LOITER_RAD', loiter_radius)
-        set_param(conn, 'THR_MIN', thr_min)
-        set_param(conn, 'THR_MAX', thr_max)
-        set_param(conn, 'LAND_FLARE_ALT', flare_alt)
-        set_param(conn, 'LAND_FLARE_SEC', flare_sec)
-        set_param(conn, 'TECS_LAND_ARSPD', land_airspd)
-        set_param(conn, 'TECS_LAND_SINK', land_sink)
-        # uSTOL FDM servo sign reversals (mandatory — else takeoff rolls/spirals)
-        set_param(conn, 'SERVO10_REVERSED', 1)
-        set_param(conn, 'SERVO11_REVERSED', 1)
-        set_param(conn, 'SERVO12_REVERSED', 1)
-        # Flaps deployed at takeoff AND held throughout the flight:
-        #   TKOFF_FLAP_PCNT -> takeoff phase, LAND_FLAP_PCNT -> landing phase,
-        #   auto-flap (FLAP_1, SERVO13=flap_auto) for every cruise/FBW/loiter phase
-        #   with a high speed gate so airspeed is always < FLAP_1_SPEED -> flaps stay out.
-        set_param(conn, 'TKOFF_FLAP_PCNT', flap_pct)
-        set_param(conn, 'LAND_FLAP_PCNT', flap_pct)
-        set_param(conn, 'FLAP_1_SPEED', 100)
-        set_param(conn, 'FLAP_1_PERCNT', flap_pct)
-        _log(case_id, f"uSTOL params + servo reversals set; flaps held at {flap_pct}% throughout")
+        # Set 20 deg flap at takeoff (50% of 0-40 deg range)
+        set_param(conn, 'TKOFF_FLAP_PCNT', 50)
+        _log(case_id, "THR/FLAP params set (TKOFF_THR_MAX=100, TKOFF_FLAP_PCNT=50)")
 
         # Wait for EKF / GPS to be ready
         _wait_ekf_ready(conn, timeout=90)
@@ -458,20 +413,36 @@ def _run_case(case_id: int, instance_id: int, config: dict,
         # Give SITL a moment to stabilise after EKF lock
         time.sleep(3.0)
 
-        # ---- Arm in FBWA (reliable headless), then fly the 7-phase profile ----
-        #  PHASE 1 uses TAKEOFF mode directly, so no takeoff mission is uploaded
-        #  here; the landing mission is built in PHASE 7.
+        # ---- Upload mission ----
+        wp = build_mission(
+            mission_cfg["home_lat"], mission_cfg["home_lon"],
+            mission_cfg["home_alt_m"],
+            mission_cfg["takeoff_alt_m"])
+        upload_mission(conn, wp)
+        _log(case_id, "mission uploaded")
+
+        # ---- Arm in FBWA first, then switch to AUTO ----
+        #  ArduPlane often refuses to arm directly in AUTO;
+        #  arming in FBWA then switching to AUTO is the reliable
+        #  headless sequence.
         if not set_mode(conn, "FBWA"):
             _log(case_id, "FBWA mode failed, trying MANUAL")
             if not set_mode(conn, "MANUAL"):
                 result["exit_reason"] = "mode_set_failed"
                 return result
+        _log(case_id, f"mode set")
         time.sleep(1.0)
 
         if not arm_vehicle(conn):
             result["exit_reason"] = "arm_failed"
             return result
-        _log(case_id, "armed (FBWA)")
+        _log(case_id, "armed")
+
+        # Now switch to AUTO to start the mission
+        if not set_mode(conn, "AUTO"):
+            result["exit_reason"] = "auto_mode_failed"
+            return result
+        _log(case_id, "AUTO mode set — mission running")
 
         # ---- Open servo-commands CSV for this case ----
         servo_csv_path = os.path.join(case_dir, f"case_{case_id:04d}_servo_cmds.csv")
@@ -522,232 +493,166 @@ def _run_case(case_id: int, instance_id: int, config: dict,
             "aspd_error": 0.0, "xtrack_error": 0.0,
         }
 
-        # ============================================================
-        #  Logging pump + 7-phase mission (auto_flight2 profile)
-        # ============================================================
-        result["max_alt_m"] = 0.0
-        st["armed"] = True
+        # ---- Monitor ----
+        timeout_s    = mission_cfg.get("mission_timeout_s", 600)
+        thr_alt      = mission_cfg.get("takeoff_detect_alt_m", 2)
+        loiter_alt   = mission_cfg.get("takeoff_alt_m", 100)
+        guided_dist  = mission_cfg.get("guided_offset_m", 500)
+        loiter_sw_alt = mission_cfg.get("loiter_switch_alt_m", 80)
+        max_alt      = 0.0
+        takeoff      = False
+        guided_phase = False
+        loiter_phase = False
 
-        # SITL may run faster than real time (SIM_SPEEDUP). The phase durations
-        # and poll intervals below are expressed in SIM-seconds and converted to
-        # wall-clock by dividing by `speedup`, so the mission profile is correct
-        # and the landing monitor keeps pace at any speedup.
-        speedup = 1.0
-        conn.mav.param_request_read_send(
-            conn.target_system, conn.target_component, b"SIM_SPEEDUP", -1)
-        _t0 = time.time()
-        while time.time() - _t0 < 5:
-            _pm = conn.recv_match(type="PARAM_VALUE", blocking=True, timeout=1)
-            if _pm and _pm.param_id.replace("\x00", "") == "SIM_SPEEDUP":
-                speedup = max(0.1, float(_pm.param_value))
+        while (time.time() - t_start) < timeout_s:
+            # check if SITL process crashed
+            if sitl_proc.poll() is not None:
+                result["exit_reason"] = f"sitl_crashed (rc={sitl_proc.returncode})"
                 break
-        _log(case_id, f"SIM_SPEEDUP = {speedup:g}  (phase timing scaled to wall-clock)")
-        LOG_TYPES = ["GLOBAL_POSITION_INT", "HEARTBEAT", "SERVO_OUTPUT_RAW",
-                     "ATTITUDE", "LOCAL_POSITION_NED", "VFR_HUD",
-                     "SCALED_IMU", "NAV_CONTROLLER_OUTPUT"]
 
-        def _ingest(msg):
-            """Update the running state dict and flush CSV rows for one message."""
+            msg = conn.recv_match(
+                type=["GLOBAL_POSITION_INT", "HEARTBEAT",
+                      "SERVO_OUTPUT_RAW", "ATTITUDE",
+                      "LOCAL_POSITION_NED", "VFR_HUD",
+                      "SCALED_IMU", "NAV_CONTROLLER_OUTPUT"],
+                blocking=True, timeout=2)
+            if msg is None:
+                continue
+
             mtype = msg.get_type()
+
             if mtype == "SERVO_OUTPUT_RAW":
                 servo_writer.writerow([
                     f"{time.time() - t_start:.3f}",
-                    msg.servo1_raw, msg.servo2_raw, msg.servo3_raw, msg.servo4_raw,
-                    msg.servo5_raw, msg.servo6_raw, msg.servo7_raw, msg.servo8_raw,
-                    msg.servo9_raw, msg.servo10_raw, msg.servo11_raw, msg.servo12_raw,
-                    msg.servo13_raw, msg.servo14_raw, msg.servo15_raw, msg.servo16_raw,
+                    msg.servo1_raw, msg.servo2_raw,
+                    msg.servo3_raw, msg.servo4_raw,
+                    msg.servo5_raw, msg.servo6_raw,
+                    msg.servo7_raw, msg.servo8_raw,
+                    msg.servo9_raw, msg.servo10_raw,
+                    msg.servo11_raw, msg.servo12_raw,
+                    msg.servo13_raw, msg.servo14_raw,
+                    msg.servo15_raw, msg.servo16_raw,
                 ])
-            elif mtype == "ATTITUDE":
-                st["roll"], st["pitch"], st["yaw"] = msg.roll, msg.pitch, msg.yaw
-                st["p"], st["q"], st["r"] = msg.rollspeed, msg.pitchspeed, msg.yawspeed
+                continue
+
+            # ---- Update running state dict & write row on ATTITUDE ----
+            if mtype == "ATTITUDE":
+                st["roll"]  = msg.roll
+                st["pitch"] = msg.pitch
+                st["yaw"]   = msg.yaw
+                st["p"]     = msg.rollspeed
+                st["q"]     = msg.pitchspeed
+                st["r"]     = msg.yawspeed
                 # ATTITUDE is the trigger — flush a full state row
                 state_writer.writerow([
-                    f"{time.time() - t_start:.3f}", st["mode"],
+                    f"{time.time() - t_start:.3f}",
+                    st["mode"],
                     st["lat"], st["lon"], st["alt"], st["alt_rel"],
                     st["vx"], st["vy"], st["vz"],
                     f"{st['roll']:.5f}", f"{st['pitch']:.5f}", f"{st['yaw']:.5f}",
                     f"{st['p']:.5f}", f"{st['q']:.5f}", f"{st['r']:.5f}",
                     f"{st['lx']:.3f}", f"{st['ly']:.3f}", f"{st['lz']:.3f}",
                     f"{st['lvx']:.3f}", f"{st['lvy']:.3f}", f"{st['lvz']:.3f}",
-                    f"{st['airspeed']:.2f}", f"{st['groundspeed']:.2f}", st["heading"],
+                    f"{st['airspeed']:.2f}", f"{st['groundspeed']:.2f}",
+                    st["heading"],
                     st["throttle"], f"{st['climb']:.2f}",
                     st["xacc"], st["yacc"], st["zacc"],
                     st["xgyro"], st["ygyro"], st["zgyro"],
-                    f"{st['nav_roll']:.2f}", f"{st['nav_pitch']:.2f}", f"{st['alt_error']:.2f}",
+                    f"{st['nav_roll']:.2f}", f"{st['nav_pitch']:.2f}",
+                    f"{st['alt_error']:.2f}",
                     f"{st['aspd_error']:.2f}", f"{st['xtrack_error']:.2f}",
                 ])
-            elif mtype == "LOCAL_POSITION_NED":
-                st["lx"], st["ly"], st["lz"] = msg.x, msg.y, msg.z
-                st["lvx"], st["lvy"], st["lvz"] = msg.vx, msg.vy, msg.vz
-            elif mtype == "VFR_HUD":
-                st["airspeed"], st["groundspeed"] = msg.airspeed, msg.groundspeed
-                st["heading"], st["throttle"], st["climb"] = msg.heading, msg.throttle, msg.climb
-            elif mtype == "SCALED_IMU":
-                st["xacc"], st["yacc"], st["zacc"] = msg.xacc, msg.yacc, msg.zacc
-                st["xgyro"], st["ygyro"], st["zgyro"] = msg.xgyro, msg.ygyro, msg.zgyro
-            elif mtype == "NAV_CONTROLLER_OUTPUT":
-                st["nav_roll"], st["nav_pitch"] = msg.nav_roll, msg.nav_pitch
-                st["alt_error"] = msg.alt_error
-                st["aspd_error"], st["xtrack_error"] = msg.aspd_error, msg.xtrack_error
-            elif mtype == "GLOBAL_POSITION_INT":
-                st["lat"], st["lon"] = msg.lat, msg.lon
-                st["alt"], st["alt_rel"] = msg.alt, msg.relative_alt
-                st["vx"], st["vy"], st["vz"] = msg.vx, msg.vy, msg.vz
+                continue
+
+            if mtype == "LOCAL_POSITION_NED":
+                st["lx"]  = msg.x
+                st["ly"]  = msg.y
+                st["lz"]  = msg.z
+                st["lvx"] = msg.vx
+                st["lvy"] = msg.vy
+                st["lvz"] = msg.vz
+                continue
+
+            if mtype == "VFR_HUD":
+                st["airspeed"]    = msg.airspeed
+                st["groundspeed"] = msg.groundspeed
+                st["heading"]     = msg.heading
+                st["throttle"]    = msg.throttle
+                st["climb"]       = msg.climb
+                continue
+
+            if mtype == "SCALED_IMU":
+                st["xacc"]  = msg.xacc
+                st["yacc"]  = msg.yacc
+                st["zacc"]  = msg.zacc
+                st["xgyro"] = msg.xgyro
+                st["ygyro"] = msg.ygyro
+                st["zgyro"] = msg.zgyro
+                continue
+
+            if mtype == "NAV_CONTROLLER_OUTPUT":
+                st["nav_roll"]    = msg.nav_roll
+                st["nav_pitch"]   = msg.nav_pitch
+                st["alt_error"]   = msg.alt_error
+                st["aspd_error"]  = msg.aspd_error
+                st["xtrack_error"] = msg.xtrack_error
+                continue
+
+            if mtype == "GLOBAL_POSITION_INT":
+                st["lat"]     = msg.lat
+                st["lon"]     = msg.lon
+                st["alt"]     = msg.alt
+                st["alt_rel"] = msg.relative_alt
+                st["vx"]      = msg.vx
+                st["vy"]      = msg.vy
+                st["vz"]      = msg.vz
+
                 alt_agl = msg.relative_alt / 1000.0   # mm → m
-                if alt_agl > result["max_alt_m"]:
-                    result["max_alt_m"] = alt_agl
+                if alt_agl > max_alt:
+                    max_alt = alt_agl
+
+                # ---- Takeoff detection → GUIDED then LOITER ----
+                if alt_agl > thr_alt and not takeoff:
+                    takeoff = True
+                    guided_phase = True
+                    result["takeoff_success"] = True
+
+                    # Compute guided target: offset ahead along runway
+                    tgt_lat, tgt_lon = compute_offset_point(
+                        mission_cfg["home_lat"], mission_cfg["home_lon"],
+                        rwy_hdg, guided_dist)
+
+                    _log(case_id, f"takeoff detected @ {alt_agl:.1f} m AGL "
+                                  f"→ GUIDED to ({tgt_lat:.6f}, {tgt_lon:.6f}) "
+                                  f"@ {loiter_alt}m")
+
+                    set_mode(conn, "GUIDED")
+                    time.sleep(0.3)
+                    send_guided_target(conn, tgt_lat, tgt_lon, loiter_alt)
+                    _log(case_id, "GUIDED mode — climbing to loiter point")
+
+                # ---- Switch to LOITER once near target altitude ----
+                if guided_phase and not loiter_phase and alt_agl > loiter_sw_alt:
+                    loiter_phase = True
+                    guided_phase = False
+                    set_mode(conn, "LOITER")
+                    _log(case_id, f"LOITER mode @ {alt_agl:.1f}m AGL — "
+                                  "using WP_LOITER_RAD from Latest.parm")
+
             elif mtype == "HEARTBEAT":
-                # Only trust the autopilot's own heartbeat. A connected GCS
-                # (e.g. Mission Planner via the forward) sends MAV_TYPE_GCS
-                # heartbeats with armed=0; ingesting those would falsely clear
-                # st["armed"] and trip a bogus disarm anomaly during landing.
-                if msg.get_srcSystem() != conn.target_system:
-                    return
-                if msg.type == mavutil.mavlink.MAV_TYPE_GCS:
-                    return
                 st["mode"] = msg.custom_mode
-                st["armed"] = bool(msg.base_mode & mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED)
-
-        def pump_log(sim_seconds, rc_hold=None):
-            """Drain telemetry for `sim_seconds` of SIM time (wall = sim/speedup),
-            logging as we go. Returns False if the SITL process died."""
-            end = time.time() + sim_seconds / speedup
-            while time.time() < end:
-                if sitl_proc.poll() is not None:
-                    return False
-                if rc_hold is not None:
-                    conn.mav.rc_channels_override_send(
-                        conn.target_system, conn.target_component,
-                        rc_hold[0], rc_hold[1], rc_hold[2], rc_hold[3], 0, 0, 0, 0)
-                m = conn.recv_match(type=LOG_TYPES, blocking=True, timeout=0.2)
-                if m is not None:
-                    _ingest(m)
-            return True
-
-        def cur_alt():
-            return st["alt_rel"] / 1000.0     # mm → m AGL
-
-        def wait_climb_to(target, tol=3.0, timeout=240):
-            end = time.time() + timeout / speedup
-            while time.time() < end:
-                if not pump_log(0.5):
-                    return False
-                if cur_alt() >= target - tol:
-                    return True
-            return False
-
-        def release_rc():
-            conn.mav.rc_channels_override_send(
-                conn.target_system, conn.target_component, 0, 0, 0, 0, 0, 0, 0, 0)
-
-        def alive():
-            return sitl_proc.poll() is None
-
-        def fly_phases():
-            """Run the auto_flight2 7-phase profile. Returns (phase_reached, result_str)."""
-            # PHASE 1 — TAKEOFF
-            _log(case_id, f"PHASE 1 TAKEOFF -> climb-out {climbout_alt:.0f} m")
-            set_mode(conn, "TAKEOFF")
-            wait_climb_to(climbout_alt, timeout=180)
-            if not alive():
-                return "takeoff", "sitl_crashed_takeoff"
-            if result["max_alt_m"] >= mission_cfg.get("takeoff_detect_alt_m", 15):
-                result["takeoff_success"] = True
-
-            # PHASE 2 — CLIMB (GUIDED to cruise altitude)
-            if cruise_alt > climbout_alt + 1:
-                _log(case_id, f"PHASE 2 CLIMB -> {cruise_alt:.0f} m (GUIDED)")
-                set_mode(conn, "GUIDED")
-                pump_log(0.5)
-                send_guided_target(conn, st["lat"] / 1e7, st["lon"] / 1e7, cruise_alt)
-                wait_climb_to(cruise_alt, timeout=240)
-                if not alive():
-                    return "climb", "sitl_crashed_climb"
-
-            # PHASE 3 — CRUISE
-            _log(case_id, f"PHASE 3 CRUISE {cruise_time:.0f}s")
-            set_mode(conn, "CRUISE")
-            if not pump_log(cruise_time):
-                return "cruise", "sitl_crashed_cruise"
-
-            # PHASE 4 — FBWA (wings level, held throttle)
-            _log(case_id, f"PHASE 4 FBWA {fbwa_time:.0f}s @ {fbwa_throttle}% thr")
-            thr_pwm = int(1000 + 10 * max(0, min(100, fbwa_throttle)))
-            set_mode(conn, "FBWA")
-            ok = pump_log(fbwa_time, rc_hold=(RC_NEUTRAL, RC_NEUTRAL, thr_pwm, RC_NEUTRAL))
-            release_rc()
-            if not ok:
-                return "fbwa", "sitl_crashed_fbwa"
-
-            # PHASE 5 — FBWB (altitude hold, auto throttle)
-            _log(case_id, f"PHASE 5 FBWB {fbwb_time:.0f}s")
-            set_mode(conn, "FBWB")
-            if not pump_log(fbwb_time):
-                return "fbwb", "sitl_crashed_fbwb"
-
-            # PHASE 6 — LOITER
-            _log(case_id, f"PHASE 6 LOITER {loiter_time:.0f}s (r={loiter_radius:.0f}m)")
-            set_mode(conn, "LOITER")
-            if not pump_log(loiter_time):
-                return "loiter", "sitl_crashed_loiter"
-
-            # PHASE 7 — LAND
-            _log(case_id, f"PHASE 7 LAND ({land_method})")
-            home_lat = mission_cfg["home_lat"]
-            home_lon = mission_cfg["home_lon"]
-            if land_method == "AUTO":
-                # Approach WP placed approach_dist behind home along the runway
-                # heading, so the final leg flies into the runway direction.
-                appr_lat, appr_lon = compute_offset_point(
-                    home_lat, home_lon, rwy_hdg + 180.0, approach_dist)
-                lwp = mavwp.MAVWPLoader()
-                lwp.add(mavutil.mavlink.MAVLink_mission_item_message(
-                    0, 0, 0, mavutil.mavlink.MAV_FRAME_GLOBAL,
-                    mavutil.mavlink.MAV_CMD_NAV_WAYPOINT, 0, 1, 0, 0, 0, 0,
-                    home_lat, home_lon, 0))
-                lwp.add(mavutil.mavlink.MAVLink_mission_item_message(
-                    0, 0, 1, mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT,
-                    mavutil.mavlink.MAV_CMD_NAV_WAYPOINT, 0, 1, 0, 0, 0, 0,
-                    appr_lat, appr_lon, approach_alt))
-                lwp.add(mavutil.mavlink.MAVLink_mission_item_message(
-                    0, 0, 2, mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT,
-                    mavutil.mavlink.MAV_CMD_NAV_LAND, 0, 1, 0, 0, 0, 0,
-                    home_lat, home_lon, 0))
-                upload_mission(conn, lwp)
-                conn.mav.mission_set_current_send(
-                    conn.target_system, conn.target_component, 1)
-                set_mode(conn, "AUTO")
+                # No disarm-based exit — circle until timeout
+        else:
+            # loop exited via while-condition (timeout)
+            if takeoff:
+                result["mission_complete"] = True
+                result["exit_reason"] = "timeout_loiter_complete"
+                _log(case_id, "timeout reached — loiter mission complete")
             else:
-                set_mode(conn, land_method)
+                result["exit_reason"] = "timeout_no_takeoff"
 
-            # Monitor descent. Touchdown = sustained low altitude after being
-            # airborne. (This uSTOL FDM keeps rolling at ~10 m/s on the ground and
-            # does not auto-disarm, so we detect ground contact by altitude rather
-            # than by disarm or a full stop.)
-            land_to = mission_cfg.get("mission_timeout_s", 300)
-            t_land = time.time()
-            touchdown_t = None
-            while time.time() - t_land < land_to / speedup:
-                if not pump_log(0.5):
-                    return "land", "sitl_crashed_land"
-                a = cur_alt()
-                if a < 1.5:
-                    if touchdown_t is None:
-                        touchdown_t = time.time()
-                    elif time.time() - touchdown_t > 5.0 / speedup:
-                        return "land", "landed"
-                else:
-                    touchdown_t = None
-                if not st["armed"]:
-                    return "land", "landed" if a <= 5.0 else "anomaly_disarm_airborne"
-            return "land", "land_timeout"
-
-        phase_reached, land_result = fly_phases()
-        result["phase_reached"]    = phase_reached
-        result["land_result"]      = land_result
-        result["mission_complete"] = (land_result == "landed")
-        result["exit_reason"]      = land_result
-        result["duration_s"]       = time.time() - t_start
+        result["max_alt_m"]  = max_alt
+        result["duration_s"] = time.time() - t_start
 
     except Exception as exc:
         result["exit_reason"] = f"exception: {exc}"
@@ -788,9 +693,8 @@ def _run_case(case_id: int, instance_id: int, config: dict,
                     _log(case_id, f"WARNING: could not move CSV: {e}")
 
             # ---- Delete .BIN dataflash logs (huge, not needed) ----
-            #  Set LAT_KEEP_BIN=1 to retain them (e.g. to inspect RATE desired/actual).
             bin_log_dir = os.path.join(worker_dir, "logs")
-            if os.path.isdir(bin_log_dir) and not os.environ.get("LAT_KEEP_BIN"):
+            if os.path.isdir(bin_log_dir):
                 try:
                     shutil.rmtree(bin_log_dir)
                     _log(case_id, f"deleted {bin_log_dir}  (BIN logs)")
@@ -868,7 +772,6 @@ def write_summary_csv(path: str, results: list, all_perturbed: dict,
     """Write a single CSV summarizing all cases."""
     param_names = list(config["params"].keys())
     fieldnames = (["case_id", "takeoff_success", "mission_complete",
-                   "phase_reached", "land_result",
                    "max_alt_m", "duration_s", "exit_reason"]
                   + [f"p_{n}" for n in param_names])
 
@@ -880,8 +783,6 @@ def write_summary_csv(path: str, results: list, all_perturbed: dict,
             "case_id": cid,
             "takeoff_success":  r.get("takeoff_success", False),
             "mission_complete": r.get("mission_complete", False),
-            "phase_reached":    r.get("phase_reached", ""),
-            "land_result":      r.get("land_result", ""),
             "max_alt_m":        f"{r.get('max_alt_m', 0):.2f}",
             "duration_s":       f"{r.get('duration_s', 0):.1f}",
             "exit_reason":      r.get("exit_reason", ""),
@@ -903,7 +804,7 @@ def main():
     parser = argparse.ArgumentParser(
         description="Monte Carlo Parallel Runner for LAT SITL FDM")
     parser.add_argument("--config", default=str(DEFAULT_CFG),
-                        help="Path to monte_carlo_config_ustol_v1.json")
+                        help="Path to monte_carlo_config.json")
     parser.add_argument("--runs", type=int, default=None,
                         help="Override number of runs")
     parser.add_argument("--workers", type=int, default=None,

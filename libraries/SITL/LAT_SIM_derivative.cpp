@@ -54,7 +54,7 @@ void v_derivative(float Plane_state[],float t,float dydt[])
 	// }
 	
 	vehcle.rho = (vehcle.plane_model == PLANE_USTOL_V1) ? 1.225f : 1.15f;  // uSTOL matches MATLAB atmos (ISA SL); others keep 1.15
-	float friction_coff = 0.001;
+	float friction_coff = 0.02;
 
 	v_rotation_matrices_update(vehcle.phi,  vehcle.theta,  vehcle.psi,  vehcle.alpha,  vehcle.beta);
 
