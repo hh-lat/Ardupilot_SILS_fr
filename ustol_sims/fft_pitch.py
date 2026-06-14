@@ -61,8 +61,7 @@ def analyze(csv_name=CSV_NAME, win=WIN, fmax_hz=FMAX_HZ):
         "q":        (col("q", R2D),               "deg/s", "C3"),
         "elevator": (col("delta_e", R2D),         "deg",   "C4"),
         "TAS":      (col("TAS_mps"),              "m/s",   "C0"),
-        "throttle": (col("mot0_thr_cmd", 100.0),  "%",     "C1"),
-        "thrust":   (col("total_rotor_force"),    "N",     "C5"),
+        "thrust":   (col("total_rotor_force"),    "N",     "C5"),  # fleet thrust (all 18 EDFs)
         "alt":      (alt,                         "m",     "C6"),
         "Lift":     (col("Lift_N"),               "N",     "C8"),
         "Drag":     (col("Drag_N"),               "N",     "C9"),
@@ -118,7 +117,7 @@ def analyze(csv_name=CSV_NAME, win=WIN, fmax_hz=FMAX_HZ):
             at.legend(fontsize=8, loc="upper right")
 
     tline(ax[0], ["theta", "q", "elevator"]);             ax[0].set_title("Pitch group  (theta, q, elevator)")
-    tline(ax[1], ["TAS"], ["throttle", "thrust"]);        ax[1].set_title("Energy group  (airspeed | throttle %, thrust N dashed)")
+    tline(ax[1], ["TAS"], ["thrust"]);                    ax[1].set_title("Energy group  (airspeed | thrust N dashed — all 18 EDFs)")
     tline(ax[2], ["alt", "climb"], ["Lift", "Drag"]);     ax[2].set_title("Vertical group  (alt, climb | Lift, Drag N dashed)")
     tline(ax[3], ["alpha", "gamma", "theta"]);            ax[3].set_title("Aero group  (AoA, FPA, pitch)")
 

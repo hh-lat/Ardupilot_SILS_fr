@@ -54,7 +54,6 @@ def plot(csv_name=CSV_NAME, tmax=TMAX):
         return math.atan2(-vD, h) * R2D if (h > 0.5 or abs(vD) > 0.5) else 0.0
     alpha    = [alpha_row(r) for r in rows]
     gamma    = [gamma_row(r) for r in rows]
-    throttle = C("mot0_thr_cmd", 100.0)
 
     def read_mass(csv_path):
         ov = os.path.join(os.path.dirname(csv_path), "overrides.txt")
@@ -67,31 +66,69 @@ def plot(csv_name=CSV_NAME, tmax=TMAX):
     LWcos = ([liftN[i] / (W * math.cos(math.radians(gamma[i]))) for i in range(len(rows))]
              if liftN else None)
 
-    # Commanded body rates from the dataflash (PIDR/PIDP/PIDY .Tar) under <ws>/logs/*.BIN
+    # From the dataflash *.BIN under <ws>/logs/:
+    #   cmd_rates : commanded body rates   (PIDR/PIDP/PIDY .Tar)
+    #   desired   : commanded pitch (ATT.DesPitch), FPA (asin(TECS.dhdem/spdem)) and
+    #               alpha (= des pitch - des FPA), to overlay vs the actual states.
     cmd_rates = None
+    desired = None
     try:
+        import numpy as np
         from pymavlink import mavutil
         ws = os.path.dirname(HERE)
         bins = glob.glob(os.path.join(ws, "logs", "*.BIN"))
         if bins:
             mb = mavutil.mavlink_connection(max(bins, key=os.path.getmtime))
             d = {"PIDR": [[], []], "PIDP": [[], []], "PIDY": [[], []]}
+            att = [[], []]                       # t, DesPitch (deg)
+            tec = [[], [], []]                   # t, spdem, dhdem
             while True:
-                msg = mb.recv_match(type=["PIDR", "PIDP", "PIDY"], blocking=False)
+                msg = mb.recv_match(type=["PIDR", "PIDP", "PIDY", "ATT", "TECS"], blocking=False)
                 if msg is None: break
-                dd = d[msg.get_type()]; dd[0].append(msg.TimeUS / 1e6); dd[1].append(msg.Tar)
+                ty = msg.get_type()
+                if ty in d:
+                    dd = d[ty]; dd[0].append(msg.TimeUS / 1e6); dd[1].append(msg.Tar)
+                elif ty == "ATT" and hasattr(msg, "DesPitch"):
+                    att[0].append(msg.TimeUS / 1e6); att[1].append(msg.DesPitch)
+                elif ty == "TECS":
+                    sp, dh = getattr(msg, "spdem", None), getattr(msg, "dhdem", None)
+                    if sp is not None and dh is not None:
+                        tec[0].append(msg.TimeUS / 1e6); tec[1].append(sp); tec[2].append(dh)
+            # The dataflash BIN and the FDM CSV share the SAME sim clock (verified: BIN's
+            # logged actual pitch at raw TimeUS matches CSV theta at the same Time_s), so
+            # use raw BIN time directly — do NOT zero-shift, or the overlays slide left.
+            def clip(xx, yy):                    # apply tmax window to a (t,y) pair
+                if tmax is None: return xx, yy
+                m = xx <= tmax; return xx[m], yy[m]
+
             if d["PIDP"][0]:
-                bt0 = min(dd[0][0] for dd in d.values() if dd[0])
                 cmd_rates = {}
                 for key, typ in [("roll", "PIDR"), ("pitch", "PIDP"), ("yaw", "PIDY")]:
-                    tt = [x - bt0 for x in d[typ][0]]; yy = d[typ][1]
+                    tt = list(d[typ][0]); yy = d[typ][1]
                     if tmax is not None:
                         keep = [i for i, x in enumerate(tt) if x <= tmax]
                         tt = [tt[i] for i in keep]; yy = [yy[i] for i in keep]
                     cmd_rates[key] = (tt, yy)
                 print(f"commanded rates overlaid from {len(d['PIDP'][0])} PID samples")
+
+            if att[0] or tec[0]:
+                desired = {}
+                ta = ga_des = None
+                if att[0]:
+                    ta = np.array(att[0]); th_des = np.array(att[1])
+                    desired["theta"] = clip(ta, th_des)
+                if tec[0]:
+                    tt = np.array(tec[0])
+                    sp = np.array(tec[1]); dh = np.array(tec[2])
+                    ratio = np.clip(np.where(sp > 0.5, dh / np.where(sp > 0.5, sp, 1.0), 0.0), -1, 1)
+                    ga_des = np.degrees(np.arcsin(ratio))
+                    desired["gamma"] = clip(tt, ga_des)
+                if att[0] and tec[0]:            # alpha_des = pitch_des - FPA_des (FPA interp onto ATT t)
+                    desired["alpha"] = clip(ta, th_des - np.interp(ta, tt, ga_des))
+                print(f"desired overlay: pitch={'Y' if att[0] else 'n'} "
+                      f"FPA/alpha={'Y' if tec[0] else 'n'}")
     except Exception as e:
-        print("commanded-rate overlay skipped:", e)
+        print("commanded/desired overlay skipped:", e)
 
     fig, ax = plt.subplots(6, 3, figsize=(17, 19))
     def P(a, series, title, ylab):
@@ -116,13 +153,21 @@ def plot(csv_name=CSV_NAME, tmax=TMAX):
     P(ax[1,2], [("u_b", C("V_b_tas_0")), ("v_b", C("V_b_tas_1")), ("w_b", C("V_b_tas_2"))], "Body airspeed comps", "m/s")
     P(ax[2,0], [("elev", C("delta_e", R2D)), ("ailL", C("delta_aL", R2D)), ("ailR", C("delta_aR", R2D)),
                 ("rud", C("delta_r", R2D)), ("flap", C("delta_f", R2D))], "Control-surface deflections", "deg")
-    P(ax[2,1], [("thrust (N)", C("total_rotor_force")), ("mot0 thr cmd", C("mot0_thr_cmd"))], "Propulsion", "N / pwm")
+    P(ax[2,1], [("thrust (N) — 18 EDFs", C("total_rotor_force")), ("mot0 cmd (1/18, NOT fleet)", C("mot0_thr_cmd", 100.0))], "Propulsion (use thrust; mot0 is one EDF)", "N / %")
     P(ax[2,2], [("Lift (N)", C("Lift_N")), ("Drag (N)", C("Drag_N")), ("Side (N)", C("Side_N"))], "Aero forces", "N")
     P(ax[3,0], [("p_dot", C("p_dot", R2D)), ("q_dot", C("q_dot", R2D)), ("r_dot", C("r_dot", R2D))], "Angular accel", "deg/s^2")
     P(ax[3,1], [("ax_b", C("Accel_b_0")), ("ay_b", C("Accel_b_1")), ("az_b", C("Accel_b_2"))], "Body accel", "m/s^2")
     P(ax[3,2], [("CL", C("Lift_Coeff")), ("CD", C("Drag_Coeff")), ("Cm", C("Moment_Coeff"))], "Aero coefficients", "-")
-    P(ax[4,0], [("AoA alpha", alpha), ("FPA gamma", gamma), ("pitch theta", C("theta", R2D))], "AoA, flight-path angle, pitch", "deg")
-    P(ax[4,1], [("throttle (%)", throttle)], "Throttle command", "%")
+    _c = ax[4,0]                                 # actual (solid) vs desired (dashed)
+    for i, (lab, y) in enumerate([("alpha", alpha), ("gamma", gamma), ("theta", C("theta", R2D))]):
+        if y is not None: _c.plot(t, y, color=f"C{i}", lw=1.0, label=lab + " act")
+    if desired:
+        for i, key in enumerate(["alpha", "gamma", "theta"]):
+            if key in desired:
+                xx, yy = desired[key]; _c.plot(xx, yy, color=f"C{i}", lw=1.0, ls="--", label=key + " des")
+    _c.set_title("AoA, FPA, pitch (solid=actual, dashed=desired)", fontsize=10)
+    _c.set_ylabel("deg"); _c.grid(alpha=0.3); _c.legend(fontsize=6, loc="best"); _c.set_xlabel("Time (s)")
+    P(ax[4,1], [("T/W (thrust/W)", [v/(mass*9.81) for v in C("total_rotor_force")])], "Thrust-to-weight (all 18 EDFs)", "-")
     P(ax[4,2], [("MLG_NR", C("MLG_NR")), ("FLG_NR", C("FLG_NR"))], "Gear normal reaction", "N")
     P(ax[5,0], [("L/(W cos g)", LWcos)], f"Lift / (W cos gamma)   (m={mass:.1f} kg, W={W:.0f} N)", "-")
     ax[5,0].axhline(1.0, color='k', ls='--', lw=0.9)

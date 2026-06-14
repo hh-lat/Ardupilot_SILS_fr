@@ -920,7 +920,7 @@ void v_plane_param_define_ustol_v1()
 	vehcle.lateral.kv        = -1.370707;
 	vehcle.lateral.kps_r     = 0.606335;
 	vehcle.lateral.M         = 59.998281;
-	vehcle.lateral.CYp     = 0.156542;
+	vehcle.lateral.CYp     = -0.156542;
 	vehcle.lateral.CYr     = 0.364915;
 
 	// Rolling moment
@@ -947,7 +947,7 @@ void v_plane_param_define_ustol_v1()
 	vehcle.yaw.theta_bcu  = -0.000090;
 	vehcle.yaw.theta_aLcu = -0.000029;
 	vehcle.yaw.theta_aRcu = 0.000027;
-	vehcle.yaw.Cnp        = -0.139344;
+	vehcle.yaw.Cnp        = 0.139344;
 	vehcle.yaw.Cnr        = -0.162811;
 	vehcle.yaw.beta0      = 11.999974;
 	vehcle.yaw.kr         = 0.0;

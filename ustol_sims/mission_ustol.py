@@ -21,19 +21,36 @@ or $LAT_SIM_LOG_DIR if set). Plot the newest with:
 """
 
 from pymavlink import mavutil
-import math, time
+import math, time, atexit
+
+# Plot the run's CSV on EVERY exit — normal end, exception, or Ctrl-C — so you
+# never lose the graphs by stopping the mission early. The FDM logs the CSV
+# continuously while SITL runs, so the newest CSV in logs/ is always this run's.
+_plotted = False
+def _plot_on_exit():
+    global _plotted
+    if _plotted:
+        return
+    _plotted = True
+    try:
+        import plot_ustol, fft_pitch          # same folder -> importable
+        print("case plot:", plot_ustol.plot(""), flush=True)   # "" = newest CSV
+        print("fft  plot:", fft_pitch.analyze(""), flush=True)
+    except Exception as e:
+        print("plotting failed:", e, flush=True)
+atexit.register(_plot_on_exit)
 
 
 # A. INPUT PARAMS
 HOME_LAT, HOME_LON = 28.559741, 77.11745
 RWY_HDG       = 285.0
-CLIMB_AS      = 11.0                         # airspeed held during the climb (FPA denominator)
+CLIMB_AS      = 11.0                          # airspeed held during the climb (FPA denominator)
 CRUISE_AS     = 12.0                          # airspeed once levelled off in cruise
 FPA_DEG       = 17.4576031                    # target flight-path angle (sin gamma = 0.3)
-HANDOFF_ALT   = 9.5                           # TAKEOFF -> GUIDED handoff altitude (ray origin)
+HANDOFF_ALT   = 10.0                          # TAKEOFF -> GUIDED handoff altitude (ray origin)
 CRUISE_ALT    = 100.0                         # level off here and switch to cruise
-CLIMB_TGT_ALT = 500.0                         # GUIDED climb-target altitude (far/high anchor)
-CLMB_MAX      = round(CLIMB_AS * math.sin(math.radians(FPA_DEG)), 2)   # -> TECS_CLMB_MAX
+CLIMB_TGT_ALT = 250.0                         # GUIDED climb-target altitude (far/high anchor)
+CLMB_MAX      = round(CLIMB_AS * math.sin(math.radians(FPA_DEG)), 2)  # -> TECS_CLMB_MAX
 # Horizontal distance to the climb anchor, placed exactly ON the FPA ray from the
 # handoff point:  D = (alt_target - alt_handoff) / tan(gamma)  -> 1559.69 m for these values.
 # Far enough that L1 never enters loiter and TECS stays saturated at CLMB_MAX through 100 m.
@@ -125,6 +142,14 @@ for n, v in [
     ("TECS_CLMB_MAX",    CLMB_MAX),  # climb-rate cap    (= FPA numerator) -> 17.46 deg
     ("PTCH_LIM_MAX_DEG", 25),        # let pitch reach theta = gamma + alpha (~22-25 deg)
     ("TECS_PITCH_MAX",   25),        # TECS's own pitch ceiling
+    ("TRIM_THROTTLE",    90),        # = measured steady-climb throttle (~90%); TECS FF baseline
+                                     # matches the climb so the TAKEOFF->GUIDED handoff doesn't sag
+    # --- handoff-smoothing: make TAKEOFF use the SAME throttle/climb regime as GUIDED ---
+    ("TKOFF_OPTIONS",    1),         # bit0: let TECS govern takeoff throttle (THR_MIN..TKOFF_THR_MAX)
+                                     # instead of forcing THR_MAX -> no throttle step at handoff
+    ("TKOFF_THR_MAX",    90),        # cap takeoff throttle at the steady-climb value (= TRIM_THROTTLE)
+    ("TKOFF_THR_MAX_T",  2),         # shorten the forced-max-throttle window at ground roll (was 4 s)
+    ("TECS_CLMB_MAX",    CLMB_MAX),  # (already set above) climb cap also bounds the takeoff climb now
 ]:
     print(f"set {n}={v}: {set_param(n, v)}", flush=True)
 print(f"-> FPA {FPA_DEG:.4f} deg via CLMB_MAX={CLMB_MAX} m/s @ {CLIMB_AS} m/s", flush=True)
@@ -145,7 +170,6 @@ while time.time() - t < 60:
 
 # 3. GUIDED straight climb toward a far, high anchor placed ON the 17.46 deg ray.
 set_mode("GUIDED")
-time.sleep(1.0)                               # let ModeGuided settle before commanding
 pump()                                        # refresh current position (= ray origin)
 TGT_LAT, TGT_LON = offset(st["lat"], st["lon"], RWY_HDG, FAR_DIST)
 print(f"GUIDED anchor: {FAR_DIST:.1f} m ahead @ {CLIMB_TGT_ALT:.0f} m "
@@ -185,12 +209,5 @@ while time.time() - t < 60:
 print("DONE (climb FPA target %.2f deg; cruising at ~%.0f m, %.0f m/s)"
       % (FPA_DEG, CRUISE_ALT, CRUISE_AS), flush=True)
 
-# 5. Post-run plots: generate the full case plot + the FFT/oscillation diagnosis
-#    from the FDM CSV this run just wrote (newest in ustol_sims/logs/).
-#    Outputs land in ustol_sims/plots/{case_plots,fft}/.
-try:
-    import plot_ustol, fft_pitch          # same folder -> importable
-    print("case plot:", plot_ustol.plot(""), flush=True)   # "" = newest sim_output CSV
-    print("fft  plot:", fft_pitch.analyze(""), flush=True)
-except Exception as e:
-    print("post-run plotting skipped:", e, flush=True)
+# 5. Plotting is handled by the atexit hook (_plot_on_exit) registered at the top,
+#    so the graphs are produced no matter how the script ends (incl. Ctrl-C).
