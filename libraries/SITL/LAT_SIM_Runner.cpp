@@ -773,7 +773,7 @@ void v_plane_param_define_ustol_v1()
 	vehcle.Ixx  = 11.41;
 	vehcle.Iyy  = 5.23;
 	vehcle.Izz  = 16.497;
-	vehcle.Ixz  = 0.0;
+	vehcle.Ixz  = -0.57;
 	vehcle.Ixy  = 0.0;
 	vehcle.Iyz  = 0.0;
 
@@ -861,7 +861,7 @@ void v_plane_param_define_ustol_v1()
 	vehcle.fuse.CD_b2      = 0.453343;
 	vehcle.fuse.CD_a2_Cmyu = 0.010846;
 	vehcle.fuse.CD0        = 0.045249;
-	vehcle.fuse.CD_q	   = -0.373360;
+	vehcle.fuse.CDq	   = -0.373360;
 
 	// Controls
 	vehcle.controls.tau_f  = 0.297565;

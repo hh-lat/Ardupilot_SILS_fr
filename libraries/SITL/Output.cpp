@@ -144,7 +144,9 @@ void v_output_log_init()
         "Drag_Coeff,"
         "Lift_N,"
         "Drag_N,"
-        "Side_N"
+        "Side_N,"
+        "J,"
+        "Cmu"
         "\n");
 
     fflush(log_fp);
@@ -180,7 +182,7 @@ void v_output_log_write(float t)
         "%.1f,"
         "%.5f,%.5f,"
         "%.5f,%.5f,%.5f,"
-        "%.5f,%.5f,%.5f,%.5f\n",
+        "%.5f,%.5f,%.5f,%.5f,%.5f,%.5f\n",
         t,
         (int)vehcle.plane_moving_state,
         vehcle.tas,
@@ -233,7 +235,9 @@ void v_output_log_write(float t)
         vehcle.CD,
         vehcle.all_lift_force,
         vehcle.all_drag_force,
-        vehcle.all_side_force
+        vehcle.all_side_force,
+        s_motor[0].J,
+        s_motor[0].Cmu
         );
 
     fflush(log_fp);

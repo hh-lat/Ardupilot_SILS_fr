@@ -47,7 +47,6 @@ RWY_HDG       = 285.0
 CLIMB_AS      = 10.0                          # airspeed held during the climb (FPA denominator)
 CRUISE_AS     = 12.0                          # airspeed once levelled off in cruise
 FPA_DEG       = 15.0                          # target flight-path angle (sin gamma = 0.3)
-HANDOFF_ALT   = 10.0                          # TAKEOFF -> GUIDED handoff altitude (ray origin)
 CRUISE_ALT    = 100.0                         # switch to CRUISE when alt reaches this
 CLIMB_TGT_ALT = 250.0                         # climb-WP altitude (far/high anchor, ON the FPA ray)
 TKOFF_PITCH   = 8.0                           # NAV_TAKEOFF min pitch (~ your 8 deg liftoff attitude)
