@@ -342,7 +342,7 @@ void v_plane_param_define_eqx_v1_new_model()
 	vehcle.mg_b[2]=0;
 
 	vehcle.aero_zero_speed = 5.0; // m/s
-    vehcle.mass = 65.0 ;
+    vehcle.mass = 65.0;
 	vehcle.g = 9.81; 
 	vehcle.lift_stall_M = 50.0;
     vehcle.Ixx = 14.658;

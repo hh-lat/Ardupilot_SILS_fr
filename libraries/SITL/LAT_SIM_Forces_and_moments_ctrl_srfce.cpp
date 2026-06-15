@@ -234,6 +234,19 @@ void v_calculate_lift_force()
 			float CL_t  = eta_t * vehcle.tail.S_ht_S * vehcle.tail.a_t *
 			              (-vehcle.tail.eps0 + (1.0f - deps)*alpha + vehcle.controls.tau_e*de_eff);
 
+			// Inherent control-surface LIFT effectiveness [per rad], stored for the
+			// servo hinge-load model (load-dependent slew limit). This is the
+			// surface's OWN sectional lift authority (what loads the hinge), NOT the
+			// span-integrated / rolling-moment value.
+			//   Elevator: linear part of the tail-lift elevator term.
+			//   Aileron : 2-D (blown) sectional effectiveness cla*tau_a, the direct
+			//             analogue of the flap's cl_delf = 2*pi*tau_f. Do NOT fold in
+			//             nu_dela (= S_a/s * Kb_a * k_fit) here -- those Kb_a/k_fit/area
+			//             factors are the span-integration terms that produce the small
+			//             ROLLING-moment coefficient, not the lift authority.
+			vehcle.CL_delta_e = eta_t * vehcle.tail.S_ht_S * vehcle.tail.a_t * vehcle.controls.tau_e;
+			vehcle.CL_delta_a = cla * vehcle.controls.tau_a;
+
 			// Fuselage Component
 			float CL_f = (0.030384f + 0.004932f*sqrtf(Cmu_star))
 			           + (0.196106f + 0.073289f*sqrtf(Cmu_star) - 0.016049f*Cmu_star)*alpha;
@@ -556,6 +569,10 @@ void v_calculate_side_force()
 			float p_hat = vehcle.p*vehcle.b/(2.0f*V);
 			float r_hat = vehcle.r*vehcle.b/(2.0f*V);
 			float CY_rate = vehcle.lateral.CYp*p_hat + vehcle.lateral.CYr*r_hat;
+
+			// Inherent rudder side-force effectiveness [per rad] (the fit is in
+			// degrees, so convert), stored for the servo hinge-load model.
+			vehcle.CY_delta_r = vehcle.lateral.theta_r * R2D;
 
 			vehcle.CY = CY_base*(1.0f - W) + W*(vehcle.lateral.kv*CY_flat) + CY_other + CY_rate;
 			vehcle.all_side_force = vehcle.Q*vehcle.s*vehcle.CY;

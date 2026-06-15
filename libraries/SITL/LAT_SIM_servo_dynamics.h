@@ -59,6 +59,19 @@ typedef struct
     float angular_accel_min;
     CONTROL_SURFACE_TYPE type;
 
+    // --- 2nd-order servo transfer-function model state ---
+    // (characterized servo: H(s) = K*wn^2/(s^2 + 2*zeta*wn*s + wn^2)*e^-tau*s,
+    //  applied to elevator/rudder/aileron to turn the commanded angle into the
+    //  actual angle instead of using the commanded angle directly.)
+    float tf_y;                 // actual servo angle (model output) [rad]
+    float tf_ydot;              // actual servo angular rate [rad/s]
+    int   tf_init;              // 0 until the TF state is seeded from the first command
+    int   tf_head;              // ring-buffer write index for the transport delay
+    float tf_delay_buf[512];    // commanded-angle history for the transport delay [rad]
+
+    float angle_cmd;            // commanded angle (TF input, pre-dynamics) [rad]   -- for logging
+    float slew_used;            // load-dependent slew limit applied this step [rad/s] -- for logging
+
 }S_SERVO;
 
 extern S_SERVO s_servo[16];

@@ -129,6 +129,14 @@ void v_output_log_init()
         "delta_r,"
         "delta_f,"
         "delta_a,"
+        "delta_e_cmd,"
+        "delta_aL_cmd,"
+        "delta_aR_cmd,"
+        "delta_r_cmd,"
+        "slew_e_dps,"
+        "slew_aL_dps,"
+        "slew_aR_dps,"
+        "slew_r_dps,"
         "pwm_ailL,"
         "pwm_ailR,"
         "pwm_elev,"
@@ -178,6 +186,7 @@ void v_output_log_write(float t)
         "%.5f,%.5f,%.5f,"
         "%d,"
         "%.5f,%.5f,%.5f,%.5f,%.5f,%.5f,"
+        "%.5f,%.5f,%.5f,%.5f,%.1f,%.1f,%.1f,%.1f,"
         "%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,"
         "%.1f,"
         "%.5f,%.5f,"
@@ -220,6 +229,14 @@ void v_output_log_write(float t)
         vehcle.delta_r,
         vehcle.delta_f,
         vehcle.delta_a,
+        s_servo[ELEVATOR_COMMON].angle_cmd,
+        s_servo[AILERON_LEFT].angle_cmd,
+        s_servo[AILERON_RIGHT].angle_cmd,
+        s_servo[RUDDER_COMMON].angle_cmd,
+        s_servo[ELEVATOR_COMMON].slew_used*R2D,
+        s_servo[AILERON_LEFT].slew_used*R2D,
+        s_servo[AILERON_RIGHT].slew_used*R2D,
+        s_servo[RUDDER_COMMON].slew_used*R2D,
         s_servo[AILERON_LEFT].pwm_in,
         s_servo[AILERON_RIGHT].pwm_in,
         s_servo[ELEVATOR_COMMON].pwm_in,
