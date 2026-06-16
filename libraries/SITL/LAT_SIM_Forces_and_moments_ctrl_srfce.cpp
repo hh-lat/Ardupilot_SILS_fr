@@ -992,7 +992,7 @@ void v_calculate_aero_yaw_moment()
 
 			vehcle.Cn = Cn_base*(1.0f - W) + W*(vehcle.yaw.kv*Cn_flat) + Cn_other + Cn_rate;
 			vehcle.all_aero_moment[2] = vehcle.Q*vehcle.s*vehcle.b*vehcle.Cn;
-			break;
+				break;
 		}
 	}
 }
@@ -1002,11 +1002,6 @@ void v_calculate_aero_yaw_moment()
 void v_aero_force_and_moments()
 {
 	float temp3X1_1[3]={0.0};
-
-	if (vehcle.tas>11.1)
-	{
-		vehcle.aero_zero_speed = 5.0;
-	}
 
 	//test_aero_model
 	// vehcle.alpha = D2R*8;

@@ -236,7 +236,7 @@ int32_t AP_YawController::get_servo_out(float scaler, bool disable_integrator)
     // due to bias errors in rate_offset
     // Use a cut-off frequency of omega = 0.2 rad/sec
     // Could make this adjustable by replacing 0.9960080 with (1 - omega * dt)
-    float rate_hp_out = 0.9960080f * _last_rate_hp_out + rate_hp_in - _last_rate_hp_in;
+    float rate_hp_out = 0.9960080f * _last_rate_hp_out + rate_hp_in - _last_rate_hp_in;//0.9960080f
     _last_rate_hp_out = rate_hp_out;
     _last_rate_hp_in = rate_hp_in;
 

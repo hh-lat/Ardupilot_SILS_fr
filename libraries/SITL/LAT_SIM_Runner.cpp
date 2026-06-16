@@ -23,7 +23,7 @@ void v_set_aircraft_instance(SITL::Aircraft* aircraft) {
 void v_lat_fdm_init()
 {	
 	vehcle.plane_model =PLANE_USTOL_V1;   // PLANE_ARDU_DEFAULT;//PLANE_EQX_V1_NEW_MODEL;//PLANE_EQX;////PLANE_EQX//PLANE_ARDU_DEFAULT // 0 for default simple model, 1 for equinox model
-    vehcle.dof = DOF_ALL_MOTION;          // DOF_LONGITUDINAL_ONLY;
+    vehcle.dof = DOF_ALL_MOTION;//DOF_ALL_MOTION;          // DOF_LONGITUDINAL_ONLY;
 	vehcle.plane_on_ground = 1;
     v_plane_param_define();
 	v_output_log_init();                  // open CSV log file for this run
@@ -761,7 +761,7 @@ void v_plane_param_define_ustol_v1()
 	//v_set_servo_params(pwm_min, pwm_max, angle_pwm_min, angle_pwm_max, omega, zeta, min_rate, max_rate, min_accel, max_accel, type)
 	v_set_servo_params(1100,1900,-20*D2R, 20*D2R, 10.0, 0.7, -200*D2R, 200*D2R, -720*D2R, 720*D2R, AILERON_COMMON);
 	v_set_servo_params(1100,1900,-10*D2R, 10*D2R, 10.0, 0.7, -200*D2R, 200*D2R, -720*D2R, 720*D2R, ELEVATOR_COMMON);
-	v_set_servo_params(1100,1900,-15*D2R, 15*D2R, 10.0, 0.7, -200*D2R, 200*D2R, -720*D2R, 720*D2R, RUDDER_COMMON);
+	v_set_servo_params(1100,1900,-40*D2R, 40*D2R, 10.0, 0.7, -200*D2R, 200*D2R, -720*D2R, 720*D2R, RUDDER_COMMON);
 	v_set_servo_params(1100,1900, 20*D2R,-20*D2R, 10.0, 0.7, -200*D2R, 200*D2R, -720*D2R, 720*D2R, AILERON_LEFT);
 	v_set_servo_params(1100,1900,-20*D2R, 20*D2R, 10.0, 0.7, -200*D2R, 200*D2R, -720*D2R, 720*D2R, AILERON_RIGHT);
 	v_set_servo_params(1100,1900, 0,      32*D2R, 10.0, 0.7, -200*D2R, 200*D2R, -720*D2R, 720*D2R, FLAP);
@@ -787,7 +787,7 @@ void v_plane_param_define_ustol_v1()
 
 	vehcle.rho             = 1.15;    // ISA SL (atmos.rho); runtime atmosphere model may update
 	vehcle.sound_speed     = 340.294;  // ISA SL (atmos.a) — needed for prop Mtip
-	vehcle.aero_zero_speed = 5.0;
+	vehcle.aero_zero_speed = 3.0;
 	vehcle.alpha_stall     = 18.459054*D2R;  // not used by uSTOL lift; kept non-garbage
 	vehcle.lift_stall_M    = 50.0;
 
@@ -920,7 +920,7 @@ void v_plane_param_define_ustol_v1()
 	vehcle.lateral.kv        = -1.370707;
 	vehcle.lateral.kps_r     = 0.606335;
 	vehcle.lateral.M         = 59.998281;
-	vehcle.lateral.CYp     = -0.156542;
+	vehcle.lateral.CYp     = 0.156542;
 	vehcle.lateral.CYr     = 0.364915;
 
 	// Rolling moment
@@ -947,7 +947,7 @@ void v_plane_param_define_ustol_v1()
 	vehcle.yaw.theta_bcu  = -0.000090;
 	vehcle.yaw.theta_aLcu = -0.000029;
 	vehcle.yaw.theta_aRcu = 0.000027;
-	vehcle.yaw.Cnp        = 0.139344;
+	vehcle.yaw.Cnp        = -0.139344;
 	vehcle.yaw.Cnr        = -0.162811;
 	vehcle.yaw.beta0      = 11.999974;
 	vehcle.yaw.kr         = 0.0;

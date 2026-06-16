@@ -124,9 +124,6 @@ static void apply_override(const char* key, float val)
     else if (strcmp(key, "fuse_CD_b2") == 0)     { vehcle.fuse.CD_b2 = val; }
     else if (strcmp(key, "fuse_CD_a2_Cmyu") == 0){ vehcle.fuse.CD_a2_Cmyu = val; }
     else if (strcmp(key, "fuse_CD0") == 0)       { vehcle.fuse.CD0 = val; }
-    else if (strcmp(key, "fuse_CDp_cu") == 0)    { vehcle.fuse.CDp_cu = val; }
-    else if (strcmp(key, "fuse_CDq_cu") == 0)    { vehcle.fuse.CDq_cu = val; }
-    else if (strcmp(key, "fuse_CDr_cu") == 0)    { vehcle.fuse.CDr_cu = val; }
     // Controls
     else if (strcmp(key, "controls_tau_f") == 0) { vehcle.controls.tau_f = val; }
     else if (strcmp(key, "controls_tau_a") == 0) { vehcle.controls.tau_a = val; }
@@ -168,10 +165,6 @@ static void apply_override(const char* key, float val)
     else if (strcmp(key, "lateral_M") == 0)       { vehcle.lateral.M = val; }
     else if (strcmp(key, "lateral_CYp") == 0)     { vehcle.lateral.CYp = val; }
     else if (strcmp(key, "lateral_CYr") == 0)     { vehcle.lateral.CYr = val; }
-    else if (strcmp(key, "lateral_CYp_cu") == 0)  { vehcle.lateral.CYp_cu = val; }
-    else if (strcmp(key, "lateral_CYr_cu") == 0)  { vehcle.lateral.CYr_cu = val; }
-    else if (strcmp(key, "lateral_CYp2_cu") == 0) { vehcle.lateral.CYp2_cu = val; }
-    else if (strcmp(key, "lateral_CYr2_cu") == 0) { vehcle.lateral.CYr2_cu = val; }
     // Rolling moment (Cl)
     else if (strcmp(key, "roll_theta0") == 0)     { vehcle.roll.theta0 = val; }
     else if (strcmp(key, "roll_theta_aL") == 0)   { vehcle.roll.theta_aL = val; }
@@ -183,8 +176,6 @@ static void apply_override(const char* key, float val)
     else if (strcmp(key, "roll_theta_r") == 0)    { vehcle.roll.theta_r = val; }
     else if (strcmp(key, "roll_Clp") == 0)        { vehcle.roll.Clp = val; }
     else if (strcmp(key, "roll_Clr") == 0)        { vehcle.roll.Clr = val; }
-    else if (strcmp(key, "roll_Clp_cu") == 0)     { vehcle.roll.Clp_cu = val; }
-    else if (strcmp(key, "roll_Clr_cu") == 0)     { vehcle.roll.Clr_cu = val; }
     // Yawing moment (Cn)
     else if (strcmp(key, "yaw_theta0") == 0)      { vehcle.yaw.theta0 = val; }
     else if (strcmp(key, "yaw_theta_b") == 0)     { vehcle.yaw.theta_b = val; }
@@ -195,9 +186,7 @@ static void apply_override(const char* key, float val)
     else if (strcmp(key, "yaw_theta_aLcu") == 0)  { vehcle.yaw.theta_aLcu = val; }
     else if (strcmp(key, "yaw_theta_aRcu") == 0)  { vehcle.yaw.theta_aRcu = val; }
     else if (strcmp(key, "yaw_Cnp") == 0)         { vehcle.yaw.Cnp = val; }
-    else if (strcmp(key, "yaw_Cnp_cu") == 0)      { vehcle.yaw.Cnp_cu = val; }
     else if (strcmp(key, "yaw_Cnr") == 0)         { vehcle.yaw.Cnr = val; }
-    else if (strcmp(key, "yaw_Cnr_cu") == 0)      { vehcle.yaw.Cnr_cu = val; }
     else if (strcmp(key, "yaw_beta0") == 0)       { vehcle.yaw.beta0 = val; }
     else if (strcmp(key, "yaw_kcu") == 0)         { vehcle.yaw.kcu = val; }
     else if (strcmp(key, "yaw_kv") == 0)          { vehcle.yaw.kv = val; }
