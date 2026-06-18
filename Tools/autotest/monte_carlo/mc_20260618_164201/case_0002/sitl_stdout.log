@@ -1,0 +1,692 @@
+Setting SIM_SPEEDUP=1.000000
+Plane mass: 2.00 kg
+Home: 28.559741 77.117450 alt=237.000000m hdg=285.000000
+Starting sketch 'ArduPlane'
+Starting SITL input
+Using Irlock at port : 10025
+bind port 6780 for SERIAL0
+SERIAL0 on TCP port 6780
+Waiting for connection ....
+Connection on serial port 6780
+Warning: Ignoring FORMAT_VERSION in param file
+Warning: Ignoring FORMAT_VERSION in param file
+Loaded defaults from /home/sushanthvenkata/Projects/Ardupilot_SILS_v2/Ardupilot_SILS/ustol_sims/params_imp_v3.param
+[MonteCarlo] Reading overrides from: /home/sushanthvenkata/Projects/Ardupilot_SILS_v2/Ardupilot_SILS/Tools/autotest/monte_carlo/mc_20260618_164201/case_0002/overrides.txt
+[MonteCarlo]   mass = 16.670774
+[MonteCarlo]   Ixx = 10.629005
+[MonteCarlo]   Iyy = 5.700973
+[MonteCarlo]   Izz = 15.441250
+[MonteCarlo]   rho = 1.252669
+[MonteCarlo]   s = 1.673047
+[MonteCarlo]   b = 4.037684
+[MonteCarlo]   c = 0.406983
+[MonteCarlo]   t_by_c = 0.151239
+[MonteCarlo]   s_blown = 0.922366
+[MonteCarlo]   cg_x_cg_c = 0.495136
+[MonteCarlo]   wing_lambda_b = 0.394158
+[MonteCarlo]   wing_S_f = 0.203336
+[MonteCarlo]   wing_S_a = 0.058949
+[MonteCarlo]   wing_k_fit = 0.458233
+[MonteCarlo]   wing_cl0_camber = 0.448248
+[MonteCarlo]   wing_k_w = 2.359060
+[MonteCarlo]   wing_r = -0.006091
+[MonteCarlo]   tail_a_t = 4.655290
+[MonteCarlo]   tail_eta_t_0 = 0.911969
+[MonteCarlo]   tail_eta_t_1 = 0.010342
+[MonteCarlo]   tail_eps0 = 0.036912
+[MonteCarlo]   tail_deps_pos = -0.014422
+[MonteCarlo]   tail_deps_neg = 0.343244
+[MonteCarlo]   tail_k_ht = 2.954172
+[MonteCarlo]   tail_CD_ht0 = 0.003756
+[MonteCarlo]   tail_S_ht_S = 0.244078
+[MonteCarlo]   tail_V_H = 0.935927
+[MonteCarlo]   tail_AR_ht = 4.763856
+[MonteCarlo]   fuse_CD_a2 = 1.925144
+[MonteCarlo]   fuse_CD_b2 = 0.466637
+[MonteCarlo]   fuse_CD_a2_Cmyu = 0.013132
+[MonteCarlo]   fuse_CD0 = 0.036325
+[MonteCarlo] WARNING: unknown param 'fuse_CDq' — skipped
+[MonteCarlo]   fuse_CDq = -0.350639
+[MonteCarlo]   controls_tau_f = 0.321281
+[MonteCarlo]   controls_tau_a = 0.107096
+[MonteCarlo]   controls_Kb_f = 0.583855
+[MonteCarlo]   controls_Kb_a = 0.132776
+[MonteCarlo]   controls_tau_e = 0.645010
+[MonteCarlo]   controls_CD_df2 = 0.225357
+[MonteCarlo]   controls_CD_da2 = 0.035853
+[MonteCarlo]   controls_CD_da = 0.007059
+[MonteCarlo]   controls_CD_de2 = 0.191945
+[MonteCarlo]   controls_CD_de = 0.009306
+[MonteCarlo]   controls_CD_dr2 = 0.108802
+[MonteCarlo]   stall_K_flat = 5.514307
+[MonteCarlo]   stall_a0_const = 16.246946
+[MonteCarlo]   stall_a0_Cmyu = -0.172612
+[MonteCarlo]   stall_k = 21.753973
+[MonteCarlo]   cl_stall_wM0 = 23.960222
+[MonteCarlo]   cl_stall_wM1 = -2.679788
+[MonteCarlo]   cl_stall_wa00 = 23.874899
+[MonteCarlo]   cl_stall_wa0mu = 1.444259
+[MonteCarlo]   cl_stall_wa0f = -4.829819
+[MonteCarlo]   cl_stall_wkflat = 5.584408
+[MonteCarlo]   cl_stall_rM = 13.286867
+[MonteCarlo]   cl_stall_ra0 = 17.342587
+[MonteCarlo]   cl_stall_rkcu = 0.514711
+[MonteCarlo]   cl_stall_rkflat = 1.414186
+[MonteCarlo]   lateral_theta0 = 0.000340
+[MonteCarlo]   lateral_theta_b = -0.014345
+[MonteCarlo]   lateral_theta_aL = -0.000135
+[MonteCarlo]   lateral_theta_aR = 0.000173
+[MonteCarlo]   lateral_theta_r = 0.003744
+[MonteCarlo]   lateral_theta_bcu = -0.007357
+[MonteCarlo]   lateral_beta0 = 14.645149
+[MonteCarlo]   lateral_kv = -1.753898
+[MonteCarlo]   lateral_kps_r = 0.576398
+[MonteCarlo]   lateral_M = 60.114487
+[MonteCarlo]   lateral_CYp = 0.162280
+[MonteCarlo]   lateral_CYr = 0.492580
+[MonteCarlo]   roll_theta0 = -0.000120
+[MonteCarlo]   roll_theta_aL = 0.000477
+[MonteCarlo]   roll_theta_aR = -0.000662
+[MonteCarlo]   roll_theta_aLcu = 0.000102
+[MonteCarlo]   roll_theta_aRcu = -0.000099
+[MonteCarlo]   roll_theta_b = -0.000420
+[MonteCarlo]   roll_theta_b_cu = 0.000049
+[MonteCarlo]   roll_theta_r = 0.000551
+[MonteCarlo]   roll_Clp = -0.527502
+[MonteCarlo]   roll_Clr = 0.475257
+[MonteCarlo] WARNING: unknown param 'pitch_Cmq' — skipped
+[MonteCarlo]   pitch_Cmq = -30.460314
+[MonteCarlo]   yaw_theta0 = 0.000279
+[MonteCarlo]   yaw_theta_b = 0.003399
+[MonteCarlo]   yaw_theta_aL = -0.000013
+[MonteCarlo]   yaw_theta_aR = 0.000001
+[MonteCarlo]   yaw_theta_r = -0.001998
+[MonteCarlo]   yaw_theta_bcu = -0.000102
+[MonteCarlo]   yaw_theta_aLcu = -0.000034
+[MonteCarlo]   yaw_theta_aRcu = 0.000024
+[MonteCarlo]   yaw_Cnp = -0.130455
+[MonteCarlo]   yaw_Cnr = -0.167795
+[MonteCarlo]   yaw_beta0 = 9.553029
+[MonteCarlo]   yaw_kcu = 0.000009
+[MonteCarlo]   yaw_kv = 0.242419
+[MonteCarlo]   yaw_kps_r = 0.639099
+[MonteCarlo]   yaw_M = 49.357742
+[MonteCarlo]   prop_cmyu_J2 = 0.611816
+[MonteCarlo]   prop_cmyu_0 = 0.041446
+[MonteCarlo]   prop_CT_1 = 0.861627
+[MonteCarlo]   prop_CT_J = -0.720630
+[MonteCarlo]   prop_CT_JM = 1.629352
+[MonteCarlo]   max_thrust = 4.813855
+[MonteCarlo] Applied 103 overrides.
+[Output] Logging to: /home/sushanthvenkata/Projects/Ardupilot_SILS_v2/Ardupilot_SILS/Tools/autotest/monte_carlo/mc_20260618_164201/case_0002/sim_output_20260618_164201_pid348276.csv
+Smoothing reset at 0.001
+Closed connection on SERIAL0
+bind port 6782 for SERIAL1
+SERIAL1 on TCP port 6782
+bind port 6783 for SERIAL2
+SERIAL2 on TCP port 6783
+Warning: Ignoring FORMAT_VERSION in param file
+Warning: Ignoring FORMAT_VERSION in param file
+Loaded defaults from /home/sushanthvenkata/Projects/Ardupilot_SILS_v2/Ardupilot_SILS/ustol_sims/params_imp_v3.param
+Waiting for connection ....
+Connection on serial port 0
+validate_structures:528: Validating structures
+Waiting for internal clock bits to be set (current=0x00)
+Warning: Ignoring FORMAT_VERSION in param file
+Warning: Ignoring FORMAT_VERSION in param file
+Loaded defaults from /home/sushanthvenkata/Projects/Ardupilot_SILS_v2/Ardupilot_SILS/ustol_sims/params_imp_v3.param
+Warning: Ignoring FORMAT_VERSION in param file
+Warning: Ignoring FORMAT_VERSION in param file
+Loaded defaults from /home/sushanthvenkata/Projects/Ardupilot_SILS_v2/Ardupilot_SILS/ustol_sims/params_imp_v3.param
+Warning: Ignoring FORMAT_VERSION in param file
+Warning: Ignoring FORMAT_VERSION in param file
+Loaded defaults from /home/sushanthvenkata/Projects/Ardupilot_SILS_v2/Ardupilot_SILS/ustol_sims/params_imp_v3.param
+Time: 0.10, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Warning: Ignoring FORMAT_VERSION in param file
+Warning: Ignoring FORMAT_VERSION in param file
+Loaded defaults from /home/sushanthvenkata/Projects/Ardupilot_SILS_v2/Ardupilot_SILS/ustol_sims/params_imp_v3.param
+Time: 0.20, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 0.30, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 0.40, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 0.50, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 0.60, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 0.71, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 0.81, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 0.91, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 1.01, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 1.11, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 1.21, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 1.31, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 1.41, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 1.51, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 1.61, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 1.71, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 1.81, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 1.92, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 2.02, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 2.12, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 2.22, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 2.32, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 2.42, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 2.52, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 2.62, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 2.72, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 2.82, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 2.92, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 3.02, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 3.12, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 3.23, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 3.33, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 3.43, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 3.53, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 3.63, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 3.73, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 3.83, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 3.93, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 4.03, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 4.13, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 4.23, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 4.33, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 4.44, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 4.54, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 4.64, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 4.74, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 4.84, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 4.94, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 5.04, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 5.14, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 5.24, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 5.34, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 5.44, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 5.54, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 5.64, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 5.75, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 5.85, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 5.95, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 6.05, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 6.15, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 6.25, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 6.35, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 6.45, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 6.55, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 6.65, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 6.75, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 6.85, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 6.95, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 7.06, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 7.16, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 7.26, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 7.36, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 7.46, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 7.56, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 7.66, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 7.76, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 7.86, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 7.96, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 8.06, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 8.16, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 8.27, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 8.37, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 8.47, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 8.57, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 8.67, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 8.77, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 8.87, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 8.97, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 9.07, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 9.17, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 9.27, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 9.37, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 9.47, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 9.57, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 9.68, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 9.78, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 9.88, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 9.98, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 10.08, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 10.18, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 10.28, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 10.38, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 10.48, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 10.58, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 10.68, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 10.78, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 10.88, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 10.99, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 11.09, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 11.19, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 11.29, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 11.39, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 11.49, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 11.59, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 11.69, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 11.79, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 11.89, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 11.99, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 12.09, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 12.19, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 12.29, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 12.40, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 12.50, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 12.60, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 12.70, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 12.80, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 12.90, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 13.00, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 13.10, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 13.20, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 13.30, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 13.40, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 13.50, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 13.60, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 13.71, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 13.81, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 13.91, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 14.01, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 14.11, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 14.21, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 14.31, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 14.41, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 14.51, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 14.61, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 14.71, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 14.81, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 14.91, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 15.01, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 15.12, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 15.22, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 15.32, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 15.42, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 15.52, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 15.62, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 15.72, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 15.82, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 15.92, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 16.02, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 16.12, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 16.22, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 16.32, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 16.43, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 16.53, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 16.63, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 16.73, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 16.83, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 16.93, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 17.03, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 17.13, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 17.23, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 17.33, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 17.43, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 17.53, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 17.64, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 17.74, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 17.84, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 17.94, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 18.04, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 18.14, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 18.24, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 18.34, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 18.44, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 18.54, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 18.64, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 18.75, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 18.85, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 18.95, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 19.05, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 19.15, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 19.25, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 19.35, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 19.45, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 19.55, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 19.65, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 19.75, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 19.85, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 19.96, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 20.06, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 20.16, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 20.26, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 20.36, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 20.46, state: 0, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 20.56, state: 1, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 20.66, state: 1, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 20.76, state: 1, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 20.86, state: 1, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 20.96, state: 1, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 21.06, state: 1, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 21.17, state: 1, MLG_NR: 152.1, FLG_NR: 11.40
+Time: 21.27, state: 1, MLG_NR: 157.2, FLG_NR: 6.36
+Time: 21.37, state: 1, MLG_NR: 157.2, FLG_NR: 6.36
+Time: 21.47, state: 1, MLG_NR: 157.2, FLG_NR: 6.36
+Time: 21.57, state: 1, MLG_NR: 157.2, FLG_NR: 6.36
+Time: 21.67, state: 1, MLG_NR: 157.2, FLG_NR: 6.36
+Time: 21.77, state: 1, MLG_NR: 157.2, FLG_NR: 6.36
+Time: 21.87, state: 1, MLG_NR: 121.2, FLG_NR: 6.52
+Time: 21.97, state: 1, MLG_NR: 110.8, FLG_NR: 6.55
+Time: 22.07, state: 1, MLG_NR: 99.5, FLG_NR: 6.60
+Time: 22.17, state: 1, MLG_NR: 87.2, FLG_NR: 6.66
+Time: 22.28, state: 1, MLG_NR: 74.0, FLG_NR: 6.80
+Time: 22.38, state: 1, MLG_NR: 61.5, FLG_NR: 6.84
+Time: 22.48, state: 1, MLG_NR: 56.8, FLG_NR: 6.12
+Time: 22.58, state: 1, MLG_NR: 52.0, FLG_NR: 5.49
+Time: 22.68, state: 1, MLG_NR: 47.2, FLG_NR: 4.88
+Time: 22.78, state: 1, MLG_NR: 42.4, FLG_NR: 4.16
+Time: 22.88, state: 1, MLG_NR: 37.7, FLG_NR: 3.36
+Time: 22.98, state: 1, MLG_NR: 33.9, FLG_NR: 1.77
+Time: 23.08, state: 1, MLG_NR: 29.9, FLG_NR: 0.35
+Time: 23.18, state: 1, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 23.28, state: 2, MLG_NR: 19.1, FLG_NR: 0.00
+Time: 23.38, state: 2, MLG_NR: 12.4, FLG_NR: 0.00
+Time: 23.49, state: 2, MLG_NR: 4.8, FLG_NR: 0.00
+Time: 23.59, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 23.69, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 23.79, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 23.89, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 23.99, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 24.09, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 24.19, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 24.29, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 24.39, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 24.49, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 24.59, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 24.70, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 24.80, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 24.90, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 25.00, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 25.10, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 25.20, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 25.30, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 25.40, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 25.50, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 25.60, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 25.70, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 25.81, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 25.91, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 26.01, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 26.11, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 26.21, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 26.31, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 26.41, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 26.51, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 26.61, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 26.71, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 26.81, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 26.91, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 27.02, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 27.12, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 27.22, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 27.32, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 27.42, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 27.52, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 27.62, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 27.72, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 27.82, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 27.92, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 28.02, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 28.12, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 28.23, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 28.33, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 28.43, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 28.53, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 28.63, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 28.73, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 28.83, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 28.93, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 29.03, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 29.13, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 29.23, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 29.33, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 29.44, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 29.54, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 29.64, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 29.74, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 29.84, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 29.94, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 30.04, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 30.14, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 30.24, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 30.34, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 30.44, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 30.55, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 30.65, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 30.75, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 30.85, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 30.95, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 31.05, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 31.15, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 31.25, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 31.35, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 31.45, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 31.55, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 31.65, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 31.76, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 31.86, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 31.96, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 32.06, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 32.16, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 32.26, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 32.36, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 32.46, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 32.56, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 32.66, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 32.76, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 32.86, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 32.96, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 33.06, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 33.16, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 33.27, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 33.37, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 33.47, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 33.57, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 33.67, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 33.77, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 33.87, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 33.97, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 34.07, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 34.17, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 34.27, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 34.37, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 34.47, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 34.57, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 34.67, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 34.77, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 34.88, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 34.98, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 35.08, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 35.18, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 35.28, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 35.38, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 35.48, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 35.58, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 35.68, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 35.78, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 35.88, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 35.98, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 36.08, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 36.18, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 36.28, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 36.38, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 36.49, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 36.59, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 36.69, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 36.79, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 36.89, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 36.99, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 37.09, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 37.19, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 37.29, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 37.39, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 37.49, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 37.59, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 37.69, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 37.79, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 37.89, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 37.99, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 38.10, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 38.20, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 38.30, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 38.40, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 38.50, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 38.60, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 38.70, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 38.80, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 38.90, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 39.00, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 39.10, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 39.20, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 39.30, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 39.40, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 39.50, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 39.60, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 39.71, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 39.81, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 39.91, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 40.01, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 40.11, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 40.21, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 40.31, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 40.41, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 40.51, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 40.61, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 40.71, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 40.81, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 40.91, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 41.01, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 41.11, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 41.21, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 41.32, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 41.42, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 41.52, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 41.62, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 41.72, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 41.82, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 41.92, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 42.02, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 42.12, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 42.22, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 42.32, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 42.42, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 42.52, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 42.62, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 42.72, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 42.82, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 42.93, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 43.03, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 43.13, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 43.23, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 43.33, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 43.43, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 43.53, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 43.63, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 43.73, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 43.83, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 43.93, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 44.03, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 44.13, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 44.23, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 44.33, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 44.43, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 44.54, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 44.64, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 44.74, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 44.84, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 44.94, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 45.04, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 45.14, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 45.24, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 45.34, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 45.44, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 45.54, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 45.64, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 45.74, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 45.84, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 45.94, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 46.04, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 46.15, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 46.25, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 46.35, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 46.45, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 46.55, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 46.65, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 46.75, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 46.85, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 46.95, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 47.05, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 47.15, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 47.25, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 47.35, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 47.45, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 47.55, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 47.65, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 47.76, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 47.86, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 47.96, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 48.06, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 48.16, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 48.26, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 48.36, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 48.46, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 48.56, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 48.66, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 48.76, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 48.86, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 48.96, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 49.06, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 49.16, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 49.26, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 49.37, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 49.47, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 49.57, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 49.67, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 49.77, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 49.87, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 49.97, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 50.07, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 50.17, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 50.27, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 50.37, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 50.47, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 50.57, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 50.67, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 50.77, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 50.87, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 50.98, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 51.08, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 51.18, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 51.28, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 51.38, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 51.48, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 51.58, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 51.68, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 51.78, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 51.88, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 51.98, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 52.08, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 52.18, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 52.28, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 52.38, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 52.48, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 52.59, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 52.69, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 52.79, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 52.89, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 52.99, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 53.09, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 53.19, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 53.29, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 53.39, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 53.49, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 53.59, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 53.69, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 53.79, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 53.89, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 53.99, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 54.09, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 54.20, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 54.30, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 54.40, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 54.50, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 54.60, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 54.70, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Time: 54.80, state: 3, MLG_NR: 0.0, FLG_NR: 0.00
+Closed connection on SERIAL0
+Exitting

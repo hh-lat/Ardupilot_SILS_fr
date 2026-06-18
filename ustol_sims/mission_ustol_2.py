@@ -75,6 +75,7 @@ CRUISE_CAP_THR = 1660                          # FBWA throttle (direct %) for ~1
                                                #   speed-capture: ~67% of RC3 1000..2000, from the
                                                #   settled-TECS cruise throttle. Tune if cruise is fast/slow.
 K_CAP          = 3.0                           # capture pitch-on-speed gain: theta = K_CAP*(V-CRUISE_AS)
+CRUISE_HOLD_T  = 10.0                           # Monte-Carlo: hold level cruise (open-loop, no TECS) this many s, then end
 LEVEL_BAND    = 10.0                           # flare band: smoothstep theta->0 over the last LEVEL_BAND m up to CRUISE_ALT, so we arrive level
 
 V_R, V_LO, V_CLIMB = 6.0, 8.0, 10.0            # rotate / liftoff / climb-established speeds (m/s)
@@ -298,53 +299,29 @@ while time.time() - t < 120:
               f"climb={st['climb']:5.2f} FPA~{fpa:5.1f} cap={fpa+AOA_CAP:4.1f}deg", flush=True)
         last = now
     if st["alt"] >= CRUISE_ALT - 1:
-        print(f"flared level at {st['alt']:.1f} m (theta={theta:.1f}) -> handing to CRUISE", flush=True)
+        print(f"flared level at {st['alt']:.1f} m (theta={theta:.1f}) -> level cruise hold", flush=True)
         break
     time.sleep(0.05)                                 # ~20 Hz override stream
 
-# 2b. SPEED CAPTURE (still FBWA): drive to the cruise TRIM (12 m/s, ~0 deg) before handing to TECS,
-#     so TECS inherits a matched state instead of an energy error. theta = K_CAP*(V-CRUISE_AS)
-#     (too fast -> nose up to bleed speed; stable, -> 0 at V=12) AND throttle dropped to the
-#     level-trim value so theta actually settles at 0 (not holding 12 by climbing).
-print("speed capture -> 12 m/s / 0 deg ...", flush=True)
+# 3. LEVEL CRUISE HOLD (open-loop FBWA, NO mode switch). For Monte-Carlo: once at altitude, hold
+#    the cruise condition for CRUISE_HOLD_T seconds, then end the run. Speed-on-pitch keeps ~12 m/s
+#    (theta = K_CAP*(V-CRUISE_AS): too fast -> nose up to bleed speed) and throttle sits at the
+#    level-trim value. No TECS / CRUISE switch -> no porpoise, fixed-length window for every MC run.
+print(f"level cruise hold for {CRUISE_HOLD_T:.0f}s (open-loop, no TECS) ...", flush=True)
 tcap = time.time(); last = 0
-while time.time() - tcap < 25:
+while time.time() - tcap < CRUISE_HOLD_T:
     pump()
     theta_cap = max(-5.0, min(TH_CLIMB, K_CAP * (st["as"] - CRUISE_AS)))   # clamp: no big nose-down / over-climb
     send_sticks(theta_cap, thr=CRUISE_CAP_THR)
     now = time.time()
-    if now - last > 1:
-        print(f"CAPT t={now-tcap:4.0f}s theta={theta_cap:5.1f} as={st['as']:5.1f} "
+    if now - last > 2:
+        print(f"CRUISE t={now-tcap:4.0f}s theta={theta_cap:5.1f} as={st['as']:5.1f} "
               f"climb={st['climb']:5.2f} alt={st['alt']:6.1f} thr={st['thr']:3.0f}%", flush=True)
         last = now
-    if abs(st["as"] - CRUISE_AS) < 0.5 and abs(st["climb"]) < 0.5:
-        print(f"captured trim: as={st['as']:.1f} climb={st['climb']:.2f} -> handing to CRUISE", flush=True)
-        break
-    time.sleep(0.05)
+    time.sleep(0.05)                                 # ~20 Hz override stream
+release_sticks()                                     # window done -> release overrides
 
-# 3. CRUISE: switch while STREAMING continuously, picking the throttle-stick value by the CURRENT
-#    mode. The throttle stick means different things per mode (FBWA: direct %; CRUISE: airspeed
-#    demand), so:  still FBWA -> CRUISE_CAP_THR (~67% direct) holds the capture trim;
-#                  in CRUISE  -> CRUISE_THR_PWM (12 m/s demand).
-#    This never lapses the override and never lets CRUISE read the 67% capture stick as ~17 m/s
-#    (which was slamming TECS at engagement). CH2 stays neutral = hold altitude.
-cid = c.mode_mapping()["CRUISE"]
-t = time.time(); last = 0
-while time.time() - t < 40:
-    pump()
-    in_cruise = (c.flightmode == "CRUISE")
-    if not in_cruise:
-        c.set_mode(cid)                              # keep requesting until it flips
-    send_sticks(0.0, thr=(CRUISE_THR_PWM if in_cruise else CRUISE_CAP_THR))
-    now = time.time()
-    if now - last > 2:
-        print(f"CRUISE t={now-t:4.0f}s mode={c.flightmode or '?':7s} "
-              f"alt={st['alt']:6.1f} as={st['as']:5.1f} climb={st['climb']:5.2f} ch3={st['thr_pwm']}", flush=True)
-        last = now
-    time.sleep(0.05)                                 # keep the override alive (~20 Hz)
-release_sticks()                                     # window done -> hand the sticks back
-
-print("DONE (FBWA open-loop climb to %.0f deg at <=%.0f deg/s; cruising ~%.0f m, %.0f m/s)"
-      % (TH_CLIMB, RATE_LIM_DPS, CRUISE_ALT, CRUISE_AS), flush=True)
+print("DONE (FBWA open-loop climb to %.0f deg; %.0fs level hold ~%.0f m / %.0f m/s, no TECS)"
+      % (TH_CLIMB, CRUISE_HOLD_T, CRUISE_ALT, CRUISE_AS), flush=True)
 
 # 4. Plotting handled by the atexit hook (_plot_on_exit) registered at the top.

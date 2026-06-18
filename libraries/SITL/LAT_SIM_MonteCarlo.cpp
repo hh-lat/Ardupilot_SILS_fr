@@ -124,6 +124,7 @@ static void apply_override(const char* key, float val)
     else if (strcmp(key, "fuse_CD_b2") == 0)     { vehcle.fuse.CD_b2 = val; }
     else if (strcmp(key, "fuse_CD_a2_Cmyu") == 0){ vehcle.fuse.CD_a2_Cmyu = val; }
     else if (strcmp(key, "fuse_CD0") == 0)       { vehcle.fuse.CD0 = val; }
+    else if (strcmp(key, "fuse_CDq") == 0)       { vehcle.fuse.CDq = val; }
     // Controls
     else if (strcmp(key, "controls_tau_f") == 0) { vehcle.controls.tau_f = val; }
     else if (strcmp(key, "controls_tau_a") == 0) { vehcle.controls.tau_a = val; }
@@ -176,6 +177,8 @@ static void apply_override(const char* key, float val)
     else if (strcmp(key, "roll_theta_r") == 0)    { vehcle.roll.theta_r = val; }
     else if (strcmp(key, "roll_Clp") == 0)        { vehcle.roll.Clp = val; }
     else if (strcmp(key, "roll_Clr") == 0)        { vehcle.roll.Clr = val; }
+    // Pitching moment (Cm)
+    else if (strcmp(key, "pitch_Cmq") == 0)       { vehcle.pitch.Cmq = val; }
     // Yawing moment (Cn)
     else if (strcmp(key, "yaw_theta0") == 0)      { vehcle.yaw.theta0 = val; }
     else if (strcmp(key, "yaw_theta_b") == 0)     { vehcle.yaw.theta_b = val; }

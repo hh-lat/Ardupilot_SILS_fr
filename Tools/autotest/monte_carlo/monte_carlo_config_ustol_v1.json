@@ -47,7 +47,34 @@
         "flare_alt_m": 3,
         "flare_sec_s": 2,
         "land_sink_mps": 0.3,
-        "flap_pct": 50
+        "flap_pct": 50,
+        "_ustol2_keys": "knobs for aws_monte_carlo.py uSTOL FBWA open-loop profile (mission_ustol_2)",
+        "ustol2": {
+            "cruise_alt_m": 100.0,
+            "cruise_as_mps": 12.0,
+            "cruise_cap_thr_pwm": 1660,
+            "k_cap": 3.0,
+            "cruise_hold_s": 10.0,
+            "level_band_m": 10.0,
+            "v_rotate_mps": 6.0,
+            "v_liftoff_mps": 8.0,
+            "v_climb_mps": 10.0,
+            "theta_liftoff_deg": 7.0,
+            "theta_climb_deg": 16.5,
+            "pitch_rate_lim_dps": 5.0,
+            "aoa_cap_deg": 7.0,
+            "v_hold_mps": 10.0,
+            "k_spd": 1.0,
+            "ground_pitch_deg": -2.0,
+            "rc2_trim": 1500,
+            "rc2_max": 2000,
+            "ptch_lim_max_deg": 20.0,
+            "pitch_sign": -1,
+            "throttle_climb_pwm": 1900,
+            "climb_timeout_s": 130.0,
+            "gcs_sysid": 250,
+            "ekf_timeout_s": 60
+        }
     },
     "sitl": {
         "vehicle": "ArduPlane",
@@ -223,20 +250,10 @@
             "sigma_3": 0.0226245,
             "description": "Parasite drag (50%) -> vehcle.fuse.CD0"
         },
-        "fuse_CDp_cu": {
-            "nominal": 0.000252791,
-            "sigma_3": 0.0001263955,
-            "description": "d(CD)/d(p*Cmyu) (50%) -> vehcle.fuse.CDp_cu"
-        },
-        "fuse_CDq_cu": {
-            "nominal": -0.0120005,
-            "sigma_3": 0.00600025,
-            "description": "d(CD)/d(q*Cmyu) (50%) -> vehcle.fuse.CDq_cu"
-        },
-        "fuse_CDr_cu": {
-            "nominal": -0.023006,
-            "sigma_3": 0.011503,
-            "description": "d(CD)/d(r*Cmyu) (50%) -> vehcle.fuse.CDr_cu"
+        "fuse_CDq": {
+            "nominal": -0.373360,
+            "sigma_3": 0.18668,
+            "description": "d(CD)/d(q) (50%) -> vehcle.fuse.CDq_cu"
         },
         "controls_tau_f": {
             "nominal": 0.297565,
@@ -414,34 +431,14 @@
             "description": "CY M (50%) -> vehcle.lateral.M"
         },
         "lateral_CYp": {
-            "nominal": -0.13707,
-            "sigma_3": 0.068535,
+            "nominal": 0.156542,
+            "sigma_3": 0.078271,
             "description": "CYp (50%) -> vehcle.lateral.CYp"
         },
         "lateral_CYr": {
-            "nominal": 0.35017,
-            "sigma_3": 0.175085,
+            "nominal": 0.364915,
+            "sigma_3": 0.1824575,
             "description": "CYr (50%) -> vehcle.lateral.CYr"
-        },
-        "lateral_CYp_cu": {
-            "nominal": -0.057771,
-            "sigma_3": 0.0288855,
-            "description": "CYp_cu (50%) -> vehcle.lateral.CYp_cu"
-        },
-        "lateral_CYr_cu": {
-            "nominal": 0.042414,
-            "sigma_3": 0.021207,
-            "description": "CYr_cu (50%) -> vehcle.lateral.CYr_cu"
-        },
-        "lateral_CYp2_cu": {
-            "nominal": 0.40687,
-            "sigma_3": 0.203435,
-            "description": "CYp2_cu (50%) -> vehcle.lateral.CYp2_cu"
-        },
-        "lateral_CYr2_cu": {
-            "nominal": -1.3478,
-            "sigma_3": 0.6739,
-            "description": "CYr2_cu (50%) -> vehcle.lateral.CYr2_cu"
         },
         "roll_theta0": {
             "nominal": -0.000102,
@@ -484,24 +481,19 @@
             "description": "Cl theta_r (50%) -> vehcle.roll.theta_r"
         },
         "roll_Clp": {
-            "nominal": -0.54644,
-            "sigma_3": 0.27322,
+            "nominal": -0.642739,
+            "sigma_3": 0.3213695,
             "description": "Clp roll damping (50%) -> vehcle.roll.Clp"
         },
         "roll_Clr": {
-            "nominal": -0.57722,
-            "sigma_3": 0.28861,
+            "nominal": 0.398063,
+            "sigma_3": 0.1990315,
             "description": "Clr (50%) -> vehcle.roll.Clr"
         },
-        "roll_Clp_cu": {
-            "nominal": 0.061697,
-            "sigma_3": 0.0308485,
-            "description": "Clp_cu (50%) -> vehcle.roll.Clp_cu"
-        },
-        "roll_Clr_cu": {
-            "nominal": 0.025503,
-            "sigma_3": 0.0127515,
-            "description": "Clr_cu (50%) -> vehcle.roll.Clr_cu"
+        "pitch_Cmq": {
+            "nominal": -29.186868,
+            "sigma_3": 14.593434,
+            "description": "Cmq pitch damping (50%) -> vehcle.pitch.Cmq"
         },
         "yaw_theta0": {
             "nominal": 0.000281,
@@ -544,24 +536,14 @@
             "description": "Cn theta_aRcu (50%) -> vehcle.yaw.theta_aRcu"
         },
         "yaw_Cnp": {
-            "nominal": 0.0437962,
-            "sigma_3": 0.0218981,
+            "nominal": -0.139344,
+            "sigma_3": 0.069672,
             "description": "Cnp (50%) -> vehcle.yaw.Cnp"
         },
-        "yaw_Cnp_cu": {
-            "nominal": -0.00190315,
-            "sigma_3": 0.000951575,
-            "description": "Cnp_cu (50%) -> vehcle.yaw.Cnp_cu"
-        },
         "yaw_Cnr": {
-            "nominal": -0.244335,
-            "sigma_3": 0.1221675,
+            "nominal": -0.162811,
+            "sigma_3": 0.0814055,
             "description": "Cnr yaw damping (50%) -> vehcle.yaw.Cnr"
-        },
-        "yaw_Cnr_cu": {
-            "nominal": 0.0239989,
-            "sigma_3": 0.01199945,
-            "description": "Cnr_cu (50%) -> vehcle.yaw.Cnr_cu"
         },
         "yaw_beta0": {
             "nominal": 11.999974,
@@ -614,8 +596,8 @@
             "description": "CT J*Mtip term (50%) -> vehcle.prop.CT_JM"
         },
         "max_thrust": {
-            "nominal": 50.0,
-            "sigma_3": 5.0,
+            "nominal": 4.905,
+            "sigma_3": 0.4905,
             "description": "Per-motor max thrust (10%) -> s_motor[*].max_thrust (recompute CT_static)"
         }
     }

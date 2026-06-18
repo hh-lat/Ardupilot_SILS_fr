@@ -1,0 +1,7 @@
+Monte Carlo campaign complete.
+Finished        : 2026-06-18T16:44:23.991415
+Cases completed : 4
+Takeoff success : 4/4
+Reached hold    : 1/4
+Wall-clock time : 142s
+Summary CSV     : /home/sushanthvenkata/Projects/Ardupilot_SILS_v2/Ardupilot_SILS/Tools/autotest/monte_carlo/mc_20260618_164201/summary.csv
