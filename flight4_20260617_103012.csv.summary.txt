@@ -1,0 +1,11 @@
+PERFORMANCE SUMMARY
+TAKEOFF
+  ground roll (start -> lift-off) ..    23.4 m
+  takeoff distance (->   15 m screen)    67.3 m
+  lift-off speed (Vlof) ............    10.7 m/s
+  time to lift-off .................     1.9 s
+LANDING  (result: INTERRUPTED)
+  touchdown speed (Vtd) ............     n/a m/s
+  landing ground roll (td -> stop) .     n/a m
+  landing distance (  15 m -> stop) .     n/a m
+  (landing metrics incomplete -- no normal touchdown-and-stop)

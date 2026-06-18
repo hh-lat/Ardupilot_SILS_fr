@@ -19,7 +19,7 @@
 #include <limits.h>
 
 static FILE* log_fp = nullptr;
-static const char LOG_DIR_DEFAULT[] = "/home/sushanthvenkata/Projects/Ardupilot_SILS/ustol_sims/logs/";
+static const char LOG_DIR_DEFAULT[] = "/home/sushanthvenkata/Projects/Ardupilot_SILS_v2/Ardupilot_SILS/ustol_sims/logs/";
 
 static const char* get_log_dir()
 {

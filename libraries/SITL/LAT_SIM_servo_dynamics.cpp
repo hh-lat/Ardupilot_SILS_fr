@@ -152,7 +152,6 @@ static float v_servo_load_slew(int idx, float deflection)
 	if (rate > SERVO_SLEW_NOLOAD)   rate = SERVO_SLEW_NOLOAD;
 	if (rate < SERVO_SLEW_FULLLOAD) rate = SERVO_SLEW_FULLLOAD;
 
-	rate = SERVO_SLEW_FULLLOAD;
 	return rate*D2R;   // [rad/s]
 }
 
@@ -209,7 +208,6 @@ static void v_servo_tf_step(S_SERVO *s, int idx, float dt)
 
 	s->ang_vel   = s->tf_ydot;
 	s->angle     = s->tf_y;     // actual angle -> consumed by v_fill_vehcle_angles
-	s->angle = cmd;
 	s->angle_old = s->tf_y;
 }
 

@@ -958,7 +958,6 @@ void v_calculate_aero_yaw_moment()
 		case PLANE_USTOL_V1:
 		{
 			// Cn: attached linear + Beard post-stall blend + rate terms. Fits in DEGREES.
-			// NOTE: yaw-rate terms use RAW p, r (per classdef), not non-dimensionalized.
 			float Cmu = 0.52f*vehcle.Cmu;
 			float beta_d = vehcle.beta*R2D;
 			float daL_d  = vehcle.delta_aL*R2D;
