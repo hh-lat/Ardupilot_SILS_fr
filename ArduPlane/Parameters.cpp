@@ -1279,6 +1279,10 @@ const AP_Param::GroupInfo ParametersG2::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("GUIDED_TIMEOUT", 40, ParametersG2, guided_timeout, 3.0f),
 
+    // @Group: UST_
+    // @Path: AP_DiffThrust.cpp
+    AP_SUBGROUPINFO(diff_thrust, "UST_", 41, ParametersG2, AP_DiffThrust),
+
     AP_GROUPEND
 };
 

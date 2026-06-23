@@ -4,6 +4,8 @@
 
 #include <AP_Common/AP_Common.h>
 
+#include "AP_DiffThrust.h"
+
 // Global parameter class.
 //
 class Parameters {
@@ -533,6 +535,9 @@ public:
 #if AC_PRECLAND_ENABLED
     AC_PrecLand precland;
 #endif
+
+    // uSTOL differential-thrust yaw mixer (9-channel)
+    AP_DiffThrust diff_thrust;
 
     // crow flaps weighting
     AP_Int8 crow_flap_weight_outer;
