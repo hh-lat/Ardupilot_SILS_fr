@@ -592,7 +592,16 @@ void Plane::update(const struct sitl_input &input)
             v_set_aircraft_instance(this); // Pass this aircraft instance
             lat_fdm_init=1;
         }
-        
+
+        // Feed SITL's earth-frame wind into the custom uSTOL FDM (NED frame).
+        // update_wind(input) above already built wind_ef from SIM_WIND_DIR (FROM),
+        // SIM_WIND_DIR_Z, the altitude profile, turbulence, and the sign flip at
+        // SIM_Aircraft.cpp:990, so copying it keeps V_air = V_gnd - wind_ned
+        // consistent with the stock velocity_air = velocity - wind_ef.
+        vehcle.wind_ned[0] = wind_ef.x;
+        vehcle.wind_ned[1] = wind_ef.y;
+        vehcle.wind_ned[2] = wind_ef.z;
+
         v_lat_fdm_run(input);
 
          float p[3];

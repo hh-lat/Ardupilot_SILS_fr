@@ -86,7 +86,7 @@
     },
     "params": {
         "mass": {
-            "nominal": 17.0,
+            "nominal": 18.0,
             "sigma_3": 1.7,
             "description": "Vehicle mass (10%) -> vehcle.mass"
         },

@@ -761,7 +761,7 @@ void v_plane_param_define_ustol_v1()
 	//v_set_servo_params(pwm_min, pwm_max, angle_pwm_min, angle_pwm_max, omega, zeta, min_rate, max_rate, min_accel, max_accel, type)
 	v_set_servo_params(1100,1900,-20*D2R, 20*D2R, 10.0, 0.7, -200*D2R, 200*D2R, -720*D2R, 720*D2R, AILERON_COMMON);
 	v_set_servo_params(1100,1900,-10*D2R, 10*D2R, 10.0, 0.7, -200*D2R, 200*D2R, -720*D2R, 720*D2R, ELEVATOR_COMMON);
-	v_set_servo_params(1100,1900,-40*D2R, 40*D2R, 10.0, 0.7, -200*D2R, 200*D2R, -720*D2R, 720*D2R, RUDDER_COMMON);
+	v_set_servo_params(1100,1900,-20*D2R, 20*D2R, 10.0, 0.7, -200*D2R, 200*D2R, -720*D2R, 720*D2R, RUDDER_COMMON);
 	v_set_servo_params(1100,1900, 20*D2R,-20*D2R, 10.0, 0.7, -200*D2R, 200*D2R, -720*D2R, 720*D2R, AILERON_LEFT);
 	v_set_servo_params(1100,1900,-20*D2R, 20*D2R, 10.0, 0.7, -200*D2R, 200*D2R, -720*D2R, 720*D2R, AILERON_RIGHT);
 	v_set_servo_params(1100,1900, 0,      32*D2R, 10.0, 0.7, -200*D2R, 200*D2R, -720*D2R, 720*D2R, FLAP);
