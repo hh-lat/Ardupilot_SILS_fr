@@ -273,6 +273,7 @@ void v_calculate_lift_force()
 			float er2 = constrain_float1( vehcle.cl_stall.rM*(alpha + a0r), -88.0f, 88.0f);
 			float Wr  = (1.0f + expf(er1) + expf(er2)) / ((1.0f + expf(er1))*(1.0f + expf(er2)));
 			Wr = constrain_float1(Wr, 0.0f, 1.0f);
+			vehcle.W_clw = Ww;  vehcle.W_clr = Wr;   // export wing/rest stall weights (dashboard)
 
 			float CL_wing_post = (1.0f - Ww)*CL_w + Ww*vehcle.cl_stall.wkflat*sinf(2.0f*alpha);
 			float CL_rest_post = (1.0f - Wr)*(CL_t + CL_f)
@@ -398,6 +399,7 @@ void v_calculate_drag_force()
 			float e2 = constrain_float1( vehcle.stall.k*(alpha + a0), -88.0f, 88.0f);
 			float W = (1.0f + expf(e1) + expf(e2)) / ((1.0f + expf(e1))*(1.0f + expf(e2)));
 			W = constrain_float1(W, 0.0f, 1.0f);
+			vehcle.W_cd = W;   // export CD stall weight (dashboard)
 
 			// always-present terms (sideslip, blowing, controls, tail induced)
 			float CD_rest = vehcle.fuse.CD_b2*beta*beta
@@ -561,6 +563,7 @@ void v_calculate_side_force()
 			float e2 = constrain_float1( vehcle.lateral.M*(beta_eff + b0), -88.0f, 88.0f);
 			float W = (1.0f + expf(e1) + expf(e2)) / ((1.0f + expf(e1))*(1.0f + expf(e2)));
 			W = constrain_float1(W, 0.0f, 1.0f);
+			vehcle.W_cy = W;   // export CY stall weight (dashboard)
 
 			float CY_flat = 2.0f*sign_1(beta_eff)*sinf(beta_eff)*sinf(beta_eff)*cosf(beta_eff);
 
@@ -672,6 +675,7 @@ void v_calculate_aero_roll_moment()
 void v_calculate_aero_pitch_moment()
 {
 	vehcle.all_aero_moment[1]=0.0;
+	vehcle.x_cp_ac = NAN; vehcle.x_cp_w = NAN; vehcle.x_ac_w = NAN;   // off-scale unless computed below
 
 	if (vehcle.tas < vehcle.aero_zero_speed)
 	{
@@ -840,6 +844,15 @@ void v_calculate_aero_pitch_moment()
 			          - CL_t_post*vehcle.cg.x_cg_tac_abs
 			          + Cmq*(vehcle.q * vehcle.c / (2.0f*vehcle.tas));
 			vehcle.all_aero_moment[1] = vehcle.Q*vehcle.s*vehcle.c*vehcle.Cm;
+
+			// --- centers of pressure (x/c from wing LE, aft +; exported for the dashboard) ---
+			// Aircraft: where the total aero moment about the CG vanishes -> x_cp = x_cg - Cm/CN.
+			// Wing:     where the wing resultant acts        -> x_cp_w = x_ac_w - Cm0_ac_wing/CL_w_post.
+			// NaN when the relevant lift ~ 0 (CoP runs to infinity); dashboard shows it off-scale.
+			float CN_ac = vehcle.CL*cosf(alpha) + vehcle.CD*sinf(alpha);   // normal-force coeff (lift+drag computed already)
+			vehcle.x_ac_w  = x_ac_w;
+			vehcle.x_cp_ac = (fabsf(CN_ac)     > 0.03f) ? (vehcle.cg.x_cg_c - vehcle.Cm/CN_ac)      : NAN;
+			vehcle.x_cp_w  = (fabsf(CL_w_post) > 0.03f) ? (x_ac_w           - Cm0_ac_wing/CL_w_post) : NAN;
 			break;
 		}
 	}
@@ -983,6 +996,7 @@ void v_calculate_aero_yaw_moment()
 			float e2 = constrain_float1( vehcle.yaw.M*(beta_eff + b0), -88.0f, 88.0f);
 			float W = (1.0f + expf(e1) + expf(e2)) / ((1.0f + expf(e1))*(1.0f + expf(e2)));
 			W = constrain_float1(W, 0.0f, 1.0f);
+			vehcle.W_cn = W;   // export Cn stall weight (dashboard)
 
 			float Cn_flat = 2.0f*sign_1(beta_eff)*sinf(beta_eff)*sinf(beta_eff)*cosf(beta_eff);
 
