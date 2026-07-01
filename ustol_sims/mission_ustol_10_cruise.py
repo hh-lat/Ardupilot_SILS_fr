@@ -122,7 +122,8 @@ RUD_SIGN      = +1                             # +cmd must yaw nose-RIGHT; flip 
 DIFF_THRUST   = True                           # enable the velocity-scheduled diff-thrust yaw mixer
 UST_DT_VLO    = 13.0                           # m/s, full differential authority at/below
 UST_DT_VHI    = 17.0                           # m/s, zero authority at/above (must exceed VLO)
-UST_DT_KYAW   = 0.20                           # peak per-motor offset at full rudder, full weight
+UST_NDES_MAX  = 20.0                           # peak yaw MOMENT [N*m] at full rudder (was UST_DT_KYAW gain)
+UST_KRUD      = 0.11                            # >0 = rudder-aware daisy-chain (new); 0 = legacy VLO/VHI schedule
 UST_DT_RLFF   = 0.0                            # aileron roll feedforward (0 = off)
 UST_UMAX      = 1.0                            # per-motor command ceiling; 1.0 = uncapped (SITL takeoff)
 K_MOTOR_FN    = [33, 34, 35, 36, 37, 38, 39, 40, 82]   # SERVO1..9 -> k_motor1..k_motor9 functions
@@ -418,7 +419,8 @@ if DIFF_THRUST:
         ("UST_ENABLE",  1),
         ("UST_DT_VLO",  UST_DT_VLO),
         ("UST_DT_VHI",  UST_DT_VHI),
-        ("UST_DT_KYAW", UST_DT_KYAW),
+        ("UST_NDES_MAX", UST_NDES_MAX),
+        ("UST_KRUD",    UST_KRUD),
         ("UST_DT_RLFF", UST_DT_RLFF),
         ("UST_UMAX",    UST_UMAX),
     ]:

@@ -1188,7 +1188,8 @@ def _run_case(case_id, case_seed, instance_id, config, perturbed, output_dir,
                 ("UST_ENABLE",  1),
                 ("UST_DT_VLO",  ucfg.get("ust_dt_vlo", 13.0)),
                 ("UST_DT_VHI",  ucfg.get("ust_dt_vhi", 17.0)),
-                ("UST_DT_KYAW", ucfg.get("ust_dt_kyaw", 0.20)),
+                ("UST_NDES_MAX", ucfg.get("ust_ndes_max", 20.0)),  # peak yaw MOMENT [N*m] (was UST_DT_KYAW gain)
+                ("UST_KRUD",    ucfg.get("ust_krud", 0.11)),       # >0 = rudder-aware daisy-chain (new); 0 = legacy VLO/VHI
                 ("UST_DT_RLFF", ucfg.get("ust_dt_rlff", 0.0)),
                 ("UST_UMAX",    ucfg.get("ust_umax", 1.0)),        # 1.0 = uncapped (SITL takeoff)
             ]:

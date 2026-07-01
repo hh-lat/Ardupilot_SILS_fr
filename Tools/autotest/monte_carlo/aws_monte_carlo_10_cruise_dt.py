@@ -1,95 +1,62 @@
 #!/usr/bin/env python3
 """
-Monte Carlo Runner — uSTOL FBWA + LOITER + DIFFERENTIAL-THRUST + LANDING + WIND
+Monte Carlo Runner - uSTOL CRUISE ROLL/YAW DOUBLET STABILITY, WIND ON/OFF A-B (DT)
 ==================================================================================
-Same as aws_monte_carlo_7.py (all-FBWA takeoff→cruise→approach→POWERED-flare
-landing, wind MIX) but with TWO additions, so we can quantify the velocity-scheduled
-DIFFERENTIAL-THRUST yaw mixer (AP_DiffThrust, UST_*) during a LOITER:
+A variant of aws_monte_carlo_9_nodt_cruise.py. SAME cruise-start + roll/yaw doublet
+test, but each case now runs the doublet sequence TWICE in one flight - once in CALM
+air and once in GUSTY WIND - so a single case yields a matched wind-OFF vs wind-ON
+comparison. Differential thrust is ON by default ("dt"); --diff-thrust off runs the
+stock-throttle baseline.
 
-  1) LOITER phase — after the cruise hold the runner releases the open-loop RC
-     overrides, switches the autopilot to LOITER (a navigated circle at
-     WP_LOITER_RAD), holds it for `loiter_s`, then hands back to FBWA and flies the
-     same decoupled approach + POWERED flare landing.  In the straight FBWA phases
-     the yaw demand is ~0 so differential thrust is inert; the LOITER turn is where
-     the autopilot commands rudder, so it is where DT actually does work.
-  2) DIFFERENTIAL THRUST — when --diff-thrust on (default), each case maps the nine
-     ESC outputs SERVO1..9 -> k_motor1..k_motor9 and sets UST_ENABLE=1 (+ the UST_
-     tune, with UST_UMAX=1.0 so takeoff thrust is uncapped).  AP_DiffThrust then
-     turns the stock rudder demand into an antisymmetric per-motor throttle split.
-     --diff-thrust off leaves the outputs on k_throttle (UST_ENABLE=0, stock uniform
-     throttle) — the BASELINE: run the campaign both ways and diff the LOITER metrics
-     (loiter_mean_motor_diff_pwm, loiter_max_yaw_rate_dps, loiter_max_roll_deg) to
-     see the effect of DT.  `dt_enabled` is recorded per case in result.json/summary.
+Per case (in-air spawn at cruise; NO ground roll, NO climb, NO loiter, NO landing):
 
-A SINGLE campaign flies a MIX of wind conditions:
+    in-air spawn @cruise (winds OFF in EVERY case)
+      -> EKF-settle warmup -> brief calm settle (WIND_OFF_SETTLE_S)
+      -> PASS 1  ROLL + YAW doublets, winds OFF      (phases ROLL_NW / YAW_NW)
+      -> turn winds ON: this case's WIND_MIX wind + WIND_ON_TURBULENCE gusts
+      -> let the gust build (WIND_ON_ESTABLISH_S)    (phase  WIND_ON)
+      -> PASS 2  ROLL + YAW doublets, winds ON       (phases ROLL_W / YAW_W)
+      -> final settle, winds ON                      (phase  RETURN)
 
-    head   wind from straight ahead          (SIM_WIND_DIR = runway heading)
-    tail   wind from behind                  (SIM_WIND_DIR = runway heading + 180)
-    cross  wind from the side                (SIM_WIND_DIR = runway heading ± 90)
-    up     vertical updraft  (rising air)    (SIM_WIND_DIR_Z = +90)
-    down   vertical downdraft (sinking air)  (SIM_WIND_DIR_Z = -90)
-    none   zero wind (reproduces v4)
-    <horiz>+<vert>  COMBINED, e.g. "cross+down" — a horizontal wind AND a
-                    vertical wind at once (slanted): SIM_WIND_SPD=hypot(h,v) at
-                    elevation SIM_WIND_DIR_Z=atan2(±v,h)
+The wind is toggled LIVE mid-flight via SIM_WIND_* param sets (the uSTOL FDM re-reads
+wind every step), so no rebuild/relaunch is needed between passes. Each pass keeps its
+OWN stability scorecard, recorded into summary.csv with a `nw_` (winds off) and a `w_`
+(winds on) prefix:
+  * ROLL doublets (+10/-10/+20/-20 deg bank): worst |held-cmd|, worst overshoot,
+    worst recovery time back to wings-level.
+  * YAW  doublets (+10/-10/+20/-20 deg rudder): peak yaw rate, worst recovery time.
+  * departures: a spiral past BANK_ABORT runs a wings-level recovery and flags the
+    pass departed/aborted (the OTHER pass still runs - both conditions get tested).
+  * a per-row `wind_on` (0/1) column in the per-case CSV tags which leg each sample is.
 
-Unlike aws_monte_carlo_6 (ONE wind type per campaign), v7 flies a MIX: edit the
-WIND_MIX list in the config block below to give an explicit case COUNT per wind
-type (e.g. 4000 cross + 4000 up + 4000 down + ...), so a single 25 000-case run
-sweeps every wind type at once.  Each block sweeps its own speed levels; the wind
-type/speed/direction are recorded per case in result.json and summary.csv, and
-the campaign output dir is tagged "mix".
+A SINGLE campaign still flies a MIX of wind conditions for the winds-ON pass
+(head/tail/cross/up/down and combined slants) - edit WIND_MIX below. The wind
+type/speed/direction is recorded per case in result.json/summary.csv. Drop "none"
+blocks here: a "none" case would make the winds-ON pass identical to the winds-OFF one.
 
-REQUIRES the SIM_Plane.cpp wiring that copies wind_ef -> vehcle.wind_ned: the
-custom uSTOL FDM ignores SIM_WIND_* without it.  Rebuild with `./waf plane`.
+REQUIRES the SIM_Plane.cpp wiring that copies wind_ef -> vehcle.wind_ned: the custom
+uSTOL FDM ignores SIM_WIND_* without it.  Rebuild with `./waf plane`.
 
-Each case launches one headless SITL `arduplane`, perturbs the custom uSTOL
-FDM parameters via the LAT_MC_OVERRIDE_FILE mechanism, then flies the
-mission_ustol_8 profile — takeoff/climb, cruise, a LOITER circle, then a
-decoupled FBWA approach + POWERED flare landing:
+SELF-CONTAINED raw-pymavlink RC-override flight logic (no auto_flight4), headless,
+N parallel SITL processes (one TCP port each), optional --speedup, Parquet sim_output
++ lean per-case output (same storage/throughput options as aws_monte_carlo_8.py).
 
-    GROUND    nose-down hold during ground roll (V < V_R)
-    CLIMB     airspeed-scheduled, rate-limited pitch with airspeed/AoA guards
-    (level)   smoothstep pitch -> 0 + throttle ramp to cruise-trim over the
-              last LEVEL_BAND metres up to CRUISE_ALT (arrive LEVEL)
-    CRUISE    open-loop level hold (speed-on-pitch + cruise throttle) for
-              CRUISE_HOLD_T seconds
-    LOITER    release overrides -> autopilot LOITER circle (WP_LOITER_RAD) for
-              loiter_s seconds (this is the DT-relevant phase) -> back to FBWA
-    APPROACH  still FBWA; PITCH holds the approach speed (speed-on-pitch),
-              THROTTLE holds the sink rate (sink-on-throttle) down to FLARE_ALT
-    FLARE     POWERED flare — THROTTLE arrests the sink around a height-scheduled
-              sink target, elevator holds only a modest nose-up, to touchdown
-    ROLLOUT   idle throttle + slight nose-down, then DISARM.  Run ends.
+Phases written to the per-case CSV: CRUISE (initial settle), ROLL_NW/YAW_NW (winds-off
+doublets), WIND_ON (gust establish), ROLL_W/YAW_W (winds-on doublets), RECOVER (after
+a departure), RETURN (final settle). [GROUND/CLIMB only if START_AT_CRUISE is False.]
 
-WHY a POWERED flare: on this airframe tail/elevator authority scales with dynamic
-pressure (~V^2), so at the ~12 m/s approach the tail has ~1/7 of its climb-speed
-authority; the thrust line sits below the CG with propwash over the tail, so
-THROTTLE trims pitch.  A power-off flare saturates the elevator yet the nose still
-falls — so power is held through the flare and sink is arrested with it.
-
-SELF-CONTAINED: the flight logic is implemented here with raw pymavlink (RC
-overrides), exactly like monte_carlo_runner_flap_retract.py — there is NO
-dependency on auto_flight4.  This is headless (no MAVProxy / GCS viewer): the
-MAVLink TCP connection exists only to command each worker's own SITL instance.
-
-This file owns the Monte Carlo concerns:
-  • sampling the FDM params from N(nominal, sigma_3/3) clipped to ±3σ,
-  • writing the per-case override file the FDM reads at startup,
-  • launching N headless SITL processes in parallel (one TCP port each),
-  • optional --speedup (run SITL faster than real time — the big throughput win),
-  • collecting per-case telemetry + a campaign summary.csv.
-
-PARALLELISM: `--workers` independent SITL processes at once, one instance ID
-each (MAVLink TCP port = 5760 + 10*instance_id).  No MAVProxy is used.
+DIFFERENTIAL-THRUST PARAMS (updated for the AP_DiffThrust daisy-chain rewrite):
+  the mixer's yaw authority is now UST_NDES_MAX [N*m] (was the dimensionless UST_DT_KYAW),
+  and UST_KRUD>0 selects the new rudder-aware daisy-chain (DT covers only the residual
+  the V^2-scaled rudder can't); UST_KRUD=0 falls back to the legacy VLO/VHI schedule.
 
 Usage:
-    # 1) edit WIND_MIX below (case + count per wind type)
+    # 1) edit WIND_MIX below (per-type counts for the winds-ON pass)
     # 2) run a campaign (output dir auto-tagged mc_<ts>_mix):
-    python3 aws_monte_carlo_8.py                       # DT ON, size = sum of WIND_MIX counts
-    python3 aws_monte_carlo_8.py --workers 30 --speedup 10
-    python3 aws_monte_carlo_8.py --diff-thrust off     # BASELINE loiter (no DT) for comparison
-    python3 aws_monte_carlo_8.py --runs 25000 --workers 30  # rescale mix to 25000, keep ratios
+    python3 aws_monte_carlo_10_cruise_dt.py                    # DT on (default)
+    python3 aws_monte_carlo_10_cruise_dt.py --diff-thrust off  # stock-throttle baseline
+    python3 aws_monte_carlo_10_cruise_dt.py --workers 30 --speedup 10
+    python3 aws_monte_carlo_10_cruise_dt.py --runs 25000 --workers 30  # rescale mix
 """
 
 import argparse
@@ -120,21 +87,21 @@ except ImportError:                                       # pragma: no cover
     sys.exit(1)
 
 # ===========================================================================
-#  WIND MIX — EDIT THIS BEFORE RUNNING (no CLI flag)
+#  WIND MIX - EDIT THIS BEFORE RUNNING (no CLI flag)
 # ===========================================================================
 #  Unlike aws_monte_carlo_6 (ONE wind type for the whole campaign), v7 flies a
 #  MIX of wind types in a single campaign: you give an explicit case COUNT per
 #  wind type, so a 25 000-case run can be, e.g., 4000 crosswind + 4000 updraft +
 #  4000 downdraft + ...  Each block sweeps its own speed levels so every type is
 #  balanced across wind strengths.  Directions are relative to the runway heading
-#  (config mission.runway_heading_deg) — the aircraft flies straight along it the
+#  (config mission.runway_heading_deg) - the aircraft flies straight along it the
 #  whole profile, so head/tail/cross are well-defined.
 #
 #  WIND_MIX is an ORDERED list of blocks.  Per block:
 #     "case"   (required) one of:
 #                  "head"|"tail"|"cross"|"up"|"down"|"updown"|"none"
-#                  COMBINED "<horiz>+<vert>" — horiz in head|tail|cross, vert in
-#                  up|down|updown — e.g. "cross+down" flies a crosswind AND a
+#                  COMBINED "<horiz>+<vert>" - horiz in head|tail|cross, vert in
+#                  up|down|updown - e.g. "cross+down" flies a crosswind AND a
 #                  downdraft at once (a slanted wind).
 #     "count"  (required) number of cases of this type
 #     "speeds" (optional) m/s HORIZONTAL speed levels swept within the block
@@ -147,32 +114,78 @@ except ImportError:                                       # pragma: no cover
 #                  SPD=hypot(h,v) at elevation atan2(v,h): horiz=h along the horiz
 #                  direction, vert=v (up -> rising air, down -> sinking air).
 #  The campaign size = sum of counts.  (--runs, if given, proportionally rescales
-#  every block to that total while preserving the ratios — handy to scale a mix
+#  every block to that total while preserving the ratios - handy to scale a mix
 #  up/down without re-typing counts.)  Add as many blocks as you like, including
 #  several "cross"/combined blocks with different sides/speeds.
 WIND_MIX = [
-    {"case": "none",       "count": 1000},
-    {"case": "head",       "count": 1500},
-    {"case": "tail",       "count": 1500},
-    {"case": "cross",      "count": 0, "side": "right"},
+    # NOTE (v10): WIND_MIX drives the winds-ON (pass 2) leg only - every case already
+    # gets a built-in winds-OFF leg (pass 1). A "none" case is pointless here (pass 2
+    # would equal pass 1), so it is left at count 0.
+    {"case": "none",       "count": 300},
+    {"case": "head",       "count": 300},
+    {"case": "tail",       "count": 300},
+    {"case": "cross",      "count": 500, "side": "right"},
     {"case": "cross",      "count": 0, "side": "left"},
-    {"case": "up",         "count": 1500},
-    {"case": "down",       "count": 1500},
+    {"case": "up",         "count": 300},
+    {"case": "down",       "count": 300},
     # combined horizontal + vertical (vertical magnitude = vert_speed m/s):
-    {"case": "cross+down", "count": 1000, "side": "right", "vert_speed": 2.0},
-    {"case": "head+down",  "count": 1000, "vert_speed": 2.0},
-    {"case": "tail+up",    "count": 1000, "vert_speed": 2.0},
+    {"case": "cross+down", "count": 500, "side": "right", "vert_speed": 1.0},
+    {"case": "head+down",  "count": 300, "vert_speed": 1.0},
+    {"case": "tail+up",    "count": 300, "vert_speed": 1.0},
 ]
 WIND_SPEED_LEVELS     = [1.0, 1.5, 2.0] # default m/s HORIZ levels; block case i -> levels[i % len]
-WIND_VERT_SPEED       = 2.0             # default vertical component (m/s) for combined cases
+WIND_VERT_SPEED       = 1.0             # default vertical component (m/s) for combined cases
                                         # (e.g. "cross+down"); per-block override via "vert_speed"
 CROSSWIND_SIDE        = "right"         # default cross side: "right" (hdg+90) | "left" (hdg-90)
 WIND_MIX_SHUFFLE      = True            # True -> deterministically (seeded) spread types across
                                         # case ids so ANY prefix of the run is a representative
                                         # sample of the whole mix; False -> blocks in WIND_MIX order
-WIND_TURBULENCE       = 0.1             # m/s RMS gusts (0 = steady wind)
+WIND_TURBULENCE       = 0.2             # m/s RMS gusts (0 = steady wind)
 WIND_PROFILE_CONSTANT = True            # True  -> SIM_WIND_T=1 (constant w/ altitude)
                                         # False -> SIM_WIND_T=0 (sqrt profile: less near ground)
+# ===========================================================================
+
+
+# ===========================================================================
+#  CRUISE-START (skip the open-loop climb)
+# ===========================================================================
+#  When START_AT_CRUISE is True, each case SPAWNS the aircraft already airborne at the
+#  cruise altitude + airspeed (ustol2.cruise_alt_m / cruise_as_mps) and goes straight
+#  into the ROLL/YAW doublet stability test - no ground roll, no climb. This needs the
+#  uSTOL FDM in-air-start hook (SIM_Plane.cpp): the runner exports LAT_START_ALT (m AGL)
+#  and LAT_START_AS (m/s true airspeed) into each SITL's environment, and on the first
+#  armed tick the FDM teleports to that altitude/airspeed, wings level, and forces IN_AIR.
+#  Set START_AT_CRUISE=False to fall back to the original GROUND->CLIMB->CRUISE profile
+#  (e.g. on a firmware build without the hook - the env vars are then simply ignored).
+START_AT_CRUISE   = True
+INAIR_WARMUP_MIN_S = 4.0   # minimum wings-level hold after the in-air spawn (s)
+INAIR_STABLE_S     = 3.0   # require the reported altitude to stay within INAIR_ALT_BAND of
+                           # cruise for this long CONTINUOUSLY before starting the test - the
+                           # teleport shocks the EKF (its height estimate can transiently swing
+                           # tens of metres for a few seconds), and we must not begin doublets,
+                           # _track(), or the departed() floor check until it has reconverged.
+INAIR_WARMUP_MAX_S = 20.0  # hard cap on the warmup wait (s), even if altitude never stabilises
+INAIR_ALT_BAND     = 20.0  # |alt - cruise_alt| tolerance (m) for "EKF converged"
+INAIR_START_PITCH_DEG = 0.0  # initial body pitch at spawn (deg); autopilot trims from here
+# ===========================================================================
+
+
+# ===========================================================================
+#  WIND ON/OFF A-B TEST (v10) - toggle SITL wind live between the two doublet passes
+# ===========================================================================
+#  Each case flies the roll/yaw doublet sequence TWICE in one flight: PASS 1 in calm
+#  air (winds OFF), then PASS 2 after the wind is switched ON live (this case's WIND_MIX
+#  wind + gusts). The transition is done with plain SIM_WIND_* param sets mid-flight -
+#  the uSTOL FDM re-reads wind every step, so there's no rebuild/relaunch between passes.
+WIND_OFF_SETTLE_S    = 5.0    # brief calm wings-level hold before the PASS-1 (winds-off)
+                              # doublets, after the EKF warmup - the "5 s" calm leg.
+WIND_ON_ESTABLISH_S  = 15.0   # after switching winds ON, fly cruise this long so the gust
+                              # fully builds and hits the aircraft BEFORE the PASS-2
+                              # (winds-on) doublets begin - the "15 s" wind leg.
+WIND_ON_TURBULENCE   = 2.0    # m/s RMS gusts during the winds-ON pass (SIM_WIND_TURB):
+                              # makes pass 2 GUSTY on top of the case's steady WIND_MIX
+                              # wind. Set 0.0 for a steady (non-gusty) winds-on pass.
+WIND_RAMP_TC_S       = 1.0    # SIM_WIND_TC time constant (s) for the live on/off ramp.
 # ===========================================================================
 
 
@@ -185,9 +198,9 @@ def wind_params_for_case(case: str, runway_hdg: float, speed: float,
         wind_ef = (cos(DIR)cos(DIR_Z), sin(DIR)cos(DIR_Z), sin(DIR_Z)) * SPD,
     then sign-flipped at line 990, with wind_ned := wind_ef so
     V_air = V_gnd - wind_ned):
-      • SIM_WIND_DIR is the heading the wind comes FROM (compass deg).
-      • DIR = runway heading  -> headwind (raises airspeed, shortens ground roll).
-      • SIM_WIND_DIR_Z is the ELEVATION angle: horiz = SPD*cos(DIR_Z),
+      * SIM_WIND_DIR is the heading the wind comes FROM (compass deg).
+      * DIR = runway heading  -> headwind (raises airspeed, shortens ground roll).
+      * SIM_WIND_DIR_Z is the ELEVATION angle: horiz = SPD*cos(DIR_Z),
         vert = SPD*sin(DIR_Z).  DIR_Z = +90 -> updraft (rising air, reduces sink);
         DIR_Z = -90 -> downdraft (sinking air, increases sink).
     For pure-vertical cases the horizontal component is cos(90)=0, so the whole
@@ -197,7 +210,7 @@ def wind_params_for_case(case: str, runway_hdg: float, speed: float,
     of magnitude `speed` along the horiz direction AND a vertical wind of magnitude
     `vert_speed` (up -> +, down -> -).  Because SITL has a single SPD at elevation
     DIR_Z, the two combine as SPD = hypot(speed, vert_speed) at elevation
-    atan2(±vert_speed, speed) — exactly recovering horiz=speed and vert=vert_speed.
+    atan2(+/-vert_speed, speed) - exactly recovering horiz=speed and vert=vert_speed.
     """
     case = case.lower()
     horiz_dir = {
@@ -209,9 +222,9 @@ def wind_params_for_case(case: str, runway_hdg: float, speed: float,
         spd, direction, dir_z = 0.0, 0.0, 0.0
     elif case in horiz_dir:                  # pure horizontal (head/tail/cross)
         spd, direction, dir_z = speed, horiz_dir[case], 0.0
-    elif case == "up":                       # pure updraft — rising air
+    elif case == "up":                       # pure updraft - rising air
         spd, direction, dir_z = speed, runway_hdg % 360.0, 90.0
-    elif case == "down":                     # pure downdraft — sinking air
+    elif case == "down":                     # pure downdraft - sinking air
         spd, direction, dir_z = speed, runway_hdg % 360.0, -90.0
     elif "+" in case:                        # combined horizontal + vertical
         horiz, vert = case.split("+", 1)
@@ -334,7 +347,7 @@ WORKSPACE     = AUTOTEST_DIR.parent.parent                # repo root
 USTOL_SIMS    = WORKSPACE / "ustol_sims"                  # tuned uSTOL params live here
 BINARY        = WORKSPACE / "build" / "sitl" / "bin" / "arduplane"
 DEFAULT_CFG   = SCRIPT_DIR / "monte_carlo_config_ustol_v1.json"
-DEFAULTS_PARM = USTOL_SIMS / "params_imp_v3.param"        # uSTOL tuned params (v3)
+DEFAULTS_PARM = USTOL_SIMS / "params_imp_v6_cruise.param"        # uSTOL tuned params (v3)
 FALLBACK_PARM = AUTOTEST_DIR / "models" / "plane.parm"
 
 
@@ -351,7 +364,7 @@ def resolve_defaults_parm() -> str:
     for cand in (DEFAULTS_PARM, USTOL_SIMS / "params_ustol.parm", FALLBACK_PARM):
         if cand.exists():
             return str(cand)
-    raise FileNotFoundError("Cannot find params_imp_v3.param or models/plane.parm")
+    raise FileNotFoundError("Cannot find params_imp_v6_cruise.param or models/plane.parm")
 
 
 def auto_workers() -> int:
@@ -372,7 +385,7 @@ def auto_workers() -> int:
 #  Parameter sampling
 # ===================================================================
 def sample_parameters(params_cfg: dict, rng: np.random.Generator) -> dict:
-    """Return {param_name: perturbed_value}, N(0, sigma_3/3) clipped to ±sigma_3."""
+    """Return {param_name: perturbed_value}, N(0, sigma_3/3) clipped to +/-sigma_3."""
     perturbed = {}
     for name, cfg in params_cfg.items():
         nom   = cfg["nominal"]
@@ -398,7 +411,7 @@ def write_override_file(filepath: str, params: dict):
 # ~750 KB/case). As Parquet it is ~3-7x smaller and far faster to load, which speeds
 # up BOTH the copy off the box and the dashboard build. The columns below are the ONLY
 # ones build_dashboard_data.py + failure_criteria.py actually consume (per_case + TS_COLS
-# + landing_metrics + the SIGNAL_DEFS registry) — used only when --trim-cols is set, to
+# + landing_metrics + the SIGNAL_DEFS registry) - used only when --trim-cols is set, to
 # narrow the file ~50%. Everything else (pwm_*, slew_*, pos_ned_*, Accel_b_*, *_dot,
 # alt_msl, coeffs, Side_N, J, Cmu, MLG_NR/FLG_NR, ArduPlane_Mode, mot1_thr_cmd, ...) is
 # unused downstream. NOTE: a missing consumed column silently disables a criterion (it goes
@@ -430,7 +443,7 @@ def convert_sim_output_to_parquet(case_dir: str, trim_cols: bool = False) -> int
                 if keep:
                     df = df[keep]
             # zstd (lossless) compresses these high-entropy float columns far better than the
-            # parquet default (snappy) — the storage win we're after. Falls back to default if
+            # parquet default (snappy) - the storage win we're after. Falls back to default if
             # the pyarrow build lacks zstd.
             try:
                 df.to_parquet(csv_path[:-4] + ".parquet", index=False, compression="zstd")
@@ -444,7 +457,7 @@ def convert_sim_output_to_parquet(case_dir: str, trim_cols: bool = False) -> int
 
 
 # ===================================================================
-#  MAVLink helpers (raw pymavlink — no auto_flight4)
+#  MAVLink helpers (raw pymavlink - no auto_flight4)
 # ===================================================================
 def wait_for_sitl_port(port: int, timeout: float = 120.0) -> bool:
     """Block until SITL's MAVLink TCP server is accepting connections."""
@@ -500,6 +513,26 @@ def set_param(conn, name: str, value: float, retries: int = 4) -> bool:
             mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
         ack = conn.recv_match(type="PARAM_VALUE", blocking=True, timeout=3)
         if ack and ack.param_id.replace("\x00", "") == name:
+            return True
+    return False
+
+
+def has_param(conn, name: str, timeout: float = 3.0) -> bool:
+    """True if the connected firmware actually has parameter `name`.
+
+    Used to make differential thrust OPTIONAL so this runner is portable across
+    builds: a tree without the AP_DiffThrust module has no UST_* params at all, and
+    blindly set_param-ing them just burns 4x3s of retry timeout per case. One PARAM_
+    REQUEST_READ tells us whether to touch them. Best-effort: False on any error."""
+    try:
+        conn.mav.param_request_read_send(
+            conn.target_system, conn.target_component, name.encode("ascii"), -1)
+    except Exception:
+        return False
+    t0 = time.time()
+    while time.time() - t0 < timeout:
+        msg = conn.recv_match(type="PARAM_VALUE", blocking=True, timeout=timeout)
+        if msg and msg.param_id.replace("\x00", "") == name:
             return True
     return False
 
@@ -584,7 +617,7 @@ def haversine_m(lat1, lon1, lat2, lon2) -> float:
 
 
 # ===================================================================
-#  Flight profile — mission_ustol_2 open-loop FBWA takeoff/climb/flare/hold
+#  Flight profile - mission_ustol_2 open-loop FBWA takeoff/climb/flare/hold
 # ===================================================================
 _PUMP_TYPES = ["GLOBAL_POSITION_INT", "VFR_HUD", "ATTITUDE", "RAW_IMU", "SERVO_OUTPUT_RAW"]
 GRAVITY_MSS = 9.80665
@@ -605,6 +638,7 @@ def _pump(conn, st):
             st["alt"] = m.relative_alt / 1000.0
             st["lat"] = m.lat / 1e7
             st["lon"] = m.lon / 1e7
+            st["hdg"] = m.hdg / 100.0                       # heading (deg), for the yaw doublet
         elif t == "VFR_HUD":
             st["as"]    = m.airspeed
             st["climb"] = m.climb
@@ -616,7 +650,7 @@ def _pump(conn, st):
         elif t == "SERVO_OUTPUT_RAW":
             # per-motor outputs: SERVO1 (k_motor1, port outer) & SERVO9 (k_motor9,
             # starboard outer). Their split is the direct signature of the
-            # differential-thrust mixer working during the loiter turn.
+            # differential-thrust mixer working during a yaw doublet (stays ~0 with DT off).
             st["m1"] = getattr(m, "servo1_raw", st.get("m1", 0))
             st["m9"] = getattr(m, "servo9_raw", st.get("m9", 0))
         elif t == "RAW_IMU":
@@ -628,32 +662,39 @@ def _pump(conn, st):
         m = conn.recv_match(type=_PUMP_TYPES, blocking=False)
 
 
-def fly_ustol2(conn, m, writer, st, perf, sitl_proc, t0_flight, deadline):
-    """Fly the mission_ustol_8 profile (takeoff -> cruise -> LOITER -> approach ->
-    POWERED flare -> touchdown -> rollout/disarm) via RC overrides. The cruise hold
-    hands to an autopilot LOITER circle (loiter_s), then back to FBWA for the approach
-    (the loiter is where differential thrust, if enabled, actually does work).
+def fly_cruise_doublets(conn, m, writer, st, perf, sitl_proc, t0_flight, deadline, wind):
+    """Fly the mission_ustol_10_cruise_dt WIND ON/OFF A-B profile via RC overrides:
+    in-air spawn at cruise (or open-loop climb if START_AT_CRUISE is False), then run
+    the ROLL-then-YAW doublet sequence TWICE - PASS 1 in calm air (winds OFF), then
+    PASS 2 after switching this case's wind ON (gusty) live - then settle back to
+    wings-level and END (the aircraft is left airborne; the worker kills SITL after).
+    NO loiter, NO landing.
 
-    m       : the config["mission"] dict; profile knobs live in m["ustol2"]
-    writer  : csv.writer with the per-case header already written
-    st/perf : mutable state / performance dicts (updated in place)
-    Returns : 'landed'        touchdown reached, then rolled out + disarmed
-              'no_touchdown'   reached the ground sequence but never crossed TD_ALT
-              'crashed_climb' | 'crashed_cruise' | 'crashed_loiter' |
-              'crashed_approach' | 'crashed_flare'   SITL process died in that phase
+    The wind is toggled mid-flight with SIM_WIND_* param sets (the uSTOL FDM re-reads
+    wind every step). Each doublet starts from a SETTLE-gated wings-level state so steps
+    don't cross-contaminate; we measure held-vs-commanded, overshoot, peak yaw rate and
+    recovery time. A spiral past BANK_ABORT triggers a wings-level recovery and aborts
+    the rest of THAT pass (the other pass still runs). Each pass keeps its own scorecard,
+    stashed into perf['stab_nowind'] / perf['stab_wind'] for _run_case to record.
+
+    `wind` is this case's wind_params_for_case(...) dict; it is applied only for PASS 2.
+
+    Returns (combined across both passes):
+              'settled'        test finished and re-settled to wings-level cruise
+              'unsettled'      finished but never re-settled within RETURN_MAX_T
+              'departed'       spiralled past BANK_ABORT during a doublet (either pass)
+              'crashed_climb' | 'crashed_cruise'   SITL process died in that phase
               'climb_timeout'  never reached cruise altitude
               'deadline'       hard per-case deadline hit mid-mission
     """
-    # --- knobs (config "mission"."ustol2" block; defaults match mission_ustol_2.py) ---
     u = m.get("ustol2", {})
+    # --- climb knobs (same schedule as the landing runner / mission_ustol_9) ---
     CRUISE_ALT     = u.get("cruise_alt_m", m.get("takeoff_alt_m", 100.0))
     CRUISE_AS      = u.get("cruise_as_mps", 12.0)
     CRUISE_CAP_THR = u.get("cruise_cap_thr_pwm", 1660)
     K_CAP          = u.get("k_cap", 3.0)
-    HOLD_T         = u.get("cruise_hold_s", 10.0)
-    LOITER_T       = u.get("loiter_s", 90.0)      # autopilot LOITER duration (s); ~1 lap at 150 m / 12 m/s
     LEVEL_BAND     = u.get("level_band_m", 10.0)
-    LEVEL_K        = u.get("level_k", 0.5)        # exp level-off rate (1/m): blend = e^(-K*|alt-CRUISE_ALT|)
+    LEVEL_K        = u.get("level_k", 0.5)
     V_R            = u.get("v_rotate_mps", 6.0)
     V_LO           = u.get("v_liftoff_mps", 8.0)
     V_CLIMB        = u.get("v_climb_mps", 10.0)
@@ -671,32 +712,44 @@ def fly_ustol2(conn, m, writer, st, perf, sitl_proc, t0_flight, deadline):
     THR_PWM        = u.get("throttle_climb_pwm", 1900)
     CLIMB_TO       = u.get("climb_timeout_s", 120.0)
 
-    # --- landing: approach schedule + POWERED flare (defaults match mission_ustol_7.py) ---
-    V_APP          = u.get("v_app_mps", 12.0)         # approach airspeed held on PITCH
-    SINK_APP       = u.get("sink_app_mps", -1.5)      # target approach sink rate (m/s, -=down)
-    SINK_TD        = u.get("sink_td_mps", -0.3)       # target touchdown sink rate (m/s)
-    FLARE_ALT      = u.get("flare_alt_m", 8.0)        # begin flare below this height (m AGL)
-    TD_ALT         = u.get("td_alt_m", 0.5)           # touchdown when alt drops below this (m)
-    ROLLOUT_T      = u.get("rollout_s", 4.0)          # idle + nose-down on the ground, then disarm
-    K_APP_PITCH    = u.get("k_app_pitch", 1.0)        # approach pitch-on-speed gain (deg per m/s)
-    APP_PITCH_MIN  = u.get("app_pitch_min_deg", -10.0)
-    APP_PITCH_MAX  = u.get("app_pitch_max_deg", 4.0)
-    THR_APP_TRIM   = u.get("thr_app_trim_pwm", 1450)  # approach throttle trim (pwm, ~45%)
-    K_THR_SINK     = u.get("k_thr_sink", 80.0)        # approach throttle gain: pwm per (m/s) sink err
-    THR_APP_MIN    = u.get("thr_app_min_pwm", 1150)
-    THR_APP_MAX    = u.get("thr_app_max_pwm", 1720)
-    V_MIN_APP      = u.get("v_min_app_mps", 9.0)      # stall guard: no nose-up below this airspeed
-    TH_FLARE_HOLD  = u.get("th_flare_hold_deg", 3.0)  # modest nose-up held in the flare (deg)
-    K_THR_FLARE    = u.get("k_thr_flare", 110.0)      # flare throttle gain: pwm per (m/s) sink err
-    THR_FLARE_MIN  = u.get("thr_flare_min_pwm", 1450) # authority floor (~45%) until touchdown
-    THR_FLARE_MAX  = u.get("thr_flare_max_pwm", 1800) # ~80%: let power arrest the sink
-    IDLE_THR_PWM   = u.get("idle_thr_pwm", 1000)      # idle throttle for AFTER touchdown only
-    APP_TO         = u.get("approach_timeout_s", 120.0)
-    FLARE_TO       = u.get("flare_timeout_s", 30.0)
+    # --- stability-test knobs (defaults match mission_ustol_10_cruise_nodt.py) ---
+    HOLD_T         = u.get("doublet_hold_s", 6.0)
+    ROLL_SEQ       = u.get("roll_seq_deg", [10.0, -10.0, 20.0, -20.0])
+    YAW_SEQ        = u.get("yaw_seq_deg",  [10.0, -10.0, 20.0, -20.0])
+    SETTLE_OK_T    = u.get("settle_ok_s", 3.0)
+    ROLL_OK_DEG    = u.get("roll_ok_deg", 3.0)
+    YAWRATE_OK     = u.get("yawrate_ok_dps", 5.0)
+    SETTLE_MAX_T   = u.get("settle_max_s", 15.0)
+    RECOVER_MAX_T  = u.get("recover_max_s", 15.0)
+    RETURN_MAX_T   = u.get("return_max_s", 20.0)
+    K_ALT_THR      = u.get("k_alt_thr", 6.0)
+    THR_CR_MIN     = u.get("thr_cr_min_pwm", 1450)
+    THR_CR_MAX     = u.get("thr_cr_max_pwm", 1850)
+    BANK_THR_FREEZE= u.get("bank_thr_freeze_deg", 25.0)
+    BANK_ABORT     = u.get("bank_abort_deg", 45.0)
+    # Altitude floor for the cruise stability test: a doublet can upset the aircraft into a
+    # WINGS-LEVEL descent, which the roll+yaw-only settle/abort logic below would otherwise call
+    # 'settled' as it sinks to the ground. Treat dropping below this floor as a departure (and never
+    # count a sub-floor sample as 'in band' for a settle). Default = half the cruise altitude.
+    ALT_FLOOR_M    = u.get("test_alt_floor_m", 0.5 * CRUISE_ALT)
+    RECOVER_PITCH  = u.get("recover_pitch_deg", -3.0)
+    RECOVER_THR    = u.get("recover_thr_pwm", 1500)
+    ROLL_LIMIT_DEG = u.get("roll_limit_deg", 30.0)
+    RUD_LIMIT_DEG  = u.get("rud_limit_deg", 40.0)
+    RC1_MIN        = u.get("rc1_min", 1000); RC1_TRIM = u.get("rc1_trim", 1500); RC1_MAX = u.get("rc1_max", 1775)
+    RC4_MIN        = u.get("rc4_min", 1000); RC4_TRIM = u.get("rc4_trim", 1500); RC4_MAX = u.get("rc4_max", 2000)
+    ROLL_SIGN      = u.get("roll_sign", 1)
+    RUD_SIGN       = u.get("rud_sign", 1)
+
+    class _Stop(Exception):
+        def __init__(self, reason): self.reason = reason
 
     def _smooth(x):
         x = 0.0 if x < 0 else (1.0 if x > 1 else x)
         return x * x * (3.0 - 2.0 * x)
+
+    def _clamp(v, lo, hi):
+        return lo if v < lo else (hi if v > hi else v)
 
     def theta_target(V):
         if V <= V_R:     return 0.0
@@ -704,30 +757,42 @@ def fly_ustol2(conn, m, writer, st, perf, sitl_proc, t0_flight, deadline):
         if V <= V_CLIMB: return TH_LO + (TH_CLIMB - TH_LO) * _smooth((V - V_LO) / (V_CLIMB - V_LO))
         return TH_CLIMB
 
-    def rate_limit(prev, target, dt):
-        step = RATE_LIM * dt
+    def rate_limit(prev, target, dt, cap=RATE_LIM):
+        step = cap * dt
         return max(prev - step, min(target, prev + step))
 
     def pitch_pwm(theta_deg):
-        frac = PITCH_SIGN * theta_deg / PTCH_LIM_MAX
-        frac = -1.0 if frac < -1 else (1.0 if frac > 1 else frac)
+        frac = _clamp(PITCH_SIGN * theta_deg / PTCH_LIM_MAX, -1.0, 1.0)
         return int(RC2_TRIM + frac * (RC2_MAX - RC2_TRIM))
 
-    def send_sticks(theta_deg, thr):
-        # AETR override order: ch1 roll=neutral, ch2 pitch, ch3 throttle, ch4 yaw=neutral.
+    def roll_pwm(bank_deg):
+        # honor the AP's ASYMMETRIC RC1 calibration (right half spans TRIM..MAX, left TRIM..MIN)
+        frac = _clamp(ROLL_SIGN * bank_deg / ROLL_LIMIT_DEG, -1.0, 1.0)
+        span = (RC1_MAX - RC1_TRIM) if frac >= 0 else (RC1_TRIM - RC1_MIN)
+        return int(RC1_TRIM + frac * span)
+
+    def rud_pwm(rud_deg):
+        frac = _clamp(RUD_SIGN * rud_deg / RUD_LIMIT_DEG, -1.0, 1.0)
+        return int(RC4_TRIM + frac * (RC4_MAX - RC4_TRIM))
+
+    def send_sticks(theta_deg, roll_deg=0.0, rud_deg=0.0, thr=None):
+        # AETR override: ch1 roll (bank), ch2 pitch, ch3 throttle, ch4 rudder (manual).
         conn.mav.rc_channels_override_send(
             conn.target_system, conn.target_component,
-            1500, pitch_pwm(theta_deg), int(thr), 1500, 0, 0, 0, 0)
+            roll_pwm(roll_deg), pitch_pwm(theta_deg),
+            int(THR_PWM if thr is None else thr), rud_pwm(rud_deg),
+            0, 0, 0, 0)
 
     def release_sticks():
         conn.mav.rc_channels_override_send(
             conn.target_system, conn.target_component, 0, 0, 0, 0, 0, 0, 0, 0)
 
     _last_csv = [0.0]
+    cur_wind  = [0]            # 0 = winds OFF, 1 = winds ON; emitted as the wind_on CSV column
 
-    def write_row(phase, theta):
+    def write_row(phase, theta, roll_cmd=0.0, rud_cmd=0.0):
         now = time.time()
-        if now - _last_csv[0] < 0.2:          # ~5 Hz
+        if now - _last_csv[0] < 0.2:           # ~5 Hz
             return
         _last_csv[0] = now
         writer.writerow([
@@ -739,192 +804,293 @@ def fly_ustol2(conn, m, writer, st, perf, sitl_proc, t0_flight, deadline):
             "%.7f" % (st["lat"] or 0.0), "%.7f" % (st["lon"] or 0.0),
             "%.3f" % st["nz"], "%.3f" % st["g_total"],
             "%d" % st.get("m1", 0), "%d" % st.get("m9", 0),
-            "%.2f" % st.get("yawrate", 0.0)])
+            "%.2f" % st.get("yawrate", 0.0),
+            "%.2f" % roll_cmd, "%.2f" % rud_cmd,
+            "%d" % cur_wind[0]])
 
-    start_lat = start_lon = None
+    def cruise_pitch():
+        # plain speed-on-pitch about CRUISE_AS (no load-factor nose-up term, which would
+        # tighten a spiral in a bank).
+        return _clamp(K_CAP * (st["as"] - CRUISE_AS), -5.0, TH_CLIMB)
 
-    # ---- ground roll + climb + flare ----
-    v_peak = 0.0
-    theta = 0.0
-    flare0 = None
-    t_climb = time.time()
-    t_prev = t_climb
-    while True:
+    def cruise_thr():
+        # altitude-hold trim, FROZEN above BANK_THR_FREEZE bank so we never push power
+        # into a turn/spiral.
+        if abs(st["roll"]) > BANK_THR_FREEZE:
+            return CRUISE_CAP_THR
+        return int(_clamp(CRUISE_CAP_THR + K_ALT_THR * (CRUISE_ALT - st["alt"]),
+                          THR_CR_MIN, THR_CR_MAX))
+
+    def departed():
+        # Spiral past the bank limit OR a loss of test altitude (a sinking, wings-level mush is
+        # just as much a departure as an over-bank - and the roll/yaw checks alone never catch it).
+        return abs(st["roll"]) > BANK_ABORT or st["alt"] < ALT_FLOOR_M
+
+    def _new_stab():
+        return {"n_ok": 0, "n_aborted": 0, "departed": False,
+                "roll_worst_held_err_deg": 0.0, "roll_worst_overshoot_deg": 0.0,
+                "roll_worst_recover_s": -1.0, "yaw_peak_yawrate_dps": 0.0,
+                "yaw_worst_recover_s": -1.0, "max_motor_diff_pwm": 0.0,
+                "alt_min_m": None, "alt_max_m": None,
+                "settled_final": False, "t_settle_final_s": None}
+    # Two scorecards: PASS 1 winds OFF (calm) and PASS 2 winds ON (gusty). `stab` points
+    # at the CURRENT pass and is rebound before the wind pass; the closures below read it
+    # at call time, so they always score into the right card.
+    stab_nw = _new_stab()
+    stab_w  = _new_stab()
+    perf["stab_nowind"] = stab_nw
+    perf["stab_wind"]   = stab_w
+    stab = stab_nw
+
+    def _guard():
         if sitl_proc.poll() is not None:
-            return "crashed_climb"
-        now = time.time()
-        if now > deadline or now - t_climb > CLIMB_TO:
-            return "climb_timeout"
-        _pump(conn, st)
-        dt = min(now - t_prev, 0.15)
-        t_prev = now
-        v_peak = max(v_peak, st["as"])
-        if start_lat is None and st["lat"] is not None:
-            start_lat, start_lon = st["lat"], st["lon"]
-        # Liftoff detection -> Vlof + ground-roll distance (start pos -> liftoff pos).
-        if perf["liftoff_time"] is None and st["alt"] >= 0.5:
-            perf["liftoff_time"]  = now - t0_flight
-            perf["liftoff_speed"] = st["as"]
-            if start_lat is not None and st["lat"] is not None:
-                perf["ground_roll_m"] = haversine_m(start_lat, start_lon,
-                                                     st["lat"], st["lon"])
-        fpa = math.degrees(math.asin(max(-1.0, min(1.0, st["climb"] / max(st["as"], 0.1)))))
-        spd_trim = K_SPD * max(0.0, V_HOLD - st["as"])
-        thr_cmd = THR_PWM
-        phase = "CLIMB"
-        if st["alt"] >= CRUISE_ALT - LEVEL_BAND:
-            # EXPONENTIAL level-off: blend s = e^(-K*|alt-CRUISE_ALT|) goes 0 far below
-            # cruise (full climb pitch+throttle held) -> 1 at CRUISE_ALT (level + cruise trim).
-            # Unlike the old smoothstep (which started bleeding power at CRUISE_ALT-LEVEL_BAND
-            # and stranded marginal draws ~95-98 m with throttle already pulled to ~71%), this
-            # holds near-full climb authority until the aircraft is within a few metres of
-            # CRUISE_ALT, forcing it across the climb-complete gate and into the cruise phase.
-            if flare0 is None:
-                flare0 = theta
-            s = math.exp(-LEVEL_K * abs(st["alt"] - CRUISE_ALT))
-            target  = flare0 * (1.0 - s)
-            thr_cmd = THR_PWM + (CRUISE_CAP_THR - THR_PWM) * s
-        elif v_peak < V_R:
-            target = GND_PITCH
-            phase = "GROUND"
-        else:
-            # AoA guard: never command past measured FPA + AOA_CAP; never below horizon.
-            target = min(theta_target(v_peak) - spd_trim, fpa + AOA_CAP)
-            target = max(0.0, target)
-        theta = rate_limit(theta, target, dt)
-        send_sticks(theta, int(thr_cmd))
-        write_row(phase, theta)
-        if st["alt"] >= CRUISE_ALT - 1.0:
-            break
-        time.sleep(0.05)                       # ~20 Hz override stream
-
-    # ---- level cruise hold (open-loop FBWA; speed-on-pitch + cruise throttle) ----
-    t_hold = time.time()
-    while time.time() - t_hold < HOLD_T:
-        if sitl_proc.poll() is not None:
-            return "crashed_cruise"
+            raise _Stop("crashed_cruise")
         if time.time() > deadline:
-            return "deadline"
-        _pump(conn, st)
-        theta_cap = max(-5.0, min(TH_CLIMB, K_CAP * (st["as"] - CRUISE_AS)))
-        send_sticks(theta_cap, CRUISE_CAP_THR)
-        write_row("CRUISE", theta_cap)
-        time.sleep(0.05)
+            raise _Stop("deadline")
 
-    # ---- LOITER (autopilot nav circle) ----
-    #   Release the open-loop RC overrides so the autopilot takes the sticks, switch to
-    #   LOITER (a navigated circle at WP_LOITER_RAD, set as a param in _run_case), hold it
-    #   for LOITER_T seconds, then hand back to FBWA for the approach. This is the phase
-    #   where the autopilot commands rudder for the turn, so it is where the differential-
-    #   thrust mixer (if UST_ENABLE=1) converts that rudder into an antisymmetric per-motor
-    #   split — captured in the motor1/motor9 PWM + yaw-rate telemetry. The FBWA handback
-    #   transient settles in the approach loop below.
-    if LOITER_T > 0:
-        release_sticks()
-        set_mode(conn, "LOITER")
-        t_loiter = time.time()
-        while time.time() - t_loiter < LOITER_T:
+    def _track(phase, roll_cmd=0.0, rud_cmd=0.0):
+        d = abs(st.get("m1", 0) - st.get("m9", 0))
+        stab["max_motor_diff_pwm"] = max(stab["max_motor_diff_pwm"], d)
+        a = st["alt"]
+        stab["alt_min_m"] = a if stab["alt_min_m"] is None else min(stab["alt_min_m"], a)
+        stab["alt_max_m"] = a if stab["alt_max_m"] is None else max(stab["alt_max_m"], a)
+        write_row(phase, 0.0, roll_cmd, rud_cmd)
+
+    def settle(phase, max_t):
+        """Hold wings-level/neutral cruise (with alt-hold) until in-band continuously for
+        SETTLE_OK_T s, or until max_t. Returns seconds-to-settle, or -1.0 on timeout."""
+        t0 = time.time(); ok_since = None
+        while time.time() - t0 < max_t:
+            _guard()
+            _pump(conn, st)
+            send_sticks(cruise_pitch(), thr=cruise_thr())
+            now = time.time()
+            in_band = (abs(st["roll"]) < ROLL_OK_DEG and abs(st["yawrate"]) < YAWRATE_OK
+                       and st["alt"] >= ALT_FLOOR_M)   # sinking out of the band is NOT 'settled'
+            ok_since = ok_since if (in_band and ok_since is not None) else (now if in_band else None)
+            _track(phase)
+            if ok_since is not None and now - ok_since >= SETTLE_OK_T:
+                return now - t0
+            time.sleep(0.05)
+        return -1.0
+
+    def recover():
+        """Break a spiral: wings level + fixed nose-down + reduced throttle until settled."""
+        t0 = time.time(); ok_since = None
+        while time.time() - t0 < RECOVER_MAX_T:
+            _guard()
+            _pump(conn, st)
+            send_sticks(RECOVER_PITCH, roll_deg=0.0, rud_deg=0.0, thr=RECOVER_THR)
+            now = time.time()
+            in_band = (abs(st["roll"]) < ROLL_OK_DEG and abs(st["yawrate"]) < YAWRATE_OK
+                       and st["alt"] >= ALT_FLOOR_M)   # sinking out of the band is NOT 'settled'
+            ok_since = ok_since if (in_band and ok_since is not None) else (now if in_band else None)
+            _track("RECOVER")
+            if ok_since is not None and now - ok_since >= SETTLE_OK_T:
+                return
+            time.sleep(0.05)
+
+    def run_doublets(label, targets, axis):
+        """Run the doublet sequence on one axis. Returns True if ABORTED on a departure."""
+        for sp in targets:
+            settle(label, SETTLE_MAX_T)                     # (a) gate to a clean wings-level start
+            if departed():
+                stab["n_aborted"] += 1; stab["departed"] = True
+                recover(); return True
+            # (b) apply the step and HOLD
+            t0 = time.time(); pk_roll = 0.0; pk_yawrate = 0.0
+            while time.time() - t0 < HOLD_T:
+                _guard()
+                _pump(conn, st)
+                if axis == "roll":
+                    send_sticks(cruise_pitch(), roll_deg=sp, thr=cruise_thr())
+                else:
+                    send_sticks(cruise_pitch(), rud_deg=sp, thr=cruise_thr())
+                if abs(st["roll"])    > abs(pk_roll):    pk_roll = st["roll"]
+                if abs(st["yawrate"]) > abs(pk_yawrate): pk_yawrate = st["yawrate"]
+                _track(label, roll_cmd=(sp if axis == "roll" else 0.0),
+                       rud_cmd=(sp if axis == "yaw" else 0.0))
+                if departed():
+                    stab["n_aborted"] += 1; stab["departed"] = True
+                    recover(); return True
+                time.sleep(0.05)
+            held_roll = st["roll"]; held_yawrate = st["yawrate"]
+            # (c) RECOVERY: command 0 and time the return to wings-level
+            tr = time.time(); ok_since = None; t_rec = -1.0
+            while time.time() - tr < RECOVER_MAX_T:
+                _guard()
+                _pump(conn, st)
+                send_sticks(cruise_pitch(), thr=cruise_thr())
+                now = time.time()
+                if departed():
+                    stab["n_aborted"] += 1; stab["departed"] = True
+                    recover(); return True
+                in_band = (abs(st["roll"]) < ROLL_OK_DEG and abs(st["yawrate"]) < YAWRATE_OK
+                       and st["alt"] >= ALT_FLOOR_M)   # sinking out of the band is NOT 'settled'
+                ok_since = ok_since if (in_band and ok_since is not None) else (now if in_band else None)
+                _track(label)
+                if ok_since is not None and now - ok_since >= SETTLE_OK_T:
+                    t_rec = ok_since - tr; break
+                time.sleep(0.05)
+            stab["n_ok"] += 1
+            if axis == "roll":
+                stab["roll_worst_held_err_deg"]  = max(stab["roll_worst_held_err_deg"],
+                                                        abs(abs(held_roll) - abs(sp)))
+                stab["roll_worst_overshoot_deg"] = max(stab["roll_worst_overshoot_deg"],
+                                                        abs(pk_roll) - abs(held_roll))
+                if t_rec >= 0:
+                    stab["roll_worst_recover_s"] = max(stab["roll_worst_recover_s"], t_rec)
+            else:
+                stab["yaw_peak_yawrate_dps"] = max(stab["yaw_peak_yawrate_dps"], abs(pk_yawrate))
+                if t_rec >= 0:
+                    stab["yaw_worst_recover_s"] = max(stab["yaw_worst_recover_s"], t_rec)
+        return False
+
+    def apply_wind(on):
+        """Toggle the SITL wind LIVE (param_set) between passes. OFF -> calm air;
+        ON -> this case's WIND_MIX wind (steady spd/dir/elevation) + WIND_ON_TURBULENCE
+        m/s RMS gusts. Also flips the wind_on flag stamped into every CSV row."""
+        cur_wind[0] = 1 if on else 0
+        if on:
+            set_param(conn, "SIM_WIND_TURB",  WIND_ON_TURBULENCE)
+            set_param(conn, "SIM_WIND_SPD",   wind["SIM_WIND_SPD"])
+            set_param(conn, "SIM_WIND_DIR",   wind["SIM_WIND_DIR"])
+            set_param(conn, "SIM_WIND_DIR_Z", wind["SIM_WIND_DIR_Z"])
+        else:
+            set_param(conn, "SIM_WIND_TURB",  0.0)
+            set_param(conn, "SIM_WIND_SPD",   0.0)
+
+    def hold_cruise(phase, secs):
+        """Fly wings-level alt-hold cruise for `secs` (no settle gate) - used to let the
+        gust build after the wind is switched on, and for the brief calm pre-pass hold.
+        Tracks alt + motor split into the current scorecard like settle()."""
+        t0 = time.time()
+        while time.time() - t0 < secs:
+            _guard()
+            _pump(conn, st)
+            send_sticks(cruise_pitch(), thr=cruise_thr())
+            _track(phase)
+            time.sleep(0.05)
+
+    # ---- get to cruise: in-air spawn (skip climb) OR open-loop ground roll + climb ----
+    if START_AT_CRUISE:
+        # The FDM spawned us already airborne at cruise alt + airspeed (LAT_START_ALT /
+        # LAT_START_AS env vars). Hold wings-level cruise and WAIT for the EKF to reconverge
+        # on the teleported state - the jump shocks its height estimate, which can swing for
+        # a few seconds - before falling through to the settle + doublet test. We gate on a
+        # stable reported altitude (not just a fixed delay) so a transient never reaches the
+        # doublets, _track(), or the departed() floor check. No GROUND, no CLIMB.
+        t_warm = time.time(); stable_since = None
+        while True:
             if sitl_proc.poll() is not None:
-                return "crashed_loiter"
-            if time.time() > deadline:
+                return "crashed_climb"
+            now = time.time()
+            if now > deadline:
                 return "deadline"
             _pump(conn, st)
-            write_row("LOITER", 0.0)             # AP flies the loiter; theta is N/A here
-            time.sleep(0.1)
-        set_mode(conn, "FBWA")                   # back to open-loop FBWA for the approach
+            send_sticks(cruise_pitch(), thr=cruise_thr())
+            write_row("CRUISE", 0.0)
+            alt_ok = abs(st["alt"] - CRUISE_ALT) <= INAIR_ALT_BAND
+            stable_since = (stable_since if (alt_ok and stable_since is not None)
+                            else (now if alt_ok else None))
+            warmed = (now - t_warm) >= INAIR_WARMUP_MIN_S
+            if warmed and stable_since is not None and (now - stable_since) >= INAIR_STABLE_S:
+                break
+            if (now - t_warm) >= INAIR_WARMUP_MAX_S:
+                break                       # give up waiting; let settle() below sort it out
+            time.sleep(0.05)
+        # No ground roll on an in-air start; record the spawn as the "liftoff" so the
+        # takeoff_success / liftoff_speed columns stay meaningful downstream.
+        if perf["liftoff_time"] is None:
+            perf["liftoff_time"]  = time.time() - t0_flight
+            perf["liftoff_speed"] = st["as"]
+    else:
+        # ---- ground roll + climb to cruise (open-loop, wings level, neutral rudder) ----
+        v_peak = 0.0
+        theta = 0.0
+        flare0 = None
+        t_climb = time.time()
+        t_prev = t_climb
+        while True:
+            if sitl_proc.poll() is not None:
+                return "crashed_climb"
+            now = time.time()
+            if now > deadline or now - t_climb > CLIMB_TO:
+                return "climb_timeout"
+            _pump(conn, st)
+            dt = min(now - t_prev, 0.15)
+            t_prev = now
+            v_peak = max(v_peak, st["as"])
+            if perf["liftoff_time"] is None and st["alt"] >= 0.5:
+                perf["liftoff_time"]  = now - t0_flight
+                perf["liftoff_speed"] = st["as"]
+            fpa = math.degrees(math.asin(max(-1.0, min(1.0, st["climb"] / max(st["as"], 0.1)))))
+            spd_trim = K_SPD * max(0.0, V_HOLD - st["as"])
+            thr_cmd = THR_PWM
+            phase = "CLIMB"
+            if st["alt"] >= CRUISE_ALT - LEVEL_BAND:
+                if flare0 is None:
+                    flare0 = theta
+                s = math.exp(-LEVEL_K * abs(st["alt"] - CRUISE_ALT))
+                target  = flare0 * (1.0 - s)
+                thr_cmd = THR_PWM + (CRUISE_CAP_THR - THR_PWM) * s
+            elif v_peak < V_R:
+                target = GND_PITCH
+                phase = "GROUND"
+            else:
+                target = min(theta_target(v_peak) - spd_trim, fpa + AOA_CAP)
+                target = max(0.0, target)
+            theta = rate_limit(theta, target, dt)
+            send_sticks(theta, thr=int(thr_cmd))
+            write_row(phase, theta)
+            if st["alt"] >= CRUISE_ALT - 1.0:
+                break
+            time.sleep(0.05)
 
-    # ---- APPROACH / glide (FBWA, DECOUPLED): PITCH holds approach speed (speed-on-pitch),
-    #      THROTTLE holds the sink rate (sink-on-throttle around THR_APP_TRIM). To FLARE_ALT.
-    theta   = 0.0
-    thr_app = float(THR_APP_TRIM)
-    t_app   = time.time()
-    t_prev  = t_app
-    while time.time() - t_app < APP_TO:
-        if sitl_proc.poll() is not None:
-            return "crashed_approach"
-        if time.time() > deadline:
-            return "deadline"
-        _pump(conn, st)
-        now = time.time()
-        dt = min(now - t_prev, 0.15)
-        t_prev = now
-        # PITCH = speed-on-pitch (stall guard: never command nose-up below V_MIN_APP).
-        target = K_APP_PITCH * (st["as"] - V_APP)
-        hi = APP_PITCH_MAX if st["as"] > V_MIN_APP else 0.0
-        target = max(APP_PITCH_MIN, min(target, hi))
-        theta = rate_limit(theta, target, dt)
-        # THROTTLE = sink-on-throttle (proportional around the approach trim).
-        thr_app = max(THR_APP_MIN,
-                      min(THR_APP_TRIM + K_THR_SINK * (SINK_APP - st["climb"]), THR_APP_MAX))
-        send_sticks(theta, int(thr_app))
-        write_row("APPROACH", theta)
-        if st["alt"] <= FLARE_ALT:
-            break
-        time.sleep(0.05)
+    # ---- PASS 1 (winds OFF) -> switch winds ON -> PASS 2 (winds ON) -> final settle ----
+    try:
+        apply_wind(False)                                   # guarantee calm air for pass 1
+        settle("CRUISE", SETTLE_MAX_T)                      # begin from clean trim
+        if WIND_OFF_SETTLE_S > 0:
+            hold_cruise("CRUISE", WIND_OFF_SETTLE_S)        # brief calm leg (the "5 s")
 
-    # ---- POWERED FLARE: THROTTLE arrests the sink around a height-scheduled sink target;
-    #      elevator only sets a modest, achievable nose-up. Throttle is cut to idle ONLY
-    #      after touchdown (rollout below). ----
-    touchdown = False
-    t_flare = time.time()
-    t_prev  = t_flare
-    while time.time() - t_flare < FLARE_TO:
-        if sitl_proc.poll() is not None:
-            return "crashed_flare"
-        if time.time() > deadline:
-            return "deadline"
-        _pump(conn, st)
-        now = time.time()
-        dt = min(now - t_prev, 0.15)
-        t_prev = now
-        h = max(0.0, st["alt"])
-        sink_cmd  = SINK_TD + (SINK_APP - SINK_TD) * max(0.0, min(h / FLARE_ALT, 1.0))
-        theta     = rate_limit(theta, TH_FLARE_HOLD, dt)            # ease to a modest nose-up
-        thr_flare = max(THR_FLARE_MIN,
-                        min(THR_APP_TRIM + K_THR_FLARE * (sink_cmd - st["climb"]), THR_FLARE_MAX))
-        send_sticks(theta, int(thr_flare))
-        write_row("FLARE", theta)
-        if st["alt"] <= TD_ALT:
-            touchdown = True
-            break
-        time.sleep(0.05)
+        stab = stab_nw                                      # ---- PASS 1: calm air ----
+        aborted_nw = run_doublets("ROLL_NW", ROLL_SEQ, "roll")
+        if not aborted_nw:
+            aborted_nw = run_doublets("YAW_NW", YAW_SEQ, "yaw")
 
-    # ---- ROLLOUT + DISARM. NOW cut throttle to idle (first time since takeoff) + slight
-    #      nose-down while speed bleeds, then release the overrides and disarm. ----
-    t_roll = time.time()
-    while time.time() - t_roll < ROLLOUT_T:
-        if sitl_proc.poll() is not None:
-            break
-        if time.time() > deadline:
-            break
-        _pump(conn, st)
-        send_sticks(GND_PITCH, IDLE_THR_PWM)
-        write_row("ROLLOUT", GND_PITCH)
-        time.sleep(0.05)
-    release_sticks()
-    disarm_vehicle(conn)
+        apply_wind(True)                                    # ---- switch winds ON (gusty) ----
+        stab = stab_w                                       # attribute the gust leg to pass 2
+        hold_cruise("WIND_ON", WIND_ON_ESTABLISH_S)         # let the gust build (the "15 s")
 
-    return "landed" if touchdown else "no_touchdown"
+        aborted_w = run_doublets("ROLL_W", ROLL_SEQ, "roll")   # ---- PASS 2: gusty wind ----
+        if not aborted_w:
+            aborted_w = run_doublets("YAW_W", YAW_SEQ, "yaw")
+
+        t_fin = settle("RETURN", RETURN_MAX_T)              # final settle (winds still on)
+        stab_w["settled_final"]    = t_fin >= 0
+        stab_w["t_settle_final_s"] = t_fin if t_fin >= 0 else None
+        release_sticks()
+        if aborted_nw or aborted_w:
+            return "departed"
+        return "settled" if t_fin >= 0 else "unsettled"
+    except _Stop as s:
+        return s.reason
 
 
 # ===================================================================
 #  Per-case metrics (from the per-case telemetry CSV this runner writes)
 # ===================================================================
-def metrics_from_csv(csv_path: str, home_lat: float, home_lon: float) -> dict:
-    """Derive the frozen-schema flight metrics from the per-case telemetry CSV."""
+def metrics_from_csv(csv_path, home_lat, home_lon):
+    """Derive the flight ENVELOPE metrics from the per-case telemetry CSV. The
+    doublet-specific stability metrics are computed live in fly_cruise_doublets and
+    recorded from perf['stab']; this only covers max alt/roll/pitch, airspeed band,
+    load factor and the takeoff/cruise timestamps. (home_lat/home_lon unused here -
+    this profile never lands, so there is no landing point.)"""
     m = dict(max_alt_m=0.0, max_roll_deg=0.0, max_pitch_deg=0.0,
              min_airspeed=None, max_airspeed=0.0,
              max_load_factor_nz=None, min_load_factor_nz=None, max_load_factor_total=0.0,
-             landing_lat=None, landing_lon=None, landing_err_m=None, landing_roll_m=None,
-             time_to_takeoff_s=None, time_to_cruise_s=None, time_to_land_s=None,
-             # LOITER-phase differential-thrust diagnostics: the |motor1-motor9| PWM split
-             # is the direct signature of the DT mixer; yaw rate / roll show the turn.
-             loiter_max_roll_deg=0.0, loiter_max_yaw_rate_dps=0.0,
-             loiter_mean_motor_diff_pwm=None, loiter_max_motor_diff_pwm=0.0)
-    last_lat = last_lon = None
-    td_lat = td_lon = None                       # first ROLLOUT-phase fix ~= touchdown point
-    loiter_diff_sum = 0.0                         # accumulators for the LOITER-phase mean split
-    loiter_n = 0
+             time_to_takeoff_s=None, time_to_cruise_s=None)
 
     def _f(row, key):
         try:
@@ -943,8 +1109,6 @@ def metrics_from_csv(csv_path: str, home_lat: float, home_lon: float) -> dict:
                 m["max_airspeed"] = max(m["max_airspeed"], a)
                 if a > 1.0:
                     m["min_airspeed"] = a if m["min_airspeed"] is None else min(m["min_airspeed"], a)
-                # Load factor: track peak/min normal n_z and peak total-g (only once
-                # airborne, alt>0.5 m, so ground-handling jolts don't dominate).
                 if alt > 0.5 and ("load_factor_nz" in row):
                     nz = _f(row, "load_factor_nz")
                     m["max_load_factor_nz"] = nz if m["max_load_factor_nz"] is None else max(m["max_load_factor_nz"], nz)
@@ -956,37 +1120,8 @@ def metrics_from_csv(csv_path: str, home_lat: float, home_lon: float) -> dict:
                     m["time_to_takeoff_s"] = t
                 if m["time_to_cruise_s"] is None and phase == "CRUISE":
                     m["time_to_cruise_s"] = t
-                # ROLLOUT begins the instant after touchdown -> use it as the land time.
-                if m["time_to_land_s"] is None and phase == "ROLLOUT":
-                    m["time_to_land_s"] = t
-                # LOITER-phase DT diagnostics: track the per-motor split + how hard the
-                # autopilot is turning (yaw rate / roll) while circling.
-                if phase == "LOITER":
-                    loiter_n += 1
-                    m["loiter_max_roll_deg"]     = max(m["loiter_max_roll_deg"], abs(_f(row, "roll_deg")))
-                    m["loiter_max_yaw_rate_dps"] = max(m["loiter_max_yaw_rate_dps"], abs(_f(row, "yaw_rate_dps")))
-                    d = abs(_f(row, "motor1_pwm") - _f(row, "motor9_pwm"))
-                    loiter_diff_sum += d
-                    m["loiter_max_motor_diff_pwm"] = max(m["loiter_max_motor_diff_pwm"], d)
-                la, lo = row.get("lat"), row.get("lon")
-                if la and lo:
-                    try:
-                        last_lat, last_lon = float(la), float(lo)
-                        if td_lat is None and phase == "ROLLOUT":
-                            td_lat, td_lon = last_lat, last_lon
-                    except ValueError:
-                        pass
     except FileNotFoundError:
         return m
-
-    if last_lat is not None:
-        m["landing_lat"], m["landing_lon"] = last_lat, last_lon
-        m["landing_err_m"] = haversine_m(home_lat, home_lon, last_lat, last_lon)
-        # Ground roll on landing = touchdown fix -> final (stopped) fix.
-        if td_lat is not None:
-            m["landing_roll_m"] = haversine_m(td_lat, td_lon, last_lat, last_lon)
-    if loiter_n > 0:
-        m["loiter_mean_motor_diff_pwm"] = loiter_diff_sum / loiter_n
     return m
 
 
@@ -1025,16 +1160,14 @@ def plot_case(csv_path: str):
 def write_case_report(filepath, case_id, perturbed, nominals, result):
     with open(filepath, "w") as f:
         dt_tag = "diff-thrust ON" if result.get("dt_enabled") else "diff-thrust OFF (baseline)"
-        f.write(f"Monte Carlo Case #{case_id:04d}  [uSTOL FBWA + LOITER + landing; {dt_tag}]\n")
+        f.write(f"Monte Carlo Case #{case_id:04d}  [uSTOL cruise roll/yaw doublet stability; {dt_tag}]\n")
         f.write("=" * 70 + "\n\n")
         f.write(f"Timestamp : {datetime.now().isoformat()}\n")
         f.write(f"Duration  : {result.get('duration_s', 0):.1f} s\n")
         f.write(f"Wind      : {result.get('wind_case', 'none')}  "
                 f"total {result.get('wind_speed_mps', 0):.1f} m/s  "
                 f"(horiz {result.get('wind_horiz_mps', 0):.1f}, "
-                f"vert {result.get('wind_vert_mps', 0):+.1f} m/s; "
-                f"dir {result.get('wind_dir_deg', 0):.0f}°, "
-                f"dirZ {result.get('wind_dir_z_deg', 0):.0f}°)\n\n")
+                f"vert {result.get('wind_vert_mps', 0):+.1f} m/s)\n\n")
 
         f.write(f"{'Parameter':<22} {'Nominal':>14} {'Perturbed':>14} {'Delta%':>9}\n")
         f.write("-" * 70 + "\n")
@@ -1045,23 +1178,28 @@ def write_case_report(filepath, case_id, perturbed, nominals, result):
             f.write(f"{name:<22} {nom:>14.6f} {pert:>14.6f} {pct:>+8.2f}%\n")
 
         f.write("\n" + "=" * 70 + "\nResult\n" + "-" * 70 + "\n")
-        f.write(f"  Profile result    : {result.get('land_result', 'unknown')}\n")
+        f.write(f"  Test result       : {result.get('land_result', 'unknown')}\n")
         f.write(f"  Diff-thrust       : {'ON' if result.get('dt_enabled') else 'OFF (baseline)'}\n")
-        f.write(f"  LOITER DT split   : mean |m1-m9| {result.get('loiter_mean_motor_diff_pwm')}  "
-                f"max {result.get('loiter_max_motor_diff_pwm')} pwm  "
-                f"(max yaw-rate {result.get('loiter_max_yaw_rate_dps')} deg/s, "
-                f"max roll {result.get('loiter_max_roll_deg')} deg)\n")
         f.write(f"  Takeoff success   : {result.get('takeoff_success', False)}\n")
-        f.write(f"  Landed (touchdown): {result.get('mission_complete', False)}\n")
+        f.write(f"  Settled to cruise : {result.get('stab_settled')}  "
+                f"(t_settle {result.get('stab_t_settle_final_s')} s, end of winds-ON pass)\n")
+        f.write(f"  Departed (either) : {result.get('stab_departed')}\n")
+        for tag, name in (("nw", "PASS 1  winds OFF (calm)"), ("w", "PASS 2  winds ON (gusty)")):
+            f.write(f"  --- {name} ---\n")
+            f.write(f"    Doublets ok/abort : {result.get(f'{tag}_n_doublets_ok')}/"
+                    f"{result.get(f'{tag}_n_aborted')}  departed={result.get(f'{tag}_departed')}\n")
+            f.write(f"    ROLL worst        : |held-cmd| {result.get(f'{tag}_roll_worst_held_err_deg')} deg  "
+                    f"overshoot {result.get(f'{tag}_roll_worst_overshoot_deg')} deg  "
+                    f"recover {result.get(f'{tag}_roll_worst_recover_s')} s\n")
+            f.write(f"    YAW  worst        : peak yaw-rate {result.get(f'{tag}_yaw_peak_yawrate_dps')} deg/s  "
+                    f"recover {result.get(f'{tag}_yaw_worst_recover_s')} s\n")
+            f.write(f"    Motor split       : max |m1-m9| {result.get(f'{tag}_max_motor_diff_pwm')} pwm "
+                    f"(~0 expected with DT off)\n")
         f.write(f"  Max altitude (m)  : {result.get('max_alt_m', 0):.1f}\n")
         f.write(f"  Load factor n_z   : {result.get('min_load_factor_nz')} .. "
                 f"{result.get('max_load_factor_nz')} g  "
                 f"(peak |g| {result.get('max_load_factor_total')})\n")
-        f.write(f"  Ground roll (m)   : {result.get('ground_roll_m')}\n")
         f.write(f"  Liftoff Vlof (m/s): {result.get('liftoff_speed')}\n")
-        f.write(f"  Landing roll (m)  : {result.get('landing_roll_m')}\n")
-        f.write(f"  Landing err (m)   : {result.get('landing_err_m')}\n")
-        f.write(f"  Time to land (s)  : {result.get('time_to_land_s')}\n")
         f.write(f"  Exit reason       : {result.get('exit_reason', 'unknown')}\n")
 
 
@@ -1072,13 +1210,12 @@ def _run_case(case_id, case_seed, instance_id, config, perturbed, output_dir,
               workspace, speedup, save_plot, hard_timeout, params_file, wind,
               dt_enabled=True, sim_parquet=True, trim_cols=False, keep_aux=False):
     """Execute one Monte Carlo case: launch SITL, set the case's wind, optionally
-    enable differential thrust, fly the uSTOL FBWA + LOITER + landing profile."""
+    enable differential thrust, fly the uSTOL cruise roll/yaw doublet stability test."""
     result = dict(
         case_id=case_id, case_seed=case_seed,
         takeoff_success=False, mission_complete=False,
         duration_s=0.0, max_alt_m=0.0, land_result="unknown",
-        ground_roll_m=None, liftoff_speed=None, landing_roll_m=None,
-        exit_reason="unknown", dt_enabled=bool(dt_enabled),
+        liftoff_speed=None, exit_reason="unknown", dt_enabled=bool(dt_enabled),
         wind_case=wind["wind_case"], wind_speed_mps=wind["wind_speed_mps"],
         wind_horiz_mps=wind["wind_horiz_mps"], wind_vert_mps=wind["wind_vert_mps"],
         wind_dir_deg=wind["wind_dir_deg"], wind_dir_z_deg=wind["wind_dir_z_deg"])
@@ -1126,8 +1263,19 @@ def _run_case(case_id, case_seed, instance_id, config, perturbed, output_dir,
     ucfg      = mission_cfg.get("ustol2", {})
     gcs_sysid = int(ucfg.get("gcs_sysid", 250))
 
+    # CRUISE-START: ask the FDM to spawn already airborne at cruise alt + airspeed so the
+    # case can skip the open-loop climb (read by SIM_Plane.cpp's in-air-start hook). The
+    # altitude/airspeed mirror the climb targets fly_cruise_doublets uses for CRUISE_ALT /
+    # CRUISE_AS. On a firmware build without the hook these env vars are simply ignored.
+    if START_AT_CRUISE:
+        cruise_alt = ucfg.get("cruise_alt_m", mission_cfg.get("takeoff_alt_m", 100.0))
+        cruise_as  = ucfg.get("cruise_as_mps", 12.0)
+        env["LAT_START_ALT"]       = repr(float(cruise_alt))
+        env["LAT_START_AS"]        = repr(float(cruise_as))
+        env["LAT_START_PITCH_DEG"] = repr(float(INAIR_START_PITCH_DEG))
+
     try:
-        # SITL stdout is the FDM's per-step debug spam ("Time:..., MLG_NR...") — a few MB of
+        # SITL stdout is the FDM's per-step debug spam ("Time:..., MLG_NR...") - a few MB of
         # serial-port noise per case that nothing downstream reads. Drop it to /dev/null by
         # default (no file, no spam); --keep-aux re-enables the sitl_stdout.log for debugging.
         sitl_log = (open(os.path.join(case_dir, "sitl_stdout.log"), "w")
@@ -1168,53 +1316,77 @@ def _run_case(case_id, case_seed, instance_id, config, perturbed, output_dir,
             ("PTCH_LIM_MIN_DEG", -20),                            # allow nose-down for the glide
             ("TECS_PITCH_MAX",   20),
             ("AIRSPEED_CRUISE",  ucfg.get("cruise_as_mps", 12.0)),
-            ("WP_LOITER_RAD",    ucfg.get("loiter_rad_m", 150.0)),  # LOITER circle radius (m)
+            ("ROLL_LIMIT_DEG",   ucfg.get("roll_limit_deg", 30.0)),  # FBWA bank authority for the roll doublets
         ]:
             set_param(conn, n, v)
 
         # ---- DIFFERENTIAL THRUST: when enabled, map the nine ESC outputs to
         #      k_motor1..k_motor9 and turn on the AP_DiffThrust mixer (UST_*). The mixer
         #      becomes the SOLE writer of those outputs, reading the throttle demand as a
-        #      base and adding an antisymmetric rudder-driven split. UST_UMAX=1.0 keeps
-        #      takeoff thrust uncapped (the bench overlay's 0.4619 wire-cap would peg
-        #      throttle at ~46% and prevent takeoff). With --diff-thrust off the outputs
-        #      stay on k_throttle and UST_ENABLE=0 -> stock uniform throttle (the loiter
-        #      baseline; run both ways and diff the loiter_* metrics to see DT's effect). ----
+        #      base and allocating a THRUST-NEUTRAL antisymmetric split in thrust space
+        #      (inverting the prop quadratic map). UST_UMAX=1.0 keeps takeoff thrust
+        #      uncapped (a low wire-cap would limit throttle and could prevent takeoff).
+        #      With --diff-thrust off the outputs stay on k_throttle and UST_ENABLE=0 ->
+        #      stock uniform throttle (the no-DT baseline; run both ways and diff the
+        #      roll/yaw stability metrics). ----
+        #
+        #      Yaw-authority params (AP_DiffThrust daisy-chain rewrite):
+        #        UST_NDES_MAX  peak yaw MOMENT [N*m]  (replaces the old dimensionless UST_DT_KYAW)
+        #        UST_KRUD > 0  rudder-aware daisy-chain: rudder covers up to KRUD*V^2 [N*m],
+        #                      DT supplies only the residual. 0 -> legacy UST_DT_VLO/VHI schedule.
+        # Differential thrust is OPTIONAL and probed, so this runner is portable to a
+        # build WITHOUT the AP_DiffThrust module (no UST_* params - e.g. a tree where DT
+        # was never ported). With DT off we just leave the stock uniform throttle; with
+        # DT on against such a build we abort the case with a clear reason instead of
+        # silently remapping SERVO1..9 to motors that nothing drives (-> no takeoff).
+        has_ust = has_param(conn, "UST_ENABLE")
         if dt_enabled:
+            if not has_ust:
+                result["exit_reason"] = "ust_unavailable"
+                _log(case_id, "ERROR: --diff-thrust on but UST_ENABLE not in this firmware "
+                              "(AP_DiffThrust not built); aborting case. Port AP_DiffThrust "
+                              "+ ./waf plane, or run --diff-thrust off.")
+                return result
             K_MOTOR_FN = [33, 34, 35, 36, 37, 38, 39, 40, 82]      # k_motor1..k_motor9 functions
             for ch, fn in enumerate(K_MOTOR_FN, start=1):
                 set_param(conn, f"SERVO{ch}_FUNCTION", fn)
             for n, v in [
-                ("UST_ENABLE",  1),
-                ("UST_DT_VLO",  ucfg.get("ust_dt_vlo", 13.0)),
-                ("UST_DT_VHI",  ucfg.get("ust_dt_vhi", 17.0)),
+                ("UST_ENABLE",   1),
+                ("UST_DT_VLO",   ucfg.get("ust_dt_vlo", 13.0)),
+                ("UST_DT_VHI",   ucfg.get("ust_dt_vhi", 17.0)),
                 ("UST_NDES_MAX", ucfg.get("ust_ndes_max", 20.0)),  # peak yaw MOMENT [N*m] (was UST_DT_KYAW gain)
-                ("UST_KRUD",    ucfg.get("ust_krud", 0.11)),       # >0 = rudder-aware daisy-chain (new); 0 = legacy VLO/VHI
-                ("UST_DT_RLFF", ucfg.get("ust_dt_rlff", 0.0)),
-                ("UST_UMAX",    ucfg.get("ust_umax", 1.0)),        # 1.0 = uncapped (SITL takeoff)
+                ("UST_KRUD",     ucfg.get("ust_krud", 0.11)),      # >0 = rudder-aware daisy-chain (new); 0 = legacy VLO/VHI
+                ("UST_DT_RLFF",  ucfg.get("ust_dt_rlff", 0.0)),
+                ("UST_UMAX",     ucfg.get("ust_umax", 1.0)),       # 1.0 = uncapped (SITL takeoff)
             ]:
                 set_param(conn, n, v)
-            _log(case_id, "differential thrust ENABLED (SERVO1..9=k_motor1..9, UST_ENABLE=1)")
+            _log(case_id, "differential thrust ENABLED (SERVO1..9=k_motor1..9, UST_ENABLE=1, "
+                          f"NDES_MAX={ucfg.get('ust_ndes_max', 20.0)} N*m, KRUD={ucfg.get('ust_krud', 0.11)})")
+        elif has_ust:
+            set_param(conn, "UST_ENABLE", 0)                       # explicit stock baseline (only if present)
         else:
-            set_param(conn, "UST_ENABLE", 0)                       # explicit stock baseline (uniform throttle)
+            _log(case_id, "no UST_ params in firmware - stock uniform throttle (no-DT baseline)")
 
-        # ---- WIND: set this case's SIM_WIND_* BEFORE arming so wind is active
-        #      from the ground roll on. SIM_Plane.cpp copies wind_ef -> wind_ned
-        #      every step, so these drive the custom uSTOL FDM. Small TC -> wind
-        #      ramps to full well before liftoff. ----
+        # ---- WIND (v10 A-B): every case STARTS in calm air. Configure the static wind
+        #      knobs (constant-with-alt profile + a fast ramp TC) but set SPD=0 / TURB=0
+        #      so PASS 1 is winds-off. fly_cruise_doublets() then switches THIS case's
+        #      wind (spd/dir/elevation + gusts) ON live via SIM_WIND_* for PASS 2. The
+        #      uSTOL FDM (SIM_Plane.cpp copies wind_ef -> wind_ned each step) re-reads the
+        #      params every step, so the mid-flight toggle takes effect without relaunch. ----
         for n, v in [
             ("SIM_WIND_T",    1 if WIND_PROFILE_CONSTANT else 0),  # 1 = constant w/ alt
-            ("SIM_WIND_TC",   1.0),                                # fast ramp-in (s)
-            ("SIM_WIND_TURB", WIND_TURBULENCE),                    # RMS gusts (0 = steady)
-            ("SIM_WIND_SPD",  wind["SIM_WIND_SPD"]),
-            ("SIM_WIND_DIR",  wind["SIM_WIND_DIR"]),
-            ("SIM_WIND_DIR_Z", wind["SIM_WIND_DIR_Z"]),
+            ("SIM_WIND_TC",   WIND_RAMP_TC_S),                     # fast on/off ramp (s)
+            ("SIM_WIND_TURB", 0.0),                                # calm to start (pass 1)
+            ("SIM_WIND_SPD",  0.0),
+            ("SIM_WIND_DIR",  0.0),
+            ("SIM_WIND_DIR_Z", 0.0),
         ]:
             set_param(conn, n, v)
-        _log(case_id, f"wind: {wind['wind_case']}  "
+        _log(case_id, f"wind (pass 2): {wind['wind_case']}  "
                       f"horiz {wind['wind_horiz_mps']:.1f}  vert {wind['wind_vert_mps']:+.1f} m/s  "
                       f"(spd {wind['SIM_WIND_SPD']:.1f}  "
-                      f"dir {wind['SIM_WIND_DIR']:.0f}°  dirZ {wind['SIM_WIND_DIR_Z']:.0f}°)")
+                      f"dir {wind['SIM_WIND_DIR']:.0f}deg  dirZ {wind['SIM_WIND_DIR_Z']:.0f}deg)  "
+                      f"+{WIND_ON_TURBULENCE:.1f} m/s gust  [pass 1 = calm]")
 
         if not set_mode(conn, "FBWA"):
             result["exit_reason"] = "fbwa_mode_failed"
@@ -1223,7 +1395,9 @@ def _run_case(case_id, case_seed, instance_id, config, perturbed, output_dir,
         if not arm_vehicle(conn):
             result["exit_reason"] = "arm_failed"
             return result
-        _log(case_id, "armed — flying uSTOL FBWA open-loop profile")
+        _log(case_id, ("armed - in-air spawn at cruise, running doublet stability test"
+                       if START_AT_CRUISE
+                       else "armed - flying uSTOL climb + cruise doublet stability test"))
 
         # Per-case telemetry CSV (drives metrics_from_csv + summary).
         csv_fp = open(case_csv, "w", newline="")
@@ -1232,25 +1406,44 @@ def _run_case(case_id, case_seed, instance_id, config, perturbed, output_dir,
             "time_s", "phase", "alt_agl_m", "airspeed", "roll_deg",
             "pitch_deg", "climb_mps", "throttle_pct", "theta_cmd_deg", "lat", "lon",
             "load_factor_nz", "load_factor_total",
-            "motor1_pwm", "motor9_pwm", "yaw_rate_dps"])
+            "motor1_pwm", "motor9_pwm", "yaw_rate_dps", "roll_cmd_deg", "rud_cmd_deg",
+            "wind_on"])
 
         st = {"alt": 0.0, "as": 0.0, "climb": 0.0, "lat": None, "lon": None,
               "thr": 0.0, "roll": 0.0, "pitch": 0.0, "nz": 1.0, "g_total": 1.0,
-              "m1": 0, "m9": 0, "yawrate": 0.0}
+              "m1": 0, "m9": 0, "yawrate": 0.0, "hdg": 0.0}
         perf = {"liftoff_time": None, "liftoff_speed": None, "ground_roll_m": None}
         t0_flight = time.time()
 
-        land_result = fly_ustol2(conn, mission_cfg, writer, st, perf,
-                                 sitl_proc, t0_flight, deadline)
+        land_result = fly_cruise_doublets(conn, mission_cfg, writer, st, perf,
+                                          sitl_proc, t0_flight, deadline, wind)
         _log(case_id, f"profile returned: {land_result}")
 
-        # ---- Outcome ----
-        result["land_result"]      = land_result
+        # ---- Outcome (two scorecards: nw_ = winds OFF/calm, w_ = winds ON/gusty) ----
+        stab_nw = perf.get("stab_nowind", {})
+        stab_w  = perf.get("stab_wind", {})
+        result["land_result"]      = land_result          # combined outcome (settled/unsettled/departed/...)
         result["takeoff_success"]  = perf["liftoff_time"] is not None
-        result["mission_complete"] = (land_result == "landed")    # full mission = touchdown
-        result["ground_roll_m"]    = perf["ground_roll_m"]
+        result["mission_complete"] = (land_result == "settled")   # full test = re-settled at the end
         result["liftoff_speed"]    = perf["liftoff_speed"]
-        result["landing_roll_m"]   = None                 # derived from the CSV (metrics_from_csv)
+        # final settle = end of the winds-ON pass; departed = EITHER pass departed.
+        result["stab_settled"]          = stab_w.get("settled_final", False)
+        result["stab_t_settle_final_s"] = stab_w.get("t_settle_final_s")
+        result["stab_departed"]         = bool(stab_nw.get("departed")) or bool(stab_w.get("departed"))
+        for tag, sd in (("nw", stab_nw), ("w", stab_w)):
+            result[f"{tag}_n_doublets_ok"]            = sd.get("n_ok", 0)
+            result[f"{tag}_n_aborted"]                = sd.get("n_aborted", 0)
+            result[f"{tag}_departed"]                 = sd.get("departed", False)
+            result[f"{tag}_roll_worst_held_err_deg"]  = sd.get("roll_worst_held_err_deg")
+            result[f"{tag}_roll_worst_overshoot_deg"] = sd.get("roll_worst_overshoot_deg")
+            result[f"{tag}_roll_worst_recover_s"]     = sd.get("roll_worst_recover_s")
+            result[f"{tag}_yaw_peak_yawrate_dps"]     = sd.get("yaw_peak_yawrate_dps")
+            result[f"{tag}_yaw_worst_recover_s"]      = sd.get("yaw_worst_recover_s")
+            result[f"{tag}_test_alt_min_m"]           = sd.get("alt_min_m")
+            result[f"{tag}_test_alt_max_m"]           = sd.get("alt_max_m")
+            result[f"{tag}_max_motor_diff_pwm"]       = sd.get("max_motor_diff_pwm")
+        result["max_motor_diff_pwm"] = max(stab_nw.get("max_motor_diff_pwm", 0.0) or 0.0,
+                                           stab_w.get("max_motor_diff_pwm", 0.0) or 0.0)
         result["exit_reason"]      = land_result
 
     except Exception as exc:
@@ -1321,14 +1514,14 @@ def _run_case(case_id, case_seed, instance_id, config, perturbed, output_dir,
             except Exception:
                 pass
 
-        # Human-readable per-case report — the dashboard never reads it, so write it only
+        # Human-readable per-case report - the dashboard never reads it, so write it only
         # with --keep-aux (part of the 6->3 file-count reduction).
         if keep_aux:
             nominals = {k: v["nominal"] for k, v in config["params"].items()}
             write_case_report(
                 os.path.join(case_dir, f"case_{case_id:04d}_report.txt"),
                 case_id, perturbed, nominals, result)
-        # Machine-readable result — drives summary.csv rebuild + --resume.
+        # Machine-readable result - drives summary.csv rebuild + --resume.
         try:
             with open(os.path.join(case_dir, "result.json"), "w") as jf:
                 json.dump(result, jf)
@@ -1384,21 +1577,29 @@ def _worker_entry(args):
 # ===================================================================
 #  Summary output
 # ===================================================================
-# Frozen output schema — DO NOT add/remove columns after a campaign starts
+# Frozen output schema - DO NOT add/remove columns after a campaign starts
 # (re-deriving metrics from thousands of logs afterward is painful).
 SUMMARY_COLUMNS = [
     "case_id", "case_seed", "dt_enabled", "takeoff_success", "mission_complete", "land_result",
     "exit_reason", "duration_s",
     "wind_case", "wind_speed_mps", "wind_horiz_mps", "wind_vert_mps",
     "wind_dir_deg", "wind_dir_z_deg",
-    "ground_roll_m", "liftoff_speed", "landing_roll_m",
+    "liftoff_speed",
     "max_alt_m", "max_roll_deg", "max_pitch_deg", "min_airspeed", "max_airspeed",
     "max_load_factor_nz", "min_load_factor_nz", "max_load_factor_total",
-    "landing_lat", "landing_lon", "landing_err_m",
-    "time_to_takeoff_s", "time_to_cruise_s", "time_to_land_s",
-    # LOITER-phase differential-thrust diagnostics:
-    "loiter_max_roll_deg", "loiter_max_yaw_rate_dps",
-    "loiter_mean_motor_diff_pwm", "loiter_max_motor_diff_pwm",
+    "time_to_takeoff_s", "time_to_cruise_s",
+    # final settle (end of winds-ON pass) + overall:
+    "stab_settled", "stab_t_settle_final_s", "stab_departed", "max_motor_diff_pwm",
+    # PASS 1 - winds OFF (calm):
+    "nw_n_doublets_ok", "nw_n_aborted", "nw_departed",
+    "nw_roll_worst_held_err_deg", "nw_roll_worst_overshoot_deg", "nw_roll_worst_recover_s",
+    "nw_yaw_peak_yawrate_dps", "nw_yaw_worst_recover_s",
+    "nw_test_alt_min_m", "nw_test_alt_max_m", "nw_max_motor_diff_pwm",
+    # PASS 2 - winds ON (gusty):
+    "w_n_doublets_ok", "w_n_aborted", "w_departed",
+    "w_roll_worst_held_err_deg", "w_roll_worst_overshoot_deg", "w_roll_worst_recover_s",
+    "w_yaw_peak_yawrate_dps", "w_yaw_worst_recover_s",
+    "w_test_alt_min_m", "w_test_alt_max_m", "w_max_motor_diff_pwm",
 ]
 
 
@@ -1460,8 +1661,9 @@ def prompt_num_runs(default=5000):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Monte Carlo Runner — uSTOL FBWA + LOITER + diff-thrust + landing + WIND (mission_ustol_8). "
-                    "Edit WIND_MIX at the top of this file to set the per-type case counts.")
+        description="Monte Carlo Runner - uSTOL CRUISE ROLL/YAW DOUBLET STABILITY, WIND ON/OFF A-B "
+                    "(mission_ustol_10_cruise_dt). Each case flies the doublets twice - calm then "
+                    "gusty wind. Diff-thrust ON by default. Edit WIND_MIX for the winds-ON pass.")
     parser.add_argument("--config", default=str(DEFAULT_CFG))
     parser.add_argument("--runs", type=int, default=None,
                         help="number of cases. If omitted, the campaign size is "
@@ -1493,10 +1695,10 @@ def main():
                              "ustol_sims/params_imp_v3.param. Pass e.g. "
                              "ustol_sims/params_imp_v4land.param to use the landing-tuned set.")
     parser.add_argument("--diff-thrust", choices=["on", "off"], default="on",
-                        help="differential-thrust yaw mixer for the LOITER. 'on' (default): "
-                             "map SERVO1..9 -> k_motor1..9 + UST_ENABLE=1 (UST_UMAX=1.0). "
-                             "'off': stock uniform throttle (UST_ENABLE=0) — the loiter "
-                             "baseline. Run both and diff the loiter_* metrics.")
+                        help="differential-thrust yaw mixer. 'on' (DEFAULT for this DT variant): "
+                             "map SERVO1..9 -> k_motor1..9 + UST_ENABLE=1 (UST_UMAX=1.0). 'off': "
+                             "stock uniform throttle (UST_ENABLE=0), yaw via rudder - the no-DT "
+                             "baseline. Run both and diff the roll/yaw stability metrics.")
     parser.add_argument("--sim-format", choices=["parquet", "csv"], default="parquet",
                         help="per-case sim_output format. 'parquet' (default): convert the FDM "
                              "CSV to Parquet (~85%% of a case's bytes, ~3-7x smaller, faster to "
@@ -1537,7 +1739,7 @@ def main():
     wind_specs = expand_wind_mix(WIND_MIX, WIND_SPEED_LEVELS, CROSSWIND_SIDE,
                                  WIND_VERT_SPEED)
     if not wind_specs:
-        print("\nERROR: WIND_MIX expands to 0 cases — set some non-zero counts.")
+        print("\nERROR: WIND_MIX expands to 0 cases - set some non-zero counts.")
         sys.exit(1)
 
     # Runs: --runs wins (proportionally rescaling the mix to that size); otherwise
@@ -1569,16 +1771,18 @@ def main():
                     or config["mission"].get("hard_timeout_s", 420))
 
     print("=" * 70)
-    print("  LAT Monte Carlo Runner — uSTOL FBWA + LOITER + diff-thrust + landing + WIND (mission_ustol_8)")
+    print("  LAT Monte Carlo Runner - uSTOL CRUISE ROLL/YAW DOUBLET STABILITY, WIND ON/OFF A-B (mission_ustol_10_dt)")
     print("=" * 70)
-    print(f"  Wind mix      : {num_runs} cases across {len(wind_counts)} type(s)")
+    print(f"  Wind mix (P2) : {num_runs} cases across {len(wind_counts)} type(s)  [winds-ON pass only]")
     for k in sorted(wind_counts):
         print(f"      {k:<12}: {wind_counts[k]}")
     print(f"  Wind speeds   : {WIND_SPEED_LEVELS} m/s default horiz  (swept within each type)")
     print(f"  Vert speed    : {WIND_VERT_SPEED} m/s default  (combined cases)")
     print(f"  Wind shuffle  : {WIND_MIX_SHUFFLE}")
     print(f"  Wind profile  : {'constant w/ alt (SIM_WIND_T=1)' if WIND_PROFILE_CONSTANT else 'sqrt (SIM_WIND_T=0)'}"
-          f"  turb {WIND_TURBULENCE} m/s  runway hdg {runway_hdg}°")
+          f"  runway hdg {runway_hdg}deg")
+    print(f"  A-B test      : pass1 CALM ({WIND_OFF_SETTLE_S:.0f}s settle) -> winds ON -> "
+          f"establish {WIND_ON_ESTABLISH_S:.0f}s -> pass2 GUSTY (+{WIND_ON_TURBULENCE:.1f} m/s RMS)")
     print(f"  Runs          : {num_runs}")
     print(f"  CPU cores     : {os.cpu_count()}")
     print(f"  Workers       : {max_workers}"
@@ -1588,7 +1792,7 @@ def main():
         print("  NOTE          : speedup>1 + high worker count starves each "
               "SITL of CPU;\n"
               "                  validate pass-rate against a 1x baseline.")
-    print(f"  Diff-thrust   : {'ON (SERVO1..9=k_motor1..9, UST_ENABLE=1, UMAX=1.0)' if dt_enabled else 'OFF (stock uniform throttle — loiter baseline)'}")
+    print(f"  Diff-thrust   : {'ON (SERVO1..9=k_motor1..9, UST_ENABLE=1, UMAX=1.0)' if dt_enabled else 'OFF (stock uniform throttle - no-DT cruise baseline)'}")
     print(f"  Output        : sim_output={'Parquet' if sim_parquet else 'CSV'}"
           f"{' (trimmed cols)' if (sim_parquet and trim_cols) else ''}; "
           f"aux files {'kept' if args.keep_aux else 'dropped (6->3/case, no SITL-stdout spam)'}")
@@ -1596,12 +1800,19 @@ def main():
     print(f"  Hard timeout  : {hard_timeout}s/case")
     print(f"  Resume        : {args.resume}")
     print(f"  Base instance : {base_inst}  (ports {5760+10*base_inst}"
-          f"–{5760+10*(base_inst+max_workers-1)})")
+          f"-{5760+10*(base_inst+max_workers-1)})")
     print(f"  Binary        : {BINARY}")
     print(f"  Defaults      : {params_file}"
           f"{'  (--params)' if args.params else '  (auto)'}")
     print(f"  Config        : {args.config}  ({len(config['params'])} params)")
-    print("  Profile       : GROUND→CLIMB→CRUISE→LOITER→APPROACH→FLARE→LAND  (FBWA + nav loiter)")
+    if START_AT_CRUISE:
+        print(f"  Profile       : IN-AIR SPAWN@CRUISE->[CALM ROLL+YAW]->WIND ON->[GUSTY ROLL+YAW]->SETTLE  (FBWA, no climb/landing)")
+        print(f"  Cruise start  : alt {config['mission'].get('ustol2', {}).get('cruise_alt_m', config['mission'].get('takeoff_alt_m', 100.0))} m  "
+              f"airspeed {config['mission'].get('ustol2', {}).get('cruise_as_mps', 12.0)} m/s  "
+              f"(LAT_START_ALT/LAT_START_AS; EKF-settle gate "
+              f"{INAIR_WARMUP_MIN_S}-{INAIR_WARMUP_MAX_S}s)")
+    else:
+        print("  Profile       : GROUND->CLIMB->CRUISE->[CALM ROLL+YAW]->WIND ON->[GUSTY ROLL+YAW]->SETTLE  (FBWA, no landing)")
     print("=" * 70)
 
     if not BINARY.exists():
@@ -1615,7 +1826,7 @@ def main():
         # Tag as a mixed-wind campaign.
         output_dir = str(SCRIPT_DIR / f"mc_{ts}_mix")
     os.makedirs(output_dir, exist_ok=True)
-    print(f"\n  Output → {output_dir}\n")
+    print(f"\n  Output -> {output_dir}\n")
 
     # Per-case independent, standalone-reproducible RNG: case `cid` is keyed by
     # (seed, cid), so any single case reproduces via default_rng([seed, cid]).
@@ -1639,7 +1850,7 @@ def main():
                     done.add(int(json.load(f)["case_id"]))
             except Exception:
                 pass
-        print(f"  RESUME: {len(done)} cases already complete — skipping them\n")
+        print(f"  RESUME: {len(done)} cases already complete - skipping them\n")
 
     manager = multiprocessing.Manager()
     inst_q  = manager.Queue()
@@ -1665,7 +1876,7 @@ def main():
                 res = fut.result()
                 results.append(res)
                 tk = "TKOFF" if res["takeoff_success"] else "NO-TKOFF"
-                ms = "LAND" if res["mission_complete"] else res["land_result"]
+                ms = "SETTLED" if res["mission_complete"] else res["land_result"]
                 _log(cid, f"{tk} | {ms} | {res['duration_s']:.0f}s | "
                           f"alt {res['max_alt_m']:.0f}m")
             except Exception as exc:
@@ -1685,17 +1896,17 @@ def main():
     n_tk = sum(1 for r in all_results if r.get("takeoff_success"))
     n_ms = sum(1 for r in all_results if r.get("mission_complete"))
     print("\n" + "=" * 70)
-    print(f"  SUMMARY — uSTOL ALL-FBWA + LANDING + WIND-MIX CAMPAIGN  ({num_runs} cases)")
+    print(f"  SUMMARY - uSTOL CRUISE DOUBLET STABILITY, WIND ON/OFF A-B (DT)  ({num_runs} cases)")
     print("=" * 70)
     print(f"  Cases completed  : {n_tot}  (this invocation ran {len(tasks)})")
     print(f"  Takeoff success  : {n_tk}/{n_tot}  "
           f"({100*n_tk/max(n_tot,1):.1f}%)")
-    print(f"  Landed (touchdown): {n_ms}/{n_tot}  "
+    print(f"  Settled to cruise: {n_ms}/{n_tot}  "
           f"({100*n_ms/max(n_tot,1):.1f}%)")
     print(f"  Wall-clock time  : {elapsed:.0f}s  ({elapsed/60:.1f} min)")
     print(f"  Summary CSV      : {summary_path}")
 
-    # Completion marker — a simple text file in the campaign folder saying it's done.
+    # Completion marker - a simple text file in the campaign folder saying it's done.
     done_path = os.path.join(output_dir, "DONE.txt")
     with open(done_path, "w") as f:
         f.write("Monte Carlo campaign complete.\n")
@@ -1703,13 +1914,13 @@ def main():
         f.write(f"sim_output      : {'Parquet' if sim_parquet else 'CSV'}"
                 f"{' (trimmed cols)' if (sim_parquet and trim_cols) else ''}; "
                 f"aux files {'kept' if args.keep_aux else 'dropped'}\n")
-        f.write(f"Profile         : GROUND->CLIMB->CRUISE->LOITER->APPROACH->FLARE->LAND\n")
+        f.write(f"Profile         : CRUISE-START->[CALM ROLL+YAW]->WIND ON->[GUSTY ROLL+YAW]->SETTLE\n")
         f.write(f"Finished        : {datetime.now().isoformat()}\n")
         f.write(f"Wind mix        : {dict(sorted(wind_counts.items()))}\n")
         f.write(f"Wind speeds     : {WIND_SPEED_LEVELS} m/s default\n")
         f.write(f"Cases completed : {n_tot}\n")
         f.write(f"Takeoff success : {n_tk}/{n_tot}\n")
-        f.write(f"Landed (td)     : {n_ms}/{n_tot}\n")
+        f.write(f"Settled         : {n_ms}/{n_tot}\n")
         f.write(f"Wall-clock time : {elapsed:.0f}s\n")
         f.write(f"Summary CSV     : {summary_path}\n")
     print(f"  Done marker      : {done_path}")
