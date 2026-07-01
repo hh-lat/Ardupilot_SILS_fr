@@ -35,6 +35,6 @@ SERVO9_FUNCTION,82    # k_motor9  starboard outer
 UST_ENABLE,1          # 1 = drive k_motor1..9 ; 0 = stock no-op (also remap outputs to 70)
 UST_DT_VLO,13         # m/s, full differential authority at/below
 UST_DT_VHI,17         # m/s, zero authority at/above (must exceed VLO)
-UST_DT_KYAW,0.20      # peak per-motor offset at full rudder, full weight
+UST_NDES_MAX,20.0      #peak yaw moment [N*m] at full rudder demand, full DT weight
 UST_DT_RLFF,0.0       # aileron roll feedforward (0 = off)
-UST_UMAX,0.4619       # per-motor command ceiling (wire/current cap)
+UST_UMAX,0.90       # per-motor command ceiling (wire/current cap)

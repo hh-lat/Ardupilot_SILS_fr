@@ -52,7 +52,7 @@ private:
     AP_Int8  _enable;       // UST_ENABLE
     AP_Float _dt_vlo;       // UST_DT_VLO   [m/s]
     AP_Float _dt_vhi;       // UST_DT_VHI   [m/s]
-    AP_Float _dt_kyaw;      // UST_DT_KYAW
+    AP_Float _dt_ndes_max ;      // UST_DT_NDES_MAX
     AP_Float _dt_rlff;      // UST_DT_RLFF
     AP_Float _umax;         // UST_UMAX
 
@@ -60,6 +60,18 @@ private:
     static const uint8_t NUM_CH = 9;
     static const float _y_ch[NUM_CH];           // pair-averaged span arm per channel [m]
     static constexpr float _y_max = 1.5225f;    // max |_y_ch|
+   
+    // denominator for thrust-neutral allocation
+    static constexpr float _sum_y_sq = 11.159f;
+   
+    // EDF prop constants for thrust-neutral allocation
+    static constexpr float _rho = 1.225f;
+    static constexpr float _n_max_rps = 200.0f;
+    static constexpr float _D = 0.120f;
+    static constexpr float _CT1 = 0.6917f;
+    static constexpr float _CT_J = -0.7345f;
+    static constexpr float _CT_JM = 1.6471f;
+    static constexpr float _a_sound = 340.0f;
 
     // one-time output-range setup for the nine motor channels (lazy; see .cpp)
     bool _range_inited;

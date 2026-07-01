@@ -30,7 +30,14 @@ import failure_criteria as fc
 
 RESULTS   = sys.argv[1] if len(sys.argv) > 1 else "../mc_results_20260611_173053"
 OUTDIR    = os.path.dirname(os.path.abspath(__file__))
-CRIT_CFG, CRIT_KEYS = fc.load_criteria_config(OUTDIR)   # (None, []) if no config -> feature off
+# CRIT_CFG is selected AFTER the summary is loaded (see __main__) so the doublet campaign
+# gets the doublet thresholds. Initialised here only so the module-level functions resolve.
+CRIT_CFG, CRIT_KEYS = None, []
+DOUBLET_CONFIG = "failure_criteria_config_doublet.json"
+# result.json fields that only the cruise roll/yaw doublet runner writes — their presence
+# marks a doublet campaign (vs the takeoff->land mission), so we pick the right criteria config.
+DOUBLET_MARKERS = ("stab_settled", "stab_departed", "roll_worst_overshoot_deg",
+                   "yaw_peak_yawrate_dps")
 G         = 9.81
 TS_POINTS = 150     # ~points per case in the downsampled time series
 TS_COLS   = ["Time_s", "alt_agl_m", "TAS_mps", "phi", "theta", "psi", "p", "q", "r",
@@ -228,6 +235,17 @@ def per_case(cdir, mass, cid, logged=None):
 
 
 summ = load_summary(RESULTS)
+
+# Pick the criteria config by campaign TYPE: a cruise roll/yaw doublet campaign carries the
+# stab_*/roll_worst_*/yaw_* outcome fields and needs the doublet thresholds (the landing-mission
+# criteria would flag the intended maneuver excursions as failures). Fall back to the default config.
+_is_doublet = any(c in summ.columns for c in DOUBLET_MARKERS)
+if _is_doublet:
+    print(f"campaign type: CRUISE ROLL/YAW DOUBLET (found {[c for c in DOUBLET_MARKERS if c in summ.columns]}) "
+          f"-> preferring {DOUBLET_CONFIG}")
+    CRIT_CFG, CRIT_KEYS = fc.load_criteria_config(OUTDIR, names=[DOUBLET_CONFIG] + fc.DEFAULT_CONFIG_NAMES)
+else:
+    CRIT_CFG, CRIT_KEYS = fc.load_criteria_config(OUTDIR)
 
 rows, ts_all, osc_all = [], [], []
 cdirs = sorted(glob.glob(os.path.join(RESULTS, "case_*")))

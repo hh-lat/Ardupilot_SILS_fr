@@ -41,14 +41,19 @@ _RANK = {"na": -1, "ok": 0, "flag": 1, "fail": 2}
 # --------------------------------------------------------------------------- #
 #  Config loading
 # --------------------------------------------------------------------------- #
-def load_criteria_config(outdir):
-    """Find & load failure_criteria_config.json. Searches outdir, outdir/.., outdir/../...
+def load_criteria_config(outdir, names=None):
+    """Find & load a failure-criteria config JSON. Searches outdir, outdir/.., outdir/../...
+
+    `names` is the ordered list of filenames to try (first found wins). It defaults to
+    DEFAULT_CONFIG_NAMES (the landing-mission config); build_dashboard_data.py passes the
+    doublet config first for a doublet campaign so the right thresholds are used per test type.
 
     Returns (config_dict, criteria_keys). Returns (None, []) if the file is absent, disabled, or
     unparseable (prints one warning) — so the build keeps working with no criteria."""
+    names = names or DEFAULT_CONFIG_NAMES
     seen = set()
     for d in (outdir, os.path.join(outdir, ".."), os.path.join(outdir, "..", "..")):
-        for name in DEFAULT_CONFIG_NAMES:
+        for name in names:
             path = os.path.abspath(os.path.join(d, name))
             if path in seen:
                 continue

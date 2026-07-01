@@ -57,10 +57,29 @@ SUCCESS_COLOR = GREEN
 PARTIAL_COLOR = "#f59e0b"   # amber — took off but never landed
 FAILURE_COLOR = "#f05a5a"
 
-# Three-tier flight outcome (ordinal: No takeoff < Took off, no landing < Landed)
-OUTCOME_SUCCESS = "Landed"                 # full success — touchdown reached
-OUTCOME_PARTIAL = "Took off, no landing"   # partial — reached >=15 m AGL but never landed
-OUTCOME_FAIL    = "No takeoff"             # failure — never reached >=15 m AGL
+# Campaign type, detected cheaply from the data header so the outcome tiers + labels below can
+# branch on it. A CRUISE ROLL/YAW DOUBLET campaign (aws_monte_carlo_9_nodt) never lands, so the
+# landing-based outcome is meaningless; we grade it on departure / re-settle / altitude-held instead.
+try:
+    _HDR_COLS = set(pd.read_csv("dashboard_data.csv", nrows=0).columns)
+except Exception:
+    _HDR_COLS = set()
+IS_DOUBLET = bool({"stab_settled", "stab_departed", "roll_worst_overshoot_deg",
+                   "yaw_peak_yawrate_dps"} & _HDR_COLS)
+
+# Three-tier flight outcome (ordinal: FAIL < PARTIAL < SUCCESS). For a doublet campaign the tiers
+# mean: completed the stability test cleanly / degraded / lost it (departed, never re-settled, or
+# sank out of the test altitude band). For the landing mission they mean Landed / flew-but-no-landing
+# / never-took-off.
+TEST_ALT_FLOOR_M = 50.0   # doublet: min test-window altitude below this = lost the test (see config)
+if IS_DOUBLET:
+    OUTCOME_SUCCESS = "Stable (test passed)"        # completed doublets, re-settled, held altitude
+    OUTCOME_PARTIAL = "Degraded / recovered"        # reached cruise but the test degraded
+    OUTCOME_FAIL    = "Departed / lost altitude"    # departed, crashed, or never reached cruise
+else:
+    OUTCOME_SUCCESS = "Landed"                 # full success — touchdown reached
+    OUTCOME_PARTIAL = "Took off, no landing"   # partial — reached >=15 m AGL but never landed
+    OUTCOME_FAIL    = "No takeoff"             # failure — never reached >=15 m AGL
 OUTCOME_ORDER   = [OUTCOME_SUCCESS, OUTCOME_PARTIAL, OUTCOME_FAIL]
 OUTCOME_COLORS  = {OUTCOME_SUCCESS: SUCCESS_COLOR,
                    OUTCOME_PARTIAL: PARTIAL_COLOR,
@@ -199,10 +218,41 @@ def load_cases():
     df["landed"]          = landed
     df["takeoff_success"] = took_off          # binary "did it fly?" used by the TV analysis
 
-    # Three-tier outcome: Landed (full success) > Took off, no landing (partial) > No takeoff
-    df["outcome"] = np.select([landed, took_off & ~landed],
-                              [OUTCOME_SUCCESS, OUTCOME_PARTIAL],
-                              default=OUTCOME_FAIL)
+    if IS_DOUBLET:
+        # Cruise roll/yaw doublet campaign: there is no landing, so grade on the stability outcome.
+        # IMPORTANT: the runner's settle/departure logic checks only roll angle + yaw rate, never
+        # altitude, so a case upset into a wings-level descent sinks to the ground yet is still
+        # reported land_result='settled', stab_departed=false. We re-derive the truth from the data:
+        # a clean pass MUST also have held the test altitude band (test_alt_min_m >= floor).
+        _b = lambda s: df.get(s, pd.Series(False, index=df.index)).astype(str).str.lower().eq("true")
+        departed  = _b("stab_departed")
+        settled   = _b("stab_settled")
+        aborted   = pd.to_numeric(df.get("stab_n_aborted", 0), errors="coerce").fillna(0) > 0
+        alt_min   = pd.to_numeric(df.get("test_alt_min_m", np.nan), errors="coerce")
+        held_alt  = alt_min >= TEST_ALT_FLOOR_M                       # stayed in the test band
+        reached   = took_off                                         # climbed to cruise at all
+        df["departed"]   = departed | aborted
+        df["held_alt"]   = held_alt.fillna(False)
+        df["test_passed"] = reached & settled & ~df["departed"] & df["held_alt"]
+        # "stayed aloft" = reached cruise, did not depart/abort, did not sink out of the band
+        # (independent of whether it formally re-settled) — the positive class for ranking which
+        # perturbed parameters drive departures / altitude loss.
+        df["stayed_aloft"] = reached & ~df["departed"] & df["held_alt"]
+        # SUCCESS = clean stable test; FAIL = departed / sank out of band / never reached cruise;
+        # PARTIAL = reached cruise but the test degraded (didn't re-settle, or dropped below band
+        # without a flagged departure).
+        df["outcome"] = np.select(
+            [df["test_passed"], reached & ~(df["departed"] | ~df["held_alt"])],
+            [OUTCOME_SUCCESS, OUTCOME_PARTIAL],
+            default=OUTCOME_FAIL)
+        # 'landed' is reused by the sensitivity TV split as the positive class; for a doublet
+        # campaign the meaningful positive class is "test passed", so alias it.
+        df["landed"] = df["test_passed"]
+    else:
+        # Three-tier outcome: Landed (full success) > Took off, no landing (partial) > No takeoff
+        df["outcome"] = np.select([landed, took_off & ~landed],
+                                  [OUTCOME_SUCCESS, OUTCOME_PARTIAL],
+                                  default=OUTCOME_FAIL)
     df["outcome_rank"] = df["outcome"].map(OUTCOME_RANK).astype(int)
 
     # ---- Wind condition (present only for wind campaigns; recomputed robustly here) ----
@@ -262,11 +312,21 @@ NOMINAL = {p: v[0] for p, v in PARAM_META.items() if v[0] is not None}
 METRICS = ["ground_roll_m", "Vlof_mps", "t_liftoff_s", "max_alt_m", "max_TAS_mps",
            "max_abs_p_dps", "max_abs_q_dps", "max_abs_r_dps", "max_AoA_deg",
            "min_L_over_Wcosg", "max_throttle",
+           # cruise roll/yaw doublet stability metrics (present only for the doublet campaign —
+           # aws_monte_carlo_9_nodt). Surfaced here so they appear in the metric histogram,
+           # failure-map axes, drill-down filters and the per-case detail table.
+           "roll_worst_held_err_deg", "roll_worst_overshoot_deg", "roll_worst_recover_s",
+           "yaw_peak_yawrate_dps", "yaw_worst_recover_s", "stab_n_doublets_ok", "stab_n_aborted",
+           "test_alt_min_m", "test_alt_max_m", "max_motor_diff_pwm",
            # landing / touchdown metrics (present only for landing-profile campaigns)
            "td_speed_mps", "td_sink_mps", "td_pitch_deg", "approach_max_sink_mps",
            "flare_max_sink_mps", "flare_duration_s", "td_load_factor_est",
            "landing_roll_m", "landing_err_m"]
 METRICS = [m for m in METRICS if m in df.columns]
+# Which doublet stability metrics are actually present (IS_DOUBLET itself is detected up top).
+STAB_METRICS = [m for m in ["roll_worst_held_err_deg", "roll_worst_overshoot_deg",
+                            "roll_worst_recover_s", "yaw_peak_yawrate_dps",
+                            "yaw_worst_recover_s", "test_alt_min_m"] if m in df.columns]
 LAND_METRICS = [m for m in ["td_speed_mps", "td_sink_mps", "td_pitch_deg",
                             "approach_max_sink_mps", "flare_max_sink_mps",
                             "flare_duration_s", "td_load_factor_est",
@@ -598,11 +658,22 @@ if HAS_CRITERIA:
 
 fdf = df[mask]
 st.sidebar.caption(f"{len(fdf)} / {len(df)} cases selected")
-st.sidebar.caption(
-    f"Outcome (derived from data):\n"
-    f"- **{OUTCOME_SUCCESS}** — touchdown reached (`land_result == landed`)\n"
-    f"- **{OUTCOME_PARTIAL}** — peak AGL ≥ {TAKEOFF_ALT_M:g} m but never landed\n"
-    f"- **{OUTCOME_FAIL}** — never reached {TAKEOFF_ALT_M:g} m AGL")
+if IS_DOUBLET:
+    st.sidebar.caption(
+        f"Outcome (cruise roll/yaw doublet test, derived from data):\n"
+        f"- **{OUTCOME_SUCCESS}** — completed doublets, re-settled to cruise, and held the test "
+        f"altitude band (`test_alt_min_m ≥ {TEST_ALT_FLOOR_M:g} m`)\n"
+        f"- **{OUTCOME_PARTIAL}** — reached cruise but the test degraded (never re-settled, or sank "
+        f"below the band without a flagged departure)\n"
+        f"- **{OUTCOME_FAIL}** — departed/aborted, sank to the ground, or never reached cruise\n\n"
+        f"⚠️ The runner only checks roll+yaw to call a case 'settled' — it ignores altitude, so a "
+        f"wings-level descent reads as 'settled'. The altitude-band test above corrects for that.")
+else:
+    st.sidebar.caption(
+        f"Outcome (derived from data):\n"
+        f"- **{OUTCOME_SUCCESS}** — touchdown reached (`land_result == landed`)\n"
+        f"- **{OUTCOME_PARTIAL}** — peak AGL ≥ {TAKEOFF_ALT_M:g} m but never landed\n"
+        f"- **{OUTCOME_FAIL}** — never reached {TAKEOFF_ALT_M:g} m AGL")
 
 st.markdown('<div class="lat-eyebrow-main">LAT Aerospace</div>', unsafe_allow_html=True)
 st.title("Monte Carlo Simulation Results")
@@ -626,22 +697,37 @@ tab_stats       = _tabs.get("Statistics")
 with tab_overview:
     st.subheader("Campaign summary")
     n      = len(df)
-    n_succ = int(df["landed"].sum())
-    n_part = int((df["took_off"] & ~df["landed"]).sum())
-    n_fail = int((~df["took_off"]).sum())
+    n_succ = int((df["outcome"] == OUTCOME_SUCCESS).sum())
+    n_part = int((df["outcome"] == OUTCOME_PARTIAL).sum())
+    n_fail = int((df["outcome"] == OUTCOME_FAIL).sum())
     pct = (lambda k: f"{100*k/n:.1f}%" if n else "—")
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Cases", n)
-    c2.metric("Landed — full success", f"{n_succ}",
-              help=f"{pct(n_succ)} — touchdown reached (land_result == 'landed').")
-    c3.metric("Took off only — partial", f"{n_part}",
-              help=f"{pct(n_part)} — reached ≥{TAKEOFF_ALT_M:g} m AGL but never landed.")
-    c4.metric("Failed takeoff", f"{n_fail}",
-              help=f"{pct(n_fail)} — never reached {TAKEOFF_ALT_M:g} m AGL.")
-    crashes = int((df["max_alt_m"] < 5).sum()) if "max_alt_m" in df else 0
-    st.caption(f"Full-success (landing) rate **{pct(n_succ)}** · "
-               f"took-off-or-better **{pct(n_succ + n_part)}** · "
-               f"crashes (max_alt < 5 m) **{crashes}**")
+    if IS_DOUBLET:
+        n_dep = int(df["departed"].sum()) if "departed" in df else 0
+        # "settled" per the runner (roll+yaw only) vs cases that actually sank out of the band:
+        # the gap is the false-positive population the altitude guard recovers.
+        n_sank = int(((df.get("held_alt") == False) & df["took_off"]).sum()) if "held_alt" in df else 0
+        c2.metric("Stable — test passed", f"{n_succ}",
+                  help=f"{pct(n_succ)} — completed doublets, re-settled, held altitude ≥ {TEST_ALT_FLOOR_M:g} m.")
+        c3.metric("Degraded — partial", f"{n_part}",
+                  help=f"{pct(n_part)} — reached cruise but the stability test degraded.")
+        c4.metric("Departed / lost altitude", f"{n_fail}",
+                  help=f"{pct(n_fail)} — departed/aborted, sank to the ground, or never reached cruise.")
+        st.caption(f"Test-pass rate **{pct(n_succ)}** · departed/aborted **{n_dep}** "
+                   f"({pct(n_dep)}) · **{n_sank}** cases the runner called 'settled' but that "
+                   f"actually sank below {TEST_ALT_FLOOR_M:g} m (altitude guard caught these).")
+    else:
+        c2.metric("Landed — full success", f"{n_succ}",
+                  help=f"{pct(n_succ)} — touchdown reached (land_result == 'landed').")
+        c3.metric("Took off only — partial", f"{n_part}",
+                  help=f"{pct(n_part)} — reached ≥{TAKEOFF_ALT_M:g} m AGL but never landed.")
+        c4.metric("Failed takeoff", f"{n_fail}",
+                  help=f"{pct(n_fail)} — never reached {TAKEOFF_ALT_M:g} m AGL.")
+        crashes = int((df["max_alt_m"] < 5).sum()) if "max_alt_m" in df else 0
+        st.caption(f"Full-success (landing) rate **{pct(n_succ)}** · "
+                   f"took-off-or-better **{pct(n_succ + n_part)}** · "
+                   f"crashes (max_alt < 5 m) **{crashes}**")
 
     st.plotly_chart(
         px.histogram(df, x="exit_reason", color="outcome",
@@ -1122,14 +1208,27 @@ if HAS_CRITERIA and tab_stats is not None:
 # --------------------------------------------------------------------------- #
 with tab_sensitivity:
     st.subheader("Parameter sensitivity — total-variation ranking")
-    contrast = st.radio("Rank parameters that separate…",
-                        ["Landed vs not landed", "Took off vs no takeoff"],
-                        horizontal=True,
-                        help="Which binary outcome split to score each parameter against.")
-    if contrast.startswith("Landed"):
-        success_col, pos_label, neg_label = "landed", "Landed", "Not landed"
+    if IS_DOUBLET:
+        contrast = st.radio("Rank parameters that separate…",
+                            ["Test passed vs not", "Stayed aloft vs departed/sank",
+                             "Reached cruise vs not"],
+                            horizontal=True,
+                            help="Which binary outcome split to score each parameter against.")
+        if contrast.startswith("Test passed"):
+            success_col, pos_label, neg_label = "test_passed", "Test passed", "Not passed"
+        elif contrast.startswith("Stayed aloft"):
+            success_col, pos_label, neg_label = "stayed_aloft", "Stayed aloft", "Departed/sank"
+        else:
+            success_col, pos_label, neg_label = "took_off", "Reached cruise", "No cruise"
     else:
-        success_col, pos_label, neg_label = "took_off", "Took off", "No takeoff"
+        contrast = st.radio("Rank parameters that separate…",
+                            ["Landed vs not landed", "Took off vs no takeoff"],
+                            horizontal=True,
+                            help="Which binary outcome split to score each parameter against.")
+        if contrast.startswith("Landed"):
+            success_col, pos_label, neg_label = "landed", "Landed", "Not landed"
+        else:
+            success_col, pos_label, neg_label = "took_off", "Took off", "No takeoff"
     st.caption(f"TV = 0.5·∫|f_{neg_label} − f_{pos_label}| dx between the two outcome KDEs. "
                "The noise floor is a label-permutation null (per-param TV reachable by "
                f"chance for this many '{neg_label}' cases); params below it are "

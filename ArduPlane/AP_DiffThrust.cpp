@@ -26,7 +26,7 @@ const AP_Param::GroupInfo AP_DiffThrust::var_info[] = {
     // @Description: Enable the velocity-scheduled differential-thrust yaw mixer for the 9-channel uSTOL airframe. When 0 (default) the mixer is a no-op and the firmware behaves as stock. When 1 the module drives SERVO functions k_motor1..k_motor9.
     // @Values: 0:Disabled,1:Enabled
     // @User: Advanced
-    AP_GROUPINFO_FLAGS("ENABLE", 1, AP_DiffThrust, _enable, 0, AP_PARAM_FLAG_ENABLE),
+    AP_GROUPINFO_FLAGS("ENABLE", 1, AP_DiffThrust, _enable, 1, AP_PARAM_FLAG_ENABLE),
 
     // @Param: DT_VLO
     // @DisplayName: Diff-thrust full-authority airspeed
@@ -44,12 +44,13 @@ const AP_Param::GroupInfo AP_DiffThrust::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("DT_VHI", 3, AP_DiffThrust, _dt_vhi, 17.0f),
 
-    // @Param: DT_KYAW
-    // @DisplayName: Diff-thrust yaw gain
-    // @Description: Peak per-motor normalised throttle offset at full rudder and full velocity weight. Outer channels scale up with their spanwise arm.
-    // @Range: 0 0.5
+    // @Param: NDES_MAX
+    // @DisplayName: Diff-Thrust peak yaw moment
+    // @Description: Maximum yaw moment (N*m) commanded to the diff thrust at full normalised yaw demand (yaw_n = 1) and full velocity weight, replaces the dimensionless DT_KYAW gain
+    // @units: N*m
+    // @Range: 0 50
     // @User: Advanced
-    AP_GROUPINFO("DT_KYAW", 4, AP_DiffThrust, _dt_kyaw, 0.20f),
+    AP_GROUPINFO("NDES_MAX", 4, AP_DiffThrust, _dt_ndes_max, 20.0f),
 
     // @Param: DT_RLFF
     // @DisplayName: Diff-thrust roll feedforward
@@ -63,7 +64,7 @@ const AP_Param::GroupInfo AP_DiffThrust::var_info[] = {
     // @Description: Hard upper bound on the per-motor normalised throttle command (0..1), e.g. a wire/current cap. Clamped internally to 0.05..1.0.
     // @Range: 0.05 1.0
     // @User: Advanced
-    AP_GROUPINFO("UMAX", 6, AP_DiffThrust, _umax, 0.4619f),
+    AP_GROUPINFO("UMAX", 6, AP_DiffThrust, _umax, 0.9f),
 
     AP_GROUPEND
 };
@@ -126,12 +127,46 @@ void AP_DiffThrust::update(bool airspeed_valid, float airspeed)
     // antisymmetric per-channel split: nose-right (+yaw_n) cuts starboard (+y) and adds
     // port (-y), giving a nose-right yaw moment. Magnitude scales with the span arm; the
     // centre channel (y=0) never differentiates. All nine channels are always written.
-    for (uint8_t k = 0; k < NUM_CH; k++) {
+    
+    // for (uint8_t k = 0; k < NUM_CH; k++) {
+    //     const SRV_Channel::Function fn = SRV_Channels::get_motor_function(k);
+    //     const float du = w * _dt_kyaw * yaw_n * (-_y_ch[k] / _y_max);
+    //     const float u  = constrain_float(base + du, 0.0f, u_cap);
+    //     SRV_Channels::set_output_scaled(fn, u * 1000.0f);
+    // }
+
+
+    // --- thrust neutral allocation ---
+     // Quadratic throttle->thrust map:  T(d) = A2*d^2 + A1*d  at current airspeed.
+    // Derived from: T = rho*n^2*D^4*CT,  CT = CT1 + CT_J*J + CT_JM*J*Mtip,
+
+    const float D3 = _D * _D * _D;
+    const float D4 = D3 * _D;
+    const float A2 = _rho * _n_max_rps * _n_max_rps * D4 * (_CT1 + _CT_JM * 3.14159265f * airspeed/ _a_sound);
+    const float A1 = _rho * _n_max_rps * D3 * airspeed * (_CT_J);
+    const float T0 = A2 * base * base + A1 * base;
+    
+    // Commanded yaw moment scaled by velocity weight
+     // Sign: +yaw_n = nose-right -> k_alloc < 0 -> port (y<0) thrust UP, stbd DOWN.
+    const float N_des = yaw_n * _dt_ndes_max * w;
+    const float k_alloc = -N_des / _sum_y_sq; // dT_j = k_alloc * y_j
+
+    for (uint8_t k = 0; k < NUM_CH; k++){
         const SRV_Channel::Function fn = SRV_Channels::get_motor_function(k);
-        const float du = w * _dt_kyaw * yaw_n * (-_y_ch[k] / _y_max);
-        const float u  = constrain_float(base + du, 0.0f, u_cap);
+        // Target thrus t for this channel, then invert quadratic for throttle
+
+        const float Tj = T0 + k_alloc * _y_ch[k];
+        const float disc = A1*A1 + 4.0f*A2*Tj ;
+        float u;
+        if (disc >= 0.0f && A2 > 1e-6f) {
+            u = (-A1 + sqrtf(disc)) / (2.0f * A2);
+        } else {
+            u = 0.0f;                                  // Tj below map minimum -> idle
+        }
+        u = constrain_float(u, 0.0f, u_cap);
         SRV_Channels::set_output_scaled(fn, u * 1000.0f);
     }
+
 
     // optional aileron roll feedforward to pre-empt the blown-lift parasitic roll (off by default).
     if (!is_zero(_dt_rlff.get())) {
