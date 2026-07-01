@@ -8,9 +8,20 @@
   9-channel uSTOL distributed-propulsion airframe.
 
   In normal flight the stock rudder yaw demand is converted into an
-  antisymmetric per-motor throttle split that fades in as airspeed drops
-  (an aerodynamic rudder loses authority at low speed). At or above
-  UST_DT_VHI every motor channel receives the uniform stock throttle.
+  antisymmetric per-motor thrust split that fades in as airspeed drops
+  (an aerodynamic rudder loses authority at low speed). The split is
+  allocated in THRUST space (thrust-neutral: sum of the per-channel deltas
+  is zero) and inverted through the prop's quadratic throttle->thrust map,
+  so a yaw command produces no net axial-thrust (speed) perturbation.
+
+  Two scheduling modes select how much of the yaw demand DT carries:
+    - UST_KRUD > 0 : true rudder/DT daisy-chain. The aerodynamic rudder is
+      assumed to cover the demand up to its V^2-scaled authority
+      (N_rud_avail = UST_KRUD*V^2) and DT supplies only the residual, so DT
+      fades out on its own as airspeed rises.
+    - UST_KRUD == 0 : legacy velocity-weight proxy. DT carries the whole
+      demand scaled by w(V): full at/below UST_DT_VLO, zero at/above
+      UST_DT_VHI (uniform stock throttle).
 
   Scope: a clean, self-contained re-implementation (ArduPlane 4.5.x/4.7.x) of
   the validated "DT-2" yaw mixer ONLY - no SITL/FDM, QP allocator, or engine-out
@@ -55,6 +66,7 @@ private:
     AP_Float _dt_ndes_max ;      // UST_DT_NDES_MAX
     AP_Float _dt_rlff;      // UST_DT_RLFF
     AP_Float _umax;         // UST_UMAX
+    AP_Float _k_rud;        // UST_KRUD  rudder yaw-authority coeff [N*m/(m/s)^2]; 0 = legacy w(V) schedule
 
     // ---- uSTOL V1.3 Config-A spanwise geometry (hardcoded; see .cpp) ----
     static const uint8_t NUM_CH = 9;

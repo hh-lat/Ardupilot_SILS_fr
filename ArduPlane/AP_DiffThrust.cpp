@@ -66,6 +66,14 @@ const AP_Param::GroupInfo AP_DiffThrust::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("UMAX", 6, AP_DiffThrust, _umax, 0.9f),
 
+    // @Param: KRUD
+    // @DisplayName: Rudder yaw-authority coefficient
+    // @Description: Coefficient of the V^2-scaled aerodynamic rudder yaw authority, N_rud_avail = UST_KRUD * V^2 [N*m]. When >0 the mixer runs a true rudder/diff-thrust daisy-chain: the rudder is assumed to cover the yaw demand up to N_rud_avail and differential thrust supplies only the residual, so DT fades out on its own as airspeed (hence rudder authority) rises. When 0 (default) the legacy UST_DT_VLO/VHI velocity-weight schedule is used instead. Typical value ~0.11 (from ~25 N*m rudder authority at 15 m/s).
+    // @Units: N*m/(m/s)/(m/s)
+    // @Range: 0 1
+    // @User: Advanced
+    AP_GROUPINFO("KRUD", 7, AP_DiffThrust, _k_rud, 0.0f),
+
     AP_GROUPEND
 };
 
@@ -142,14 +150,35 @@ void AP_DiffThrust::update(bool airspeed_valid, float airspeed)
 
     const float D3 = _D * _D * _D;
     const float D4 = D3 * _D;
-    const float A2 = _rho * _n_max_rps * _n_max_rps * D4 * (_CT1 + _CT_JM * 3.14159265f * airspeed/ _a_sound);
-    const float A1 = _rho * _n_max_rps * D3 * airspeed * (_CT_J);
+    // Use the guarded speed V (falls back to VHI on invalid airspeed) so the map can
+    // never be fed a stale/garbage sensor value.
+    const float A2 = _rho * _n_max_rps * _n_max_rps * D4 * (_CT1 + _CT_JM * 3.14159265f * V / _a_sound);
+    const float A1 = _rho * _n_max_rps * D3 * V * (_CT_J);
     const float T0 = A2 * base * base + A1 * base;
-    
-    // Commanded yaw moment scaled by velocity weight
-     // Sign: +yaw_n = nose-right -> k_alloc < 0 -> port (y<0) thrust UP, stbd DOWN.
-    const float N_des = yaw_n * _dt_ndes_max * w;
-    const float k_alloc = -N_des / _sum_y_sq; // dT_j = k_alloc * y_j
+
+    // Total commanded yaw moment at the current rudder demand [N*m].
+    const float N_cmd = yaw_n * _dt_ndes_max;
+
+    // Split N_cmd between the aerodynamic rudder and differential thrust.
+    //  - UST_KRUD > 0 : true daisy-chain. The rudder is assumed to carry the demand up
+    //    to its V^2-scaled authority N_rud_avail; diff thrust supplies only the residual.
+    //    This makes DT fade out on its own as airspeed (rudder authority) rises, replacing
+    //    the VLO/VHI velocity-weight proxy.
+    //  - UST_KRUD == 0 : legacy behaviour - DT carries the whole demand scaled by w(V).
+    float N_dt;
+    if (_k_rud > 0.0f) {
+        const float N_rud_avail = _k_rud * V * V;
+        N_dt = N_cmd - constrain_float(N_cmd, -N_rud_avail, N_rud_avail);
+        if (base < 0.05f) {
+            N_dt = 0.0f;                        // ground/idle guard (mirrors the w=0 guard)
+        }
+    } else {
+        N_dt = N_cmd * w;
+    }
+
+    // Thrust-neutral spanwise allocation. Because Sum(y_j)=0 the split adds zero net thrust.
+    // Sign: +yaw_n = nose-right -> k_alloc < 0 -> port (y<0) thrust UP, stbd DOWN.
+    const float k_alloc = -N_dt / _sum_y_sq; // dT_j = k_alloc * y_j
 
     for (uint8_t k = 0; k < NUM_CH; k++){
         const SRV_Channel::Function fn = SRV_Channels::get_motor_function(k);
@@ -169,8 +198,12 @@ void AP_DiffThrust::update(bool airspeed_valid, float airspeed)
 
 
     // optional aileron roll feedforward to pre-empt the blown-lift parasitic roll (off by default).
-    if (!is_zero(_dt_rlff.get())) {
-        const float dail = -_dt_rlff.get() * w * yaw_n * 4500.0f;
+    // Scaled by the *actual* applied DT yaw moment (N_dt/NDES_MAX), not by w*yaw_n, so it stays
+    // correct under both the legacy w(V) schedule and the UST_KRUD daisy-chain. In legacy mode
+    // N_dt = yaw_n*NDES_MAX*w, so N_dt/NDES_MAX == w*yaw_n and this reduces to the original form.
+    // The induced roll is measured (MATLAB) at ~1-2x the yaw moment; calibrate UST_DT_RLFF to match.
+    if (!is_zero(_dt_rlff.get()) && !is_zero(_dt_ndes_max.get())) {
+        const float dail = -_dt_rlff.get() * (N_dt / _dt_ndes_max.get()) * 4500.0f;
         const float ail0 = SRV_Channels::get_output_scaled(SRV_Channel::k_aileron);
         SRV_Channels::set_output_scaled(SRV_Channel::k_aileron, constrain_float(ail0 + dail, -4500.0f, 4500.0f));
     }
