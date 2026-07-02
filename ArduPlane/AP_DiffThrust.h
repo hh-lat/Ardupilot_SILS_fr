@@ -77,7 +77,7 @@ private:
     static constexpr float _sum_y_sq = 11.159f;
    
     // EDF prop constants for thrust-neutral allocation
-    static constexpr float _rho = 1.225f;
+    static constexpr float _rho = 1.15f;
     static constexpr float _n_max_rps = 200.0f;
     static constexpr float _D = 0.120f;
     static constexpr float _CT1 = 0.6917f;

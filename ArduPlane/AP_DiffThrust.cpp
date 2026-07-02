@@ -130,7 +130,7 @@ void AP_DiffThrust::update(bool airspeed_valid, float airspeed)
 
     // stock rudder demand normalised to [-1, 1] (+ = nose-right).
     const float yaw_n = constrain_float(SRV_Channels::get_output_scaled(SRV_Channel::k_rudder) / 4500.0f, -1.0f, 1.0f);
-    const float u_cap = constrain_float(_umax, 0.05f, 1.0f);
+    const float u_cap = constrain_float(_umax, 0.05f, 0.95f);
 
     // antisymmetric per-channel split: nose-right (+yaw_n) cuts starboard (+y) and adds
     // port (-y), giving a nose-right yaw moment. Magnitude scales with the span arm; the
@@ -175,10 +175,20 @@ void AP_DiffThrust::update(bool airspeed_valid, float airspeed)
     } else {
         N_dt = N_cmd * w;
     }
-
+//----------------------------------------------NOT WORKING---------------------------------------------
     // Thrust-neutral spanwise allocation. Because Sum(y_j)=0 the split adds zero net thrust.
     // Sign: +yaw_n = nose-right -> k_alloc < 0 -> port (y<0) thrust UP, stbd DOWN.
-    const float k_alloc = -N_dt / _sum_y_sq; // dT_j = k_alloc * y_j
+    //const float k_alloc = -N_dt / _sum_y_sq; // dT_j = k_alloc * y_j
+//--------------------------------------------------------------------------------------
+    const float T_floor = 0.05f;                        // min deliverable thrust per edf 
+    const float T_ucap = A2*u_cap*u_cap + A1*u_cap;     // max deliverable thrust per edf (at throttle cmd ceiling)
+    const float dT_max = 0.8f * MAX(0.0f, MIN(T0 - T_floor, T_ucap - T0));
+    float k_alloc = -N_dt / _sum_y_sq;
+    const float k_alloc_max = dT_max / _y_max;
+    k_alloc = constrain_float(k_alloc, -k_alloc_max, k_alloc_max);
+    
+
+
 
     for (uint8_t k = 0; k < NUM_CH; k++){
         const SRV_Channel::Function fn = SRV_Channels::get_motor_function(k);
