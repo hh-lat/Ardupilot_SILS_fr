@@ -199,6 +199,7 @@ void RC_Channel_Plane::init_aux_function(const RC_Channel::AUX_FUNC ch_option,
 #if AP_ICENGINE_ENABLED
     case AUX_FUNC::ICE_START_STOP:
 #endif
+    case AUX_FUNC::USTOL_DT_ENABLE:
         run_aux_function(ch_option, ch_flag, AuxFuncTrigger::Source::INIT, ch_in);
         break;
 
@@ -231,6 +232,10 @@ bool RC_Channel_Plane::do_aux_function(const AuxFuncTrigger &trigger)
         plane.inverted_flight = (ch_flag == AuxSwitchPos::HIGH);
         break;
 
+    case AUX_FUNC::USTOL_DT_ENABLE:
+        plane.g2.diff_thrust.set_dt_active(ch_flag == AuxSwitchPos::HIGH);
+        break;
+        
     case AUX_FUNC::REVERSE_THROTTLE:
         plane.reversed_throttle = (ch_flag == AuxSwitchPos::HIGH);
         gcs().send_text(MAV_SEVERITY_INFO, "RevThrottle: %s", plane.reversed_throttle?"ENABLE":"DISABLE");

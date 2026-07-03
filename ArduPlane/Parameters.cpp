@@ -1283,6 +1283,10 @@ const AP_Param::GroupInfo ParametersG2::var_info[] = {
     // @Path: AP_DiffThrust.cpp
     AP_SUBGROUPINFO(diff_thrust, "UST_", 41, ParametersG2, AP_DiffThrust),
 
+    // @Group: USTF_
+    // @Path: AP_DT_EngineOut.cpp
+    AP_SUBGROUPINFO(engine_out, "USTF_", 42, ParametersG2, AP_DT_EngineOut),
+
     AP_GROUPEND
 };
 

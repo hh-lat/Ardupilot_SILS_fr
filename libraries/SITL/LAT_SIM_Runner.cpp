@@ -820,13 +820,21 @@ void v_plane_param_define_ustol_v1()
 		s_motor[i].CT_static = s_motor[i].max_thrust /
 			(vehcle.rho*powf(s_motor[i].dia_prop,4)*powf(s_motor[i].rpm_max/60.0f,2));
 		s_motor[i].rate_limit_throttle = (1.0/0.01);
-		// 18-EDF spanwise layout: 9 per side, innermost 585 mm from centreline, 125 mm pitch.
+		// 18-EDF spanwise layout: 9 stations per side, 585-1585 mm from centreline, 125 mm pitch.
 		// rotor_xyz = EDF position relative to the CG, body axes (x fwd +, y right +, z down +).
 		// Thrust is purely axial (rotor_tilt = 0), so M = r x F = (0, z*T, -y*T): only the y
 		// offset (yaw via differential thrust) and z offset (pitch) create moments; the fore/aft
 		// x offset is moment-neutral, set to the wing-LE station (CG 703 - wing LE 500) for completeness.
-		int edf_side_idx = i % 9;                            // 0..8 outboard step (motors 0-8 left, 9-17 right)
-		float edf_y = 0.585f + 0.125f*edf_side_idx;          // |spanwise offset| from centreline [m]
+		//
+		// s_motor[i] = EDF (i+1), numbered port wingtip -> starboard wingtip, matching the
+		// channel remap in v_ardu_input_to_lat_input() (PLANE_USTOL_V1) and the firmware's
+		// AP_DT_EngineOut channel table. Left wing i=0..8: i=0 is the port tip (y=-1.585),
+		// i=8 is innermost (y=-0.585). Right wing i=9..17 mirrors it (innermost -> tip).
+		// Note: EDF8/9 (i=7/8) and EDF10/11 (i=9/10) are the four channel-5 EDFs that really
+		// straddle the fuselage close to y=0; they're kept on these same 9 linear stations
+		// (as innermost-left/right) for lack of real station geometry for that group - same
+		// approximation the original uniform-pairing model made.
+		const float edf_y = (i < 9) ? (1.585f - 0.125f*i) : (0.585f + 0.125f*(i - 9));
 		s_motor[i].rotor_xyz[0] = 0.203f;                    // 203 mm forward of CG [m]
 		s_motor[i].rotor_xyz[1] = (i < 9) ? -edf_y : edf_y;  // motors 0-8 left wing (y<0), 9-17 right (y>0)
 		s_motor[i].rotor_xyz[2] = 0.03336f;                  // thrust line 33.36 mm below CG (down +) [m]

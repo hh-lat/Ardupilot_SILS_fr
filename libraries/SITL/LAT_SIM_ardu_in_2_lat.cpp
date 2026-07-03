@@ -104,7 +104,8 @@ void  v_ardu_input_to_lat_input(struct sitl_input input)
         case PLANE_USTOL_V1:
         {
             // ---- Output-channel map (set SERVOn_FUNCTION in the uSTOL .parm to match) ----
-            //   SERVO1..9 -> 18 EDFs, 2 EDFs per channel (throttle/motor outputs)
+            //   SERVO1..9 -> 18 EDFs, port wingtip to starboard wingtip: ch1={1} ch2={2,3}
+            //   ch3={4,5} ch4={6,7} ch5={8,9,10,11} ch6={12,13} ch7={14,15} ch8={16,17} ch9={18}
             //   SERVO10 -> aileron   SERVO11 -> elevator   SERVO12 -> rudder
             //   SERVO13 -> flap (rotation; drives aero delta_f)
             //   SERVO14 -> flap (linear/Fowler extension; NOT used aerodynamically here)
@@ -119,11 +120,18 @@ void  v_ardu_input_to_lat_input(struct sitl_input input)
             s_servo[FLAP].pwm_in            = flap_pwm_hardcoded;  // HARD-CODED 20 deg flap, all phases (ignores ArduPlane flap output)
             s_servo[NOSE_LG_SERVO].pwm_in   = 1500;               // not modelled; neutral
 
-            // 18 EDFs on 9 throttle channels (2 EDFs per channel)
+            // 18 EDFs on 9 throttle channels - confirmed physical grouping, port wingtip
+            // to starboard wingtip: ch1={1} ch2={2,3} ch3={4,5} ch4={6,7}
+            // ch5={8,9,10,11} (straddles fuselage) ch6={12,13} ch7={14,15} ch8={16,17} ch9={18}.
+            // s_motor[i] = EDF (i+1); matches the y-station remap in v_plane_param_define_ustol_v1().
+            static const uint8_t ch_first[9] = {0, 1, 3, 5, 7, 11, 13, 15, 17};
+            static const uint8_t ch_count[9] = {1, 2, 2, 2, 4, 2, 2, 2, 1};
             for (int p = 0; p < 9; p++)
             {
-                s_motor[2*p].pwm_in     = input.servos[p];
-                s_motor[2*p + 1].pwm_in = input.servos[p];
+                for (int j = 0; j < ch_count[p]; j++)
+                {
+                    s_motor[ch_first[p] + j].pwm_in = input.servos[p];
+                }
             }
             break;
         }

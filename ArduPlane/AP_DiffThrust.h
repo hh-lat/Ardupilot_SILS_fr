@@ -2,6 +2,7 @@
 
 #include <AP_Common/AP_Common.h>
 #include <AP_Param/AP_Param.h>
+#include "AP_DT_EngineOut.h"
 
 /*
   AP_DiffThrust - velocity-scheduled differential-thrust yaw mixer for the
@@ -44,9 +45,16 @@ public:
     // per-loop mixer. airspeed is passed in (rather than including AP_AHRS) to
     // keep the module decoupled. It returns immediately when disabled. When
     // airspeed_valid is false the schedule falls back to the safe uniform state.
-    void update(bool airspeed_valid, float airspeed);
+    // fail supplies the current engine-out rule table (see AP_DT_EngineOut); pass
+    // plane.g2.engine_out from the call site.
+    void update(bool airspeed_valid, float airspeed, AP_DT_EngineOut &fail);
 
     bool enabled() const { return _enable != 0; }
+
+    // master RC-switch toggle: false forces plain equal-throttle passthrough on
+    // all nine channels (the "no-DT aircraft" fallback), regardless of USTF_MASK.
+    void set_dt_active(bool active);
+    bool dt_active() const { return _dt_active; }
 
     // pre-arm sanity check (mirrors the quadplane motors->arming_checks pattern).
     // When enabled, refuses to arm if any of the nine k_motor functions is not
@@ -59,6 +67,9 @@ public:
     static const struct AP_Param::GroupInfo var_info[];
 
 private:
+    // true unless the pilot has flipped the DT RC switch off; see set_dt_active().
+    bool _dt_active = true;
+
     // ---- parameters (UST_ prefix applied by the ParametersG2 subgroup) ----
     AP_Int8  _enable;       // UST_ENABLE
     AP_Float _dt_vlo;       // UST_DT_VLO   [m/s]

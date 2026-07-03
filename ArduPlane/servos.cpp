@@ -1031,7 +1031,7 @@ void Plane::servos_output(void)
     if (g2.diff_thrust.enabled()) {
         float ust_aspd;
         const bool ust_aspd_ok = ahrs.airspeed_estimate(ust_aspd);
-        g2.diff_thrust.update(ust_aspd_ok, ust_aspd);
+        g2.diff_thrust.update(ust_aspd_ok, ust_aspd, g2.engine_out);
     }
 
 #if HAL_QUADPLANE_ENABLED

@@ -144,6 +144,12 @@ bool AP_Arming_Plane::pre_arm_checks(bool display_failure)
         ret = false;
     }
 
+    // uSTOL engine-out: refuse to arm with a declared EDF failure unless USTF_OPTS bit0 overrides.
+    if (!plane.g2.engine_out.arming_checks(ARRAY_SIZE(failure_msg), failure_msg)) {
+        check_failed(display_failure, "%s", failure_msg);
+        ret = false;
+    }
+
     return ret;
 }
 

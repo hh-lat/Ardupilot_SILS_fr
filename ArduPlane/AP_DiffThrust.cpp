@@ -3,6 +3,7 @@
 #include <AP_Math/AP_Math.h>
 #include <AP_HAL/AP_HAL.h>
 #include <SRV_Channel/SRV_Channel.h>
+#include <GCS_MAVLink/GCS.h>
 
 extern const AP_HAL::HAL& hal;
 
@@ -83,6 +84,15 @@ AP_DiffThrust::AP_DiffThrust()
     _range_inited = false;
 }
 
+void AP_DiffThrust::set_dt_active(bool active)
+{
+    if (active == _dt_active) {
+        return;
+    }
+    _dt_active = active;
+    gcs().send_text(MAV_SEVERITY_INFO, "uSTOL DT: %s", active ? "ACTIVE" : "PASSTHROUGH");
+}
+
 void AP_DiffThrust::ensure_ranges()
 {
     if (_range_inited) {
@@ -100,7 +110,7 @@ void AP_DiffThrust::ensure_ranges()
     _range_inited = true;
 }
 
-void AP_DiffThrust::update(bool airspeed_valid, float airspeed)
+void AP_DiffThrust::update(bool airspeed_valid, float airspeed, AP_DT_EngineOut &fail)
 {
     if (_enable == 0) {
         return;                                 // disabled: no-op, firmware behaves as stock
@@ -112,6 +122,18 @@ void AP_DiffThrust::update(bool airspeed_valid, float airspeed)
     // channel is assigned to k_throttle, so it is a robust base on an airframe whose
     // ESCs live on k_motor1..k_motor9.
     const float base = constrain_float(SRV_Channels::get_output_scaled(SRV_Channel::k_throttle) * 0.01f, 0.0f, 1.0f);
+    if (!_dt_active) {
+        // pilot's DT switch is off: plain equal throttle on all nine channels,
+        // identical to an aircraft with no differential-thrust system at all.
+        // USTF_MASK is deliberately ignored here - this is the "revert to dumb
+        // throttle" fallback.
+        for (uint8_t k = 0; k < NUM_CH; k++) {
+            SRV_Channels::set_output_scaled(SRV_Channels::get_motor_function(k), base * 1000.0f);
+        }
+        return;
+    }
+
+    fail.check_and_update();
 
     // velocity weight w(V): 1 at/below VLO, 0 at/above VHI. Invalid airspeed -> VHI -> w=0.
     float vlo = _dt_vlo;
@@ -183,7 +205,8 @@ void AP_DiffThrust::update(bool airspeed_valid, float airspeed)
     const float T_floor = 0.05f;                        // min deliverable thrust per edf 
     const float T_ucap = A2*u_cap*u_cap + A1*u_cap;     // max deliverable thrust per edf (at throttle cmd ceiling)
     const float dT_max = 0.8f * MAX(0.0f, MIN(T0 - T_floor, T_ucap - T0));
-    float k_alloc = -N_dt / _sum_y_sq;
+    const float sum_y_sq = fail.failure_active() ? fail.sum_y_sq_alive() : _sum_y_sq;
+    float k_alloc = is_positive(sum_y_sq) ? (-N_dt / sum_y_sq) : 0.0f; 
     const float k_alloc_max = dT_max / _y_max;
     k_alloc = constrain_float(k_alloc, -k_alloc_max, k_alloc_max);
     
@@ -192,9 +215,15 @@ void AP_DiffThrust::update(bool airspeed_valid, float airspeed)
 
     for (uint8_t k = 0; k < NUM_CH; k++){
         const SRV_Channel::Function fn = SRV_Channels::get_motor_function(k);
-        // Target thrus t for this channel, then invert quadratic for throttle
 
-        const float Tj = T0 + k_alloc * _y_ch[k];
+        if (!fail.channel_alive(k)) {
+            SRV_Channels::set_output_scaled(fn, 0.0f);   // declared dead / commanded off
+            continue;
+        }
+
+        // Target thrust for this channel (engine-out gain applied first), then invert
+        // quadratic for throttle.
+        const float Tj = fail.thrust_gain(k) * T0 + k_alloc * _y_ch[k];
         const float disc = A1*A1 + 4.0f*A2*Tj ;
         float u;
         if (disc >= 0.0f && A2 > 1e-6f) {

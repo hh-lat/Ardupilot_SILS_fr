@@ -5,6 +5,7 @@
 #include <AP_Common/AP_Common.h>
 
 #include "AP_DiffThrust.h"
+#include "AP_DT_EngineOut.h"
 
 // Global parameter class.
 //
@@ -538,6 +539,9 @@ public:
 
     // uSTOL differential-thrust yaw mixer (9-channel)
     AP_DiffThrust diff_thrust;
+
+    // uSTOL engine-out reallocation rules (independent param tree, prefix USTF_)
+    AP_DT_EngineOut engine_out;
 
     // crow flaps weighting
     AP_Int8 crow_flap_weight_outer;
