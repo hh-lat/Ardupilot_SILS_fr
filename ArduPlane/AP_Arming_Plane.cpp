@@ -135,6 +135,15 @@ bool AP_Arming_Plane::pre_arm_checks(bool display_failure)
         return false;
     }
 
+    // uSTOL differential-thrust servo-map / schedule sanity (additive; passes when
+    // UST_ENABLE=0). Catches the common mis-config where UST is enabled but the nine
+    // k_motor functions were never assigned to outputs (mixer = silent no-op).
+    if (plane.g2.diff_thrust.enabled() &&
+        !plane.g2.diff_thrust.arming_checks(ARRAY_SIZE(failure_msg), failure_msg)) {
+        check_failed(display_failure, "%s", failure_msg);
+        ret = false;
+    }
+
     return ret;
 }
 

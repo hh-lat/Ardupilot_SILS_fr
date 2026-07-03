@@ -1,0 +1,81 @@
+{
+  "_comment": "Failure-criteria thresholds for the uSTOL CRUISE ROLL/YAW DOUBLET stability campaign (aws_monte_carlo_9_nodt / mission_ustol_10_cruise_nodt). This is a DELIBERATE-MANEUVER test flown at cruise (~100 m), NOT the takeoff->cruise->land mission, so the landing-mission criteria in failure_criteria_config.json are wrong here (they flag the intended doublet excursions as failures). build_dashboard_data.py auto-selects THIS file when the campaign carries the doublet outcome fields (stab_* / roll_worst_* / yaw_*). Tune the thresholds to your real limits.",
+  "_instructions": [
+    "Same engine/kinds as failure_criteria_config.json: scalar | timeseries | oscillation | envelope.",
+    "Doublet outcome scalars (stab_*, roll_worst_*, yaw_*) come straight from result.json. Booleans flow through as 1.0/0.0, so 'fail if departed' is {metric:stab_departed, max:0.5} and 'fail if NOT settled' is {metric:stab_settled, min:0.5}.",
+    "ALTITUDE-LOSS GUARD (test_alt_floor): the runner's settle/departure logic checks ONLY roll angle + yaw rate, never altitude, so an aircraft upset into a wings-level DESCENT sinks to the ground yet is still reported land_result='settled', stab_departed=false. test_alt_floor catches those: it FAILS any case whose minimum test-window altitude fell below the floor. Keep this until the runner itself gains an altitude check.",
+    "recover-time caveat: roll_worst_recover_s / yaw_worst_recover_s are -1.0 when no doublet recovered (e.g. the case departed before completing the sequence). A bare 'max' bound would read -1 as good; that edge is covered because such cases already FAIL on stab_departed. Among completed cases the value is a real positive recovery time.",
+    "DROPPED vs the landing config and WHY: all takeoff/touchdown/approach/flare criteria (wrong mission); descent_rate + flight_path_gamma whole-flight (the doublets intentionally pitch/sink/swing gamma); all (V,gamma) safe_envelope_* criteria (the only exported band is cfg32=flap20 STOL, but cruise flies clean flap0 -> 99.8% false-fail; export safe_envelope_cfg18.csv from flight_envelopes.m and re-add scoped to CLIMB/CRUISE to restore them).",
+    "load_factor / AoA limits are RAISED vs the landing config because banking to +/-20 deg legitimately pulls g and raises AoA; they now flag only genuine over-stress / stall, not the maneuver itself."
+  ],
+  "enabled": true,
+  "criteria": {
+    "_doublet_outcome_comment": "Primary verdict drivers — the actual point of the campaign. A departure, an abort, or a loss of test altitude is a hard FAIL; sluggish tracking/recovery is degraded.",
+    "departed":            { "kind": "scalar", "metric": "stab_departed",  "max": 0.5,  "severity": "critical" },
+    "doublet_aborted":     { "kind": "scalar", "metric": "stab_n_aborted", "max": 0.5,  "severity": "critical" },
+    "test_alt_floor":      { "kind": "scalar", "metric": "test_alt_min_m",  "min": 50.0, "severity": "critical" },
+    "resettled_to_cruise": { "kind": "scalar", "metric": "stab_settled",    "min": 0.5,  "severity": "degraded" },
+    "roll_track_error":    { "kind": "scalar", "metric": "roll_worst_held_err_deg",  "max": 8.0,  "severity": "degraded" },
+    "roll_overshoot":      { "kind": "scalar", "metric": "roll_worst_overshoot_deg", "max": 8.0,  "severity": "degraded" },
+    "roll_recovery":       { "kind": "scalar", "metric": "roll_worst_recover_s",     "max": 8.0,  "severity": "degraded" },
+    "yaw_peak_rate":       { "kind": "scalar", "metric": "yaw_peak_yawrate_dps",     "max": 45.0, "severity": "degraded" },
+    "yaw_recovery":        { "kind": "scalar", "metric": "yaw_worst_recover_s",      "max": 8.0,  "severity": "degraded" },
+
+    "_structural_comment": "Logged sim load factor + AoA, raised for a maneuver test: +/-20 deg bank needs ~1.06 g steady; transients higher. These flag genuine over-stress / stall departure, not the commanded bank.",
+    "load_factor_max":   { "kind": "scalar", "metric": "max_load_factor_total", "max": 2.5,  "severity": "critical" },
+    "load_factor_min":   { "kind": "scalar", "metric": "min_load_factor_nz",    "min": -0.5, "severity": "critical" },
+
+    "_climb_comment": "The open-loop climb to cruise still happens and is worth grading. Gated to the established climb (alt_agl in [5,90] m) so the rotation transient and the level-off to 100 m don't false-flag.",
+    "climb_pitch":     { "kind": "timeseries", "signal": "pitch_deg", "phase": "CLIMB", "min": 5.0, "max": 25.0, "grace_s": 1.0, "severity": "degraded", "gate_signal": "alt_agl_m", "gate_min": 5.0, "gate_max": 90.0 },
+    "climb_rate":      { "kind": "timeseries", "signal": "climb_mps", "phase": "CLIMB", "min": 1.0,             "grace_s": 2.0, "severity": "degraded", "gate_signal": "alt_agl_m", "gate_min": 5.0, "gate_max": 90.0 },
+
+    "_cruise_comment": "Scoped to the CRUISE label = the clean settle BEFORE the doublets begin, so it grades the trimmed starting condition (not the maneuvers, which are labelled ROLL/YAW).",
+    "cruise_altitude": { "kind": "timeseries", "signal": "alt_agl_m", "phase": "CRUISE", "min": 90.0, "max": 110.0, "grace_s": 3.0, "severity": "degraded" },
+    "cruise_speed":    { "kind": "timeseries", "signal": "TAS_mps",   "phase": "CRUISE", "min": 9.0,  "max": 15.0,  "grace_s": 3.0, "severity": "degraded" },
+
+    "_rate_comment": "Body-rate ceilings, generous for a maneuver test (roll doublets legitimately spin up p). Catch only runaway rates.",
+    "pitch_rate_q":    { "kind": "timeseries", "signal": "q_dps", "max_abs": 90.0,  "grace_s": 0.5, "severity": "degraded" },
+    "roll_rate_p":     { "kind": "timeseries", "signal": "p_dps", "max_abs": 150.0, "grace_s": 0.5, "severity": "degraded" },
+    "yaw_rate_r":      { "kind": "timeseries", "signal": "r_dps", "max_abs": 90.0,  "grace_s": 0.5, "severity": "degraded" },
+
+    "_aoa_comment": "Stall guard, widened to +/-12 deg and demoted to degraded for the maneuver test; gated on TAS>=6 so ground/near-zero-airspeed samples (AoA undefined) are excluded.",
+    "aoa_stall_guard": { "kind": "timeseries", "signal": "alpha_deg", "min": -5.0, "max": 12.0, "grace_s": 0.5, "severity": "degraded", "gate_signal": "TAS_mps", "gate_min": 6.0 },
+    "elevator_limit":  { "kind": "timeseries", "signal": "delta_e_deg", "max_abs": 10.0, "grace_s": 0.5, "severity": "degraded", "gate_signal": "TAS_mps", "gate_min": 6.0 },
+
+    "_oscillation_comment": "Control-oscillation health, per axis, verdict driven by the COMMAND channel with the actual surface + body rate as diagnostics. Spectrum 'phases' include the doublet phases (ROLL/YAW) and the settles (CRUISE/RETURN) so a limit-cycle during or after the maneuvers is caught. Only <~5 Hz is visible at 10 Hz logging.",
+    "elevator_oscillation": {
+      "kind": "oscillation", "signal": "delta_e_cmd_deg", "slew_signal": "slew_e_dps",
+      "companions": [ {"signal": "delta_e_deg", "role": "actual"}, {"signal": "q_dps", "role": "rate"} ],
+      "phases": ["CLIMB", "CRUISE", "ROLL", "YAW", "RETURN"],
+      "cutoff_hz": 1.0, "band_frac_flag": 0.15, "band_frac_fail": 0.30,
+      "reversal_rate_flag": 2.0, "reversal_rate_fail": 4.0,
+      "slew_sat_flag": 0.20, "slew_sat_fail": 0.50,
+      "rms_min": 0.5, "min_samples": 64, "severity": "degraded"
+    },
+    "aileron_oscillation": {
+      "kind": "oscillation", "signal": "delta_aL_cmd_deg", "slew_signal": "slew_aL_dps",
+      "companions": [ {"signal": "delta_aL_deg", "role": "actual"}, {"signal": "p_dps", "role": "rate"} ],
+      "phases": ["CLIMB", "CRUISE", "ROLL", "YAW", "RETURN"],
+      "cutoff_hz": 1.0, "band_frac_flag": 0.15, "band_frac_fail": 0.30,
+      "reversal_rate_flag": 2.0, "reversal_rate_fail": 4.0,
+      "slew_sat_flag": 0.20, "slew_sat_fail": 0.50,
+      "rms_min": 0.5, "min_samples": 64, "severity": "degraded"
+    },
+    "rudder_oscillation": {
+      "kind": "oscillation", "signal": "delta_r_cmd_deg", "slew_signal": "slew_r_dps",
+      "companions": [ {"signal": "delta_r_deg", "role": "actual"}, {"signal": "r_dps", "role": "rate"} ],
+      "phases": ["CLIMB", "CRUISE", "ROLL", "YAW", "RETURN"],
+      "cutoff_hz": 1.0, "band_frac_flag": 0.15, "band_frac_fail": 0.30,
+      "reversal_rate_flag": 2.0, "reversal_rate_fail": 4.0,
+      "slew_sat_flag": 0.20, "slew_sat_fail": 0.50,
+      "rms_min": 0.5, "min_samples": 64, "severity": "degraded"
+    },
+    "thrust_oscillation": {
+      "kind": "oscillation", "signal": "thrust_cmd",
+      "phases": ["CLIMB", "CRUISE", "ROLL", "YAW", "RETURN"],
+      "cutoff_hz": 1.0, "band_frac_flag": 0.25, "band_frac_fail": 0.45,
+      "reversal_rate_flag": 3.0, "reversal_rate_fail": 5.0,
+      "rms_min": 0.03, "min_samples": 64, "severity": "degraded"
+    }
+  }
+}

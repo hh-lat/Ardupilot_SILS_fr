@@ -1,0 +1,43 @@
+# uSTOL differential-thrust yaw mixer (AP_DiffThrust) - bench/flight overlay
+# ArduPlane 4.7.x, branch Sushanth_SITL_v2-dThrust.  Doc: LAT-USTOL-DTHR-001 r1.0
+#
+# ADDITIVE OVERLAY - load this ON TOP of a working uSTOL airframe parameter set.
+# It changes ONLY the nine throttle outputs' FUNCTION (to k_motor1..k_motor9) and
+# the UST_ mixer tune.  It deliberately does NOT touch SERVOn_MIN/MAX, the output
+# protocol (DShot vs PWM), trims, or the control-surface map - leave all of those
+# exactly as your stock airframe config has them.
+#
+# SERVO-MAP / UST_ENABLE COUPLING (important):
+#   When UST_ENABLE=1, AP_DiffThrust is the SOLE writer of k_motor1..k_motor9, so
+#   the nine ESCs MUST be on k_motor (set below).  If you set UST_ENABLE=0 while the
+#   outputs are still on k_motor, the motors get NOTHING (the mixer no-ops and
+#   nothing else drives k_motor).  To return to stock/uniform operation, set the
+#   nine outputs back to FUNCTION=70 (k_throttle) AND UST_ENABLE=0.  They are two
+#   distinct configurations - one file cannot serve both.
+#
+# A pre-arm check (this branch) refuses to arm if UST_ENABLE=1 with any k_motor
+# unassigned, so a mis-mapped servo set is caught on the bench rather than silently.
+
+# --- nine distributed-thrust channels: SERVO1..9 = k_motor1..k_motor9 ---
+# Order is port-outer -> centre -> starboard-outer.  NOTE k_motor9 = 82 (not 41):
+# there is a function-number gap between k_motor8 (40) and k_motor9 (82).
+SERVO1_FUNCTION,33    # k_motor1  port outer
+SERVO2_FUNCTION,34    # k_motor2  port
+SERVO3_FUNCTION,35    # k_motor3  port
+SERVO4_FUNCTION,36    # k_motor4  port inner
+SERVO5_FUNCTION,37    # k_motor5  CENTRE mirror (y=0; never differentiates)
+SERVO6_FUNCTION,38    # k_motor6  starboard inner
+SERVO7_FUNCTION,39    # k_motor7  starboard
+SERVO8_FUNCTION,40    # k_motor8  starboard
+SERVO9_FUNCTION,82    # k_motor9  starboard outer
+
+# --- differential-thrust mixer tune (validated uSTOL set; see AP_DiffThrust.cpp) ---
+UST_ENABLE,1          # 1 = drive k_motor1..9 ; 0 = stock no-op (also remap outputs to 70)
+UST_DT_VLO,13         # m/s, legacy w(V) schedule: full DT authority at/below (inactive when KRUD>0)
+UST_DT_VHI,17         # m/s, legacy w(V) schedule: zero authority at/above, must exceed VLO
+                      #        (still used as the safe fallback speed on invalid airspeed)
+UST_NDES_MAX,20.0      #total commanded yaw moment [N*m] at full rudder demand
+UST_KRUD,0.11         # rudder yaw-authority coeff: N_rud_avail = KRUD*V^2 [N*m]. >0 = true
+                      # rudder/DT daisy-chain (DT covers residual; supersedes VLO/VHI). 0 = legacy w(V).
+UST_DT_RLFF,0.0       # aileron roll feedforward (0 = off); scales with applied DT yaw moment
+UST_UMAX,0.90       # per-motor command ceiling (wire/current cap)

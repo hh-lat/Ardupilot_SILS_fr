@@ -1,0 +1,104 @@
+param,nominal,sigma,description
+p_mass,18.0,0.5666666666666667,Vehicle mass (10%) -> vehcle.mass
+p_Ixx,11.41,0.7606666666666667,Roll inertia (20%) -> vehcle.Ixx
+p_Iyy,5.23,0.3486666666666667,Pitch inertia (20%) -> vehcle.Iyy
+p_Izz,16.497,1.0997999999999999,Yaw inertia (20%) -> vehcle.Izz
+p_rho,1.15,0.03833333333333334,Air density (10%) -> vehcle.rho
+p_s,1.681,0.016810000000000002,Wing area (3%) -> vehcle.s (recompute AR)
+p_b,4.1,0.041,Span (3%) -> vehcle.b (recompute AR)
+p_c,0.41,0.0041,MAC (3%) -> vehcle.c
+p_t_by_c,0.15,0.0014999999999999998,Thickness ratio (3%) -> vehcle.t_by_c
+p_s_blown,0.8856,0.05904,Blown wing area (20%) -> vehcle.s_blown
+p_cg_x_cg_c,0.4951,0.01650333333333333,Aero CG x/c (10%) -> vehcle.cg.x_cg_c
+p_wing_lambda_b,0.4024,0.04024,Blown fraction (30%) -> vehcle.wing.lambda_b
+p_wing_S_f,0.20664,0.006887999999999999,Flap area (10%) -> vehcle.wing.S_f
+p_wing_S_a,0.05904,0.001968,Aileron area (10%) -> vehcle.wing.S_a
+p_wing_k_fit,0.535,0.08916666666666667,Spence amplitude (50%) -> vehcle.wing.k_fit
+p_wing_cl0_camber,0.519,0.08650000000000001,Camber lift (50%) -> vehcle.wing.cl0_camber
+p_wing_k_w,2.632757,0.4387928333333333,Induced drag factor (50%) -> vehcle.wing.k_w
+p_wing_r,-0.005473,0.0009121666666666666,Blown momentum drag (50%) -> vehcle.wing.r
+p_tail_a_t,4.27,0.7116666666666666,Tail lift slope (50%) -> vehcle.tail.a_t
+p_tail_eta_t_0,1.0271,0.06847333333333333,Tail efficiency offset (20%) -> vehcle.tail.eta_t_0
+p_tail_eta_t_1,0.010824,0.0007216000000000001,Tail eff Cmyu slope (20%) -> vehcle.tail.eta_t_1
+p_tail_eps0,0.030729,0.0051215,Zero-AoA downwash (50%) -> vehcle.tail.eps0
+p_tail_deps_pos,-0.018088,0.003014666666666667,d(eps)/d(a) a>=0 (50%) -> vehcle.tail.deps_pos
+p_tail_deps_neg,0.283491,0.0472485,d(eps)/d(a) a<0 (50%) -> vehcle.tail.deps_neg
+p_tail_k_ht,3.13292,0.5221533333333334,HT induced drag (50%) -> vehcle.tail.k_ht
+p_tail_CD_ht0,0.00405,0.0006749999999999999,HT zero-lift drag (50%) -> vehcle.tail.CD_ht0
+p_tail_S_ht_S,0.23805,0.01587,S_ht/S (20%) -> vehcle.tail.S_ht_S
+p_tail_V_H,0.95,0.06333333333333334,Tail volume coeff (20%) -> vehcle.tail.V_H
+p_tail_AR_ht,5.0,0.3333333333333333,Tail aspect ratio (20%) -> vehcle.tail.AR_ht
+p_fuse_CD_a2,1.956124,0.3260206666666667,alpha^2 drag (50%) -> vehcle.fuse.CD_a2
+p_fuse_CD_b2,0.453343,0.07555716666666666,beta^2 drag (50%) -> vehcle.fuse.CD_b2
+p_fuse_CD_a2_Cmyu,0.010846,0.0018076666666666666,alpha^2*Cmyu drag (50%) -> vehcle.fuse.CD_a2_Cmyu
+p_fuse_CD0,0.045249,0.0075415,Parasite drag (50%) -> vehcle.fuse.CD0
+p_fuse_CDq,-0.37336,0.06222666666666667,d(CD)/d(q) (50%) -> vehcle.fuse.CDq_cu
+p_controls_tau_f,0.297565,0.04959416666666667,Flap effectiveness (50%) -> vehcle.controls.tau_f
+p_controls_tau_a,0.086943,0.014490500000000002,Aileron effectiveness (50%) -> vehcle.controls.tau_a
+p_controls_Kb_f,0.506727,0.0844545,Flap span eff (50%) -> vehcle.controls.Kb_f
+p_controls_Kb_a,0.131584,0.021930666666666668,Aileron span eff (50%) -> vehcle.controls.Kb_a
+p_controls_tau_e,0.625,0.10416666666666667,Elevator effectiveness (50%) -> vehcle.controls.tau_e
+p_controls_CD_df2,0.217554,0.036259,delta_f^2 drag (50%) -> vehcle.controls.CD_df2
+p_controls_CD_da2,0.030418,0.005069666666666667,delta_a^2 drag (50%) -> vehcle.controls.CD_da2
+p_controls_CD_da,0.013566,0.002261,delta_a drag (50%) -> vehcle.controls.CD_da
+p_controls_CD_de2,0.164864,0.027477333333333336,delta_e^2 drag (50%) -> vehcle.controls.CD_de2
+p_controls_CD_de,0.010177,0.0016961666666666668,delta_e drag (50%) -> vehcle.controls.CD_de
+p_controls_CD_dr2,0.142042,0.023673666666666666,delta_r^2 drag (50%) -> vehcle.controls.CD_dr2
+p_stall_K_flat,5.05753,0.8429216666666667,Flat-plate drag scale (50%) -> vehcle.stall.K_flat
+p_stall_a0_const,18.459054,3.0765089999999997,Stall-angle offset deg (50%) -> vehcle.stall.a0_const
+p_stall_a0_Cmyu,-0.125111,0.020851833333333333,Stall-angle Cmyu sens (50%) -> vehcle.stall.a0_Cmyu
+p_stall_k,25.681,4.280166666666667,Blend sharpness (50%) -> vehcle.stall.k
+p_cl_stall_wM0,21.8813,3.6468833333333333,Wing blend M0 (50%) -> vehcle.cl_stall.wM0
+p_cl_stall_wM1,-2.4776,0.4129333333333333,Wing blend M1 (50%) -> vehcle.cl_stall.wM1
+p_cl_stall_wa00,19.9997,3.3332833333333336,Wing onset wa00 (50%) -> vehcle.cl_stall.wa00
+p_cl_stall_wa0mu,1.4955,0.24925,Wing onset wa0mu (50%) -> vehcle.cl_stall.wa0mu
+p_cl_stall_wa0f,-5.2527,0.87545,Wing onset wa0f (50%) -> vehcle.cl_stall.wa0f
+p_cl_stall_wkflat,4.0284,0.6714000000000001,Wing flat-plate scale (50%) -> vehcle.cl_stall.wkflat
+p_cl_stall_rM,14.3286,2.3881,Rest blend M (50%) -> vehcle.cl_stall.rM
+p_cl_stall_ra0,13.2261,2.2043500000000003,Rest onset ra0 (50%) -> vehcle.cl_stall.ra0
+p_cl_stall_rkcu,0.4765,0.07941666666666666,Rest onset rkcu (50%) -> vehcle.cl_stall.rkcu
+p_cl_stall_rkflat,1.3514,0.2252333333333333,Rest flat-plate scale (50%) -> vehcle.cl_stall.rkflat
+p_lateral_theta0,0.000424,7.066666666666667e-05,CY theta0 (50%) -> vehcle.lateral.theta0
+p_lateral_theta_b,-0.014394,0.002399,CY theta_b (50%) -> vehcle.lateral.theta_b
+p_lateral_theta_aL,-0.000145,2.4166666666666667e-05,CY theta_aL (50%) -> vehcle.lateral.theta_aL
+p_lateral_theta_aR,0.000141,2.3500000000000002e-05,CY theta_aR (50%) -> vehcle.lateral.theta_aR
+p_lateral_theta_r,0.004425,0.0007375,CY theta_r (50%) -> vehcle.lateral.theta_r
+p_lateral_theta_bcu,-0.006646,0.0011076666666666667,CY theta_bcu (50%) -> vehcle.lateral.theta_bcu
+p_lateral_beta0,12.0,2.0,CY beta0 (50%) -> vehcle.lateral.beta0
+p_lateral_kv,-1.370707,0.22845116666666665,CY kv (50%) -> vehcle.lateral.kv
+p_lateral_kps_r,0.606335,0.10105583333333333,CY kps_r (50%) -> vehcle.lateral.kps_r
+p_lateral_M,59.998281,9.9997135,CY M (50%) -> vehcle.lateral.M
+p_lateral_CYp,0.156542,0.02609033333333333,CYp (50%) -> vehcle.lateral.CYp
+p_lateral_CYr,0.364915,0.06081916666666667,CYr (50%) -> vehcle.lateral.CYr
+p_roll_theta0,-0.000102,1.7e-05,Cl theta0 (50%) -> vehcle.roll.theta0
+p_roll_theta_aL,0.000638,0.00010633333333333333,Cl theta_aL (50%) -> vehcle.roll.theta_aL
+p_roll_theta_aR,-0.000677,0.00011283333333333333,Cl theta_aR (50%) -> vehcle.roll.theta_aR
+p_roll_theta_aLcu,0.000108,1.8e-05,Cl theta_aLcu (50%) -> vehcle.roll.theta_aLcu
+p_roll_theta_aRcu,-9.4e-05,1.5666666666666667e-05,Cl theta_aRcu (50%) -> vehcle.roll.theta_aRcu
+p_roll_theta_b,-0.000381,6.35e-05,Cl theta_b (50%) -> vehcle.roll.theta_b
+p_roll_theta_b_cu,6.9e-05,1.15e-05,Cl theta_b_cu (50%) -> vehcle.roll.theta_b_cu
+p_roll_theta_r,0.000497,8.283333333333335e-05,Cl theta_r (50%) -> vehcle.roll.theta_r
+p_roll_Clp,-0.642739,0.10712316666666666,Clp roll damping (50%) -> vehcle.roll.Clp
+p_roll_Clr,0.398063,0.06634383333333334,Clr (50%) -> vehcle.roll.Clr
+p_pitch_Cmq,-29.186868,4.864478,Cmq pitch damping (50%) -> vehcle.pitch.Cmq
+p_yaw_theta0,0.000281,4.683333333333333e-05,Cn theta0 (50%) -> vehcle.yaw.theta0
+p_yaw_theta_b,0.003317,0.0005528333333333333,Cn theta_b (50%) -> vehcle.yaw.theta_b
+p_yaw_theta_aL,-1.6e-05,2.6666666666666664e-06,Cn theta_aL (50%) -> vehcle.yaw.theta_aL
+p_yaw_theta_aR,1e-06,1.6666666666666665e-07,Cn theta_aR (50%) -> vehcle.yaw.theta_aR
+p_yaw_theta_r,-0.001842,0.00030700000000000004,Cn theta_r (50%) -> vehcle.yaw.theta_r
+p_yaw_theta_bcu,-9e-05,1.5e-05,Cn theta_bcu (50%) -> vehcle.yaw.theta_bcu
+p_yaw_theta_aLcu,-2.9e-05,4.833333333333333e-06,Cn theta_aLcu (50%) -> vehcle.yaw.theta_aLcu
+p_yaw_theta_aRcu,2.7e-05,4.5e-06,Cn theta_aRcu (50%) -> vehcle.yaw.theta_aRcu
+p_yaw_Cnp,-0.139344,0.023223999999999998,Cnp (50%) -> vehcle.yaw.Cnp
+p_yaw_Cnr,-0.162811,0.02713516666666667,Cnr yaw damping (50%) -> vehcle.yaw.Cnr
+p_yaw_beta0,11.999974,1.9999956666666667,Cn beta0 (50%) -> vehcle.yaw.beta0
+p_yaw_kcu,9e-06,1.5e-06,Cn kcu (50%) -> vehcle.yaw.kcu
+p_yaw_kv,0.290114,0.04835233333333333,Cn kv (50%) -> vehcle.yaw.kv
+p_yaw_kps_r,0.655515,0.10925249999999999,Cn kps_r (50%) -> vehcle.yaw.kps_r
+p_yaw_M,59.998281,9.9997135,Cn M (50%) -> vehcle.yaw.M
+p_prop_cmyu_J2,0.53211,0.088685,Cmyu 1/J^2 (50%) -> vehcle.prop.cmyu_J2
+p_prop_cmyu_0,0.03669,0.006115,Cmyu offset (50%) -> vehcle.prop.cmyu_0
+p_prop_CT_1,0.691683,0.11528050000000001,CT constant (50%) -> vehcle.prop.CT_1
+p_prop_CT_J,-0.734466,0.12241099999999999,CT J term (50%) -> vehcle.prop.CT_J
+p_prop_CT_JM,1.64705,0.2745083333333333,CT J*Mtip term (50%) -> vehcle.prop.CT_JM
+p_max_thrust,4.905,0.1635,Per-motor max thrust (10%) -> s_motor[*].max_thrust (recompute CT_static)

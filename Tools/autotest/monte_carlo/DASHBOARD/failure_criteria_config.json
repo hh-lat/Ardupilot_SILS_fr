@@ -1,0 +1,84 @@
+{
+  "_comment": "Failure-criteria thresholds for the uSTOL Monte Carlo dashboard. EDIT THESE VALUES. The dashboard build (build_dashboard_data.py) reads this file and grades every case. Delete/rename the file or set enabled=false to turn the whole feature off.",
+  "_instructions": [
+    "kind: 'scalar' (one value per case, immediate ok/fail) | 'timeseries' (per-sample signal vs bounds, with a grace interval) | 'oscillation' (per-phase control-command activity + spectrum).",
+    "severity: 'critical' (a sustained breach makes the case FAIL) | 'degraded' (a sustained breach makes it PARTIAL).",
+    "bounds: give 'min' and/or 'max', or 'max_abs' for a symmetric +/- limit. Units: deg, deg/s, m, m/s, g (load factor), m/s (sink).",
+    "phase (timeseries): restrict the check to one flight phase label as written in *_flight.csv (GROUND/CLIMB/CRUISE/APPROACH/FLARE/ROLLOUT/LOITER). Omit = whole flight.",
+    "grace_s (timeseries): the longest CONTINUOUS time the signal may stay out of bounds and still be only 'flag'ged (not failed). 0 = any excursion fails. e.g. grace_s=1.0 -> a <=1 s spike is tolerated.",
+    "oscillation: 'phases' lists which (long) phases get a frequency spectrum; time-domain activity (RMS, reversal_rate, slew_sat) is computed for EVERY phase flown so short phases (FLARE/GROUND) are still scored. 'min_samples' (default 64) gates the spectrum. 'rms_min' suppresses flags when the control barely moves. NOTE: 10 Hz logging => only oscillation below ~5 Hz (Nyquist) is visible.",
+    "metric (scalar): the per-case metric name computed by build_dashboard_data.py (e.g. ground_roll_m, td_sink_mps, td_pitch_deg, Vlof_mps, max_AoA_deg).",
+    "Any criterion whose signal/metric/phase is unavailable for a campaign is reported 'na' (neutral) and never fails a case. Tune every threshold below to your real limits — the values shipped here are placeholders seeded from the mission setpoints (cruise 100 m / 12 m/s, etc.)."
+  ],
+  "enabled": true,
+  "criteria": {
+    "takeoff_ground_roll": { "kind": "scalar", "metric": "ground_roll_m", "max": 15.0, "severity": "critical" },
+    "touchdown_sink":      { "kind": "scalar", "metric": "td_sink_mps",            "max": 1.0,  "severity": "critical" },
+    "touchdown_pitch":     { "kind": "scalar", "metric": "td_pitch_deg",  "min": 0.0, "max": 12.0, "severity": "degraded" },
+    "touchdown_speed":     { "kind": "scalar", "metric": "td_speed_mps",  "min": 10.0, "max": 15.0, "severity": "degraded" },
+    "approach_sink":       { "kind": "scalar", "metric": "approach_max_sink_mps",  "max": 2.5,  "severity": "degraded" },
+    "flare_sink":          { "kind": "scalar", "metric": "flare_max_sink_mps",     "max": 1.5,  "severity": "degraded" },
+
+    "_climb_note": "climb_pitch/climb_rate are scoped to the ESTABLISHED climb via gate_signal=alt_agl_m in [5,90] m: below 5 m is the rotation transient (pitch ramps 0->16) and above 90 m is the level-off to the 100 m cruise (pitch->0) — judging those boundaries would falsely flag every case. Adjust gate_max if cruise_alt changes.",
+    "climb_pitch":       { "kind": "timeseries", "signal": "pitch_deg",   "phase": "CLIMB",  "min": 5.0,  "max": 25.0,  "grace_s": 1.0, "severity": "degraded", "gate_signal": "alt_agl_m", "gate_min": 5.0, "gate_max": 90.0 },
+    "climb_rate":        { "kind": "timeseries", "signal": "climb_mps",   "phase": "CLIMB",  "min": 1.0,                "grace_s": 2.0, "severity": "degraded", "gate_signal": "alt_agl_m", "gate_min": 5.0, "gate_max": 90.0 },
+    "cruise_altitude":   { "kind": "timeseries", "signal": "alt_agl_m",   "phase": "CRUISE", "min": 90.0, "max": 110.0, "grace_s": 3.0, "severity": "degraded" },
+    "cruise_speed":      { "kind": "timeseries", "signal": "TAS_mps",     "phase": "CRUISE", "min": 9.0,  "max": 15.0,  "grace_s": 3.0, "severity": "degraded" },
+    "descent_rate":      { "kind": "timeseries", "signal": "descent_mps",                    "max": 3.0,                "grace_s": 1.0, "severity": "degraded" },
+    "_load_factor_note": "Uses the SIM-LOGGED load factor (result.json max_load_factor_total / min_load_factor_nz) — reliable, unlike the kinematic d(V)/dt estimate which spikes at ground contact. Only present in the mix campaign; 'na' (neutral) for campaigns that don't log it.",
+    "load_factor_max":   { "kind": "scalar", "metric": "max_load_factor_total", "max": 1.5,  "severity": "critical" },
+    "load_factor_min":   { "kind": "scalar", "metric": "min_load_factor_nz",    "min": -1.0, "severity": "critical" },
+    "pitch_rate_q":      { "kind": "timeseries", "signal": "q_dps",                          "max_abs": 60.0,           "grace_s": 0.5, "severity": "degraded" },
+    "roll_rate_p":       { "kind": "timeseries", "signal": "p_dps",                          "max_abs": 120.0,          "grace_s": 0.5, "severity": "degraded" },
+    "yaw_rate_r":        { "kind": "timeseries", "signal": "r_dps",                          "max_abs": 60.0,           "grace_s": 0.5, "severity": "degraded" },
+    "flight_path_gamma": { "kind": "timeseries", "signal": "gamma_deg",                      "min": -20.0, "max": 25.0, "grace_s": 1.0, "severity": "degraded" },
+
+    "_envelope_comment": "Flight-envelope limits from FDM_LAT/flight_envelopes.m: the safe (V,gamma) region is where steady trim needs AoA in [-5,10] deg, elevator in [-10,10] deg, and trim throttle in [0.3,0.9]. We check the ACTUAL logged signals directly (more faithful than the steady-trim (V,gamma) polygon for a dynamic run). Limits are flap-independent.",
+    "aoa_safe_envelope":        { "kind": "timeseries", "signal": "alpha_deg",   "min": -5.0, "max": 10.0, "grace_s": 0.5, "severity": "critical", "gate_signal": "TAS_mps", "gate_min": 6.0 },
+    "elevator_safe_envelope":   { "kind": "timeseries", "signal": "delta_e_deg", "max_abs": 10.0,          "grace_s": 0.5, "severity": "degraded", "gate_signal": "TAS_mps", "gate_min": 6.0 },
+    "cruise_throttle_envelope": { "kind": "timeseries", "signal": "thrust_cmd",  "phase": "CRUISE", "min": 0.3, "max": 0.9, "grace_s": 1.0, "severity": "degraded" },
+    "_envelope_Vgamma_comment": "Operating-point check: V (TAS) must stay inside the safe airspeed band [Vlo(gamma), Vhi(gamma)] from flight_envelopes.m (exported to safe_envelope_cfg32.csv). Out-of-band = the (V,gamma) point left the gray safe region. NOTE: cfg32 = flap 20 (STOL); if cruise flies flap 0, export safe_envelope_cfg18.csv and add a second criterion scoped to CRUISE. Set severity to critical once you trust the flap match.",
+    "safe_envelope_Vgamma":     { "kind": "envelope", "signal_v": "TAS_mps", "signal_gamma": "gamma_air_deg", "envelope_file": "safe_envelope_cfg32.csv", "gate_min": 6.0, "grace_s": 0.5, "severity": "degraded" },
+    "_envelope_phasewise_comment": "Phase-wise V-gamma envelope: the SAME membership test scoped to one phase, so you can see which phase leaves the safe band and tune grace/severity per phase. IMPORTANT — the band depends on FLAP, which varies by phase: set 'envelope_file' per phase to match (cfg18 = flap 0 clean; cfg32 = flap 20 high-lift). Only cfg32 is exported so far, so these default to it; export safe_envelope_cfg18.csv from flight_envelopes.m and switch whichever phases fly clean (typically CLIMB/CRUISE). 'safe_envelope_Vgamma' above stays as the whole-flight catch-all.",
+    "envelope_climb":    { "kind": "envelope", "phase": "CLIMB",    "signal_v": "TAS_mps", "signal_gamma": "gamma_air_deg", "envelope_file": "safe_envelope_cfg32.csv", "gate_min": 6.0, "grace_s": 0.5, "severity": "degraded" },
+    "envelope_cruise":   { "kind": "envelope", "phase": "CRUISE",   "signal_v": "TAS_mps", "signal_gamma": "gamma_air_deg", "envelope_file": "safe_envelope_cfg32.csv", "gate_min": 6.0, "grace_s": 1.0, "severity": "degraded" },
+    "envelope_loiter":   { "kind": "envelope", "phase": "LOITER",   "signal_v": "TAS_mps", "signal_gamma": "gamma_air_deg", "envelope_file": "safe_envelope_cfg32.csv", "gate_min": 6.0, "grace_s": 1.0, "severity": "degraded" },
+    "envelope_approach": { "kind": "envelope", "phase": "APPROACH", "signal_v": "TAS_mps", "signal_gamma": "gamma_air_deg", "envelope_file": "safe_envelope_cfg32.csv", "gate_min": 6.0, "grace_s": 0.5, "severity": "degraded" },
+
+    "_oscillation_comment": "Per axis the VERDICT is driven by the COMMAND channel (controller-actionable). 'companions' add the ACTUAL surface deflection and the body rate as diagnostics (role=actual/rate) for the command-vs-response view: high command band-power => controller is commanding oscillation (fix in controller); high actual/rate with clean command => airframe/actuator self-oscillation (fix structurally). Only <~5 Hz is observable at 10 Hz logging.",
+    "elevator_oscillation": {
+      "kind": "oscillation", "signal": "delta_e_cmd_deg", "slew_signal": "slew_e_dps",
+      "companions": [ {"signal": "delta_e_deg", "role": "actual"}, {"signal": "q_dps", "role": "rate"} ],
+      "phases": ["CLIMB", "APPROACH", "LOITER", "ROLLOUT"],
+      "cutoff_hz": 1.0, "band_frac_flag": 0.15, "band_frac_fail": 0.30,
+      "reversal_rate_flag": 2.0, "reversal_rate_fail": 4.0,
+      "slew_sat_flag": 0.20, "slew_sat_fail": 0.50,
+      "rms_min": 0.5, "min_samples": 64, "severity": "degraded"
+    },
+    "aileron_oscillation": {
+      "kind": "oscillation", "signal": "delta_aL_cmd_deg", "slew_signal": "slew_aL_dps",
+      "companions": [ {"signal": "delta_aL_deg", "role": "actual"}, {"signal": "p_dps", "role": "rate"} ],
+      "phases": ["CLIMB", "APPROACH", "LOITER", "ROLLOUT"],
+      "cutoff_hz": 1.0, "band_frac_flag": 0.15, "band_frac_fail": 0.30,
+      "reversal_rate_flag": 2.0, "reversal_rate_fail": 4.0,
+      "slew_sat_flag": 0.20, "slew_sat_fail": 0.50,
+      "rms_min": 0.5, "min_samples": 64, "severity": "degraded"
+    },
+    "rudder_oscillation": {
+      "kind": "oscillation", "signal": "delta_r_cmd_deg", "slew_signal": "slew_r_dps",
+      "companions": [ {"signal": "delta_r_deg", "role": "actual"}, {"signal": "r_dps", "role": "rate"} ],
+      "phases": ["CLIMB", "APPROACH", "LOITER", "ROLLOUT"],
+      "cutoff_hz": 1.0, "band_frac_flag": 0.15, "band_frac_fail": 0.30,
+      "reversal_rate_flag": 2.0, "reversal_rate_fail": 4.0,
+      "slew_sat_flag": 0.20, "slew_sat_fail": 0.50,
+      "rms_min": 0.5, "min_samples": 64, "severity": "degraded"
+    },
+    "thrust_oscillation": {
+      "kind": "oscillation", "signal": "thrust_cmd",
+      "phases": ["CLIMB", "APPROACH", "LOITER", "ROLLOUT"],
+      "cutoff_hz": 1.0, "band_frac_flag": 0.20, "band_frac_fail": 0.40,
+      "reversal_rate_flag": 2.0, "reversal_rate_fail": 4.0,
+      "rms_min": 0.02, "min_samples": 64, "severity": "degraded"
+    }
+  }
+}

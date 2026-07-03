@@ -1027,6 +1027,13 @@ void Plane::servos_output(void)
     channel_function_mixer(SRV_Channel::k_aileron, SRV_Channel::k_elevator, SRV_Channel::k_elevon_left, SRV_Channel::k_elevon_right);
     channel_function_mixer(SRV_Channel::k_rudder,  SRV_Channel::k_elevator, SRV_Channel::k_vtail_right, SRV_Channel::k_vtail_left);
 
+    // uSTOL differential-thrust yaw mixer (additive; no-op unless UST_ENABLE=1)
+    if (g2.diff_thrust.enabled()) {
+        float ust_aspd;
+        const bool ust_aspd_ok = ahrs.airspeed_estimate(ust_aspd);
+        g2.diff_thrust.update(ust_aspd_ok, ust_aspd);
+    }
+
 #if HAL_QUADPLANE_ENABLED
     // cope with tailsitters and bicopters
     quadplane.tailsitter.output();

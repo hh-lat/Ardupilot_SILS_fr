@@ -112,6 +112,10 @@ typedef struct
 
 	float alpha;
 	float beta;
+	// post-stall Beard blend weights (0 pre-stall -> 1 post-stall), exported for the live tuning dashboard
+	float W_clw; float W_clr; float W_cd; float W_cy; float W_cn;
+	// centers of pressure & wing aero center (x/c from wing LE, aft +), exported for the dashboard
+	float x_cp_ac; float x_cp_w; float x_ac_w;
 	float gamma;
 
 	float wind_ned[3] = {0.0, 0.0, 0.0};
