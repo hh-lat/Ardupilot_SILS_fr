@@ -71,11 +71,19 @@ private:
     // ---- uSTOL V1.3 Config-A spanwise geometry (hardcoded; see .cpp) ----
     static const uint8_t NUM_CH = 9;
     static const float _y_ch[NUM_CH];           // pair-averaged span arm per channel [m]
-    static constexpr float _y_max = 1.5225f;    // max |_y_ch|
-   
-    // denominator for thrust-neutral allocation
-    static constexpr float _sum_y_sq = 11.159f;
-   
+    static constexpr float _y_max = 1.5225f;    // max |_y_ch| (reference span; not used by the split below)
+
+    // Channels that carry the differential-thrust yaw split. Restricted to ch3
+    // (EDF4,5) and its mirror ch7 (EDF14,15); every other channel carries base
+    // throttle only. Set all entries true to restore the original all-channel split.
+    static const bool _dt_split_ch[NUM_CH];
+
+    // Sum(y^2) and max|y| over ONLY the DT-participating channels (_dt_split_ch
+    // above), i.e. ch3 (y=-1.0225) and ch7 (y=+1.0225): sum_y_sq = 2*1.0225^2,
+    // y_max = 1.0225. Used for the thrust-neutral allocation and its saturation clamp.
+    static constexpr float _sum_y_sq_dt = 2.0910125f;
+    static constexpr float _y_max_dt = 1.0225f;
+
     // EDF prop constants for thrust-neutral allocation
     static constexpr float _rho = 1.15f;
     static constexpr float _n_max_rps = 200.0f;

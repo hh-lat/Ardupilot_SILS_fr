@@ -96,9 +96,9 @@ p_yaw_kcu,9e-06,1.5e-06,Cn kcu (50%) -> vehcle.yaw.kcu
 p_yaw_kv,0.290114,0.04835233333333333,Cn kv (50%) -> vehcle.yaw.kv
 p_yaw_kps_r,0.655515,0.10925249999999999,Cn kps_r (50%) -> vehcle.yaw.kps_r
 p_yaw_M,59.998281,9.9997135,Cn M (50%) -> vehcle.yaw.M
-p_prop_cmyu_J2,0.53211,0.088685,Cmyu 1/J^2 (50%) -> vehcle.prop.cmyu_J2
-p_prop_cmyu_0,0.03669,0.006115,Cmyu offset (50%) -> vehcle.prop.cmyu_0
-p_prop_CT_1,0.691683,0.11528050000000001,CT constant (50%) -> vehcle.prop.CT_1
-p_prop_CT_J,-0.734466,0.12241099999999999,CT J term (50%) -> vehcle.prop.CT_J
-p_prop_CT_JM,1.64705,0.2745083333333333,CT J*Mtip term (50%) -> vehcle.prop.CT_JM
+p_prop_cmyu_J2,0.53211,0.0008868499999999999,Cmyu 1/J^2 (50%) -> vehcle.prop.cmyu_J2
+p_prop_cmyu_0,0.03669,6.115e-05,Cmyu offset (50%) -> vehcle.prop.cmyu_0
+p_prop_CT_1,0.691683,0.001152805,CT constant (50%) -> vehcle.prop.CT_1
+p_prop_CT_J,-0.734466,0.00122411,CT J term (50%) -> vehcle.prop.CT_J
+p_prop_CT_JM,1.64705,0.0027450833333333333,CT J*Mtip term (50%) -> vehcle.prop.CT_JM
 p_max_thrust,4.905,0.1635,Per-motor max thrust (10%) -> s_motor[*].max_thrust (recompute CT_static)

@@ -44,6 +44,55 @@ TS_COLS   = ["Time_s", "alt_agl_m", "TAS_mps", "phi", "theta", "psi", "p", "q", 
              "V_ned_gnd_0", "V_ned_gnd_1", "V_ned_gnd_2", "V_b_tas_0", "V_b_tas_1",
              "delta_e", "delta_aL", "delta_aR", "delta_a", "delta_r",
              "mot0_thr_cmd", "Lift_N", "Drag_N", "total_rotor_force"]
+PWM_ZERO, PWM_FULL = 1100.0, 1900.0   # ArduPlane throttle-servo PWM range -> mapped to 0..100 %
+
+# --- Differential-thrust (DT) campaigns: the sim_output parquet logs only the BASE throttle
+# command (mot0_thr_cmd == mot1_thr_cmd), so the actual per-motor L/R split lives in the flight
+# log's SERVO1 (port outer, motor1_pwm) & SERVO9 (starboard outer, motor9_pwm) outputs. per_case
+# interpolates those onto the sim clock as throttleL_pct / throttleR_pct for the drill-down.
+
+# New DT cruise-doublet runners run the roll/yaw doublets twice — once calm (nw_ = no wind) and once
+# in wind (w_) — and log each set separately. The dashboard + criteria expect a single UNPREFIXED
+# value per metric, so aggregate the wind-split pairs into the names they look for. Each entry is
+#   (unprefixed_target, nw_source, w_source, how)   how = "max" -> worst of the two tests;
+#   "sum" -> total across both; "w" -> the WIND test only (the no-wind window spans the climb to
+#   cruise, so nw_test_alt_min_m tracks takeoff altitude, not the doublet altitude hold).
+# No-op on old single-test campaigns (the target already exists, or no nw_/w_ columns are present).
+DOUBLET_AGG = [
+    ("roll_worst_held_err_deg",  "nw_roll_worst_held_err_deg",  "w_roll_worst_held_err_deg",  "max"),
+    ("roll_worst_overshoot_deg", "nw_roll_worst_overshoot_deg", "w_roll_worst_overshoot_deg", "max"),
+    ("roll_worst_recover_s",     "nw_roll_worst_recover_s",     "w_roll_worst_recover_s",     "max"),
+    ("yaw_peak_yawrate_dps",     "nw_yaw_peak_yawrate_dps",     "w_yaw_peak_yawrate_dps",     "max"),
+    ("yaw_worst_recover_s",      "nw_yaw_worst_recover_s",      "w_yaw_worst_recover_s",      "max"),
+    ("test_alt_max_m",           "nw_test_alt_max_m",           "w_test_alt_max_m",           "max"),
+    ("test_alt_min_m",           "nw_test_alt_min_m",           "w_test_alt_min_m",           "w"),
+    ("stab_n_doublets_ok",       "nw_n_doublets_ok",            "w_n_doublets_ok",            "sum"),
+    ("stab_n_aborted",           "nw_n_aborted",                "w_n_aborted",                "sum"),
+]
+
+
+def synth_doublet_aggregates(summ):
+    """Create the unprefixed doublet metrics the dashboard/criteria expect from the nw_/w_ wind-split
+    columns of the new DT cruise-doublet runner. No-op for older campaigns."""
+    made = []
+    for tgt, nwc, wc, how in DOUBLET_AGG:
+        if tgt in summ.columns:
+            continue                                          # old schema already carries it
+        nw = pd.to_numeric(summ[nwc], errors="coerce") if nwc in summ.columns else None
+        w  = pd.to_numeric(summ[wc],  errors="coerce") if wc  in summ.columns else None
+        if nw is None and w is None:
+            continue
+        if how == "w":                                        # wind-test window only (see note above)
+            summ[tgt] = w if w is not None else nw
+        elif how == "sum":
+            summ[tgt] = ((nw.fillna(0) if nw is not None else 0) +
+                         (w.fillna(0)  if w  is not None else 0))
+        else:                                                 # "max" -> worst across both tests
+            summ[tgt] = pd.concat([s for s in (nw, w) if s is not None], axis=1).max(axis=1)
+        made.append(tgt)
+    if made:
+        print(f"synthesized doublet aggregates from nw_/w_ split: {made}")
+    return summ
 
 
 def load_summary(results):
@@ -198,6 +247,22 @@ def per_case(cdir, mass, cid, logged=None):
     fl = pd.read_csv(fcsv[0]) if fcsv else None
     m.update(landing_metrics(fl, df))     # touchdown speed/pitch/sink, load-factor est.
 
+    # Percentile-filtered load factors (airborne only). The runner's raw peak load factor is the
+    # instantaneous RAW_IMU specific force, which carries SITL IMU vibration spikes (single-sample
+    # excursions to 5-6 g that the airframe cannot aerodynamically reach) — so the doublet criteria
+    # score these robust percentiles instead of the raw peak. p95/p05 isolate genuinely-sustained
+    # load (used by the criteria); p99/p01 are kept as a stricter reference for the case table.
+    if fl is not None and {"alt_agl_m", "load_factor_total", "load_factor_nz"} <= set(fl.columns):
+        _airfl = fl["alt_agl_m"] > 2
+        lt = fl.loc[_airfl, "load_factor_total"].abs().dropna()
+        nz = fl.loc[_airfl, "load_factor_nz"].dropna()
+        if len(lt):
+            m["load_factor_total_p95"] = float(np.percentile(lt, 95))
+            m["load_factor_total_p99"] = float(np.percentile(lt, 99))
+        if len(nz):
+            m["load_factor_nz_p05"] = float(np.percentile(nz, 5))
+            m["load_factor_nz_p01"] = float(np.percentile(nz, 1))
+
     # Failure criteria (no-op when no config): adds fc_* keys + per-phase oscillation rows.
     # Scalar criteria can also reference fields the SIM logged directly into result.json/summary
     # (e.g. max_load_factor_total) — pass those alongside the computed metrics (computed wins on overlap).
@@ -226,7 +291,17 @@ def per_case(cdir, mass, cid, logged=None):
     if "V_ned_gnd_2" in ts: ts["climb_mps"] = -ts["V_ned_gnd_2"]
     if "V_b_tas_0" in ts and "V_b_tas_1" in ts:
         ts["beta_deg"] = np.degrees(np.arctan2(ts["V_b_tas_1"], ts["V_b_tas_0"]))
-    if "mot0_thr_cmd" in ts: ts["throttle_pct"] = ts["mot0_thr_cmd"] * 100.0
+    if "mot0_thr_cmd" in ts: ts["throttle_pct"] = ts["mot0_thr_cmd"] * 100.0  # base cmd (both motors)
+    # Differential-thrust per-motor traces: SERVO1 (port, motor1_pwm) & SERVO9 (starboard,
+    # motor9_pwm) from the flight log, interpolated onto the downsampled sim clock and mapped
+    # PWM->% so they overlay the base throttle. Their split == the DT mixer working (see runner).
+    if fl is not None and {"time_s", "motor1_pwm", "motor9_pwm"} <= set(fl.columns):
+        off = fc._flight_time_offset(df, fl)          # flight time + off == sim clock
+        ft  = ts["Time_s"].values - off               # sim ts time -> flight-log clock
+        ftl = fl["time_s"].values
+        for tgt, col in (("throttleL_pct", "motor1_pwm"), ("throttleR_pct", "motor9_pwm")):
+            pwm = np.interp(ft, ftl, fl[col].values, left=np.nan, right=np.nan)
+            ts[tgt] = (pwm - PWM_ZERO) / (PWM_FULL - PWM_ZERO) * 100.0
     if "delta_e" in ts:  ts["elevator_deg"] = _deg("delta_e")
     if "delta_r" in ts:  ts["rudder_deg"]   = _deg("delta_r")
     ail = "delta_a" if "delta_a" in ts else ("delta_aL" if "delta_aL" in ts else None)
@@ -235,6 +310,7 @@ def per_case(cdir, mass, cid, logged=None):
 
 
 summ = load_summary(RESULTS)
+summ = synth_doublet_aggregates(summ)   # fold nw_/w_ wind-split doublet metrics into unprefixed names
 
 # Pick the criteria config by campaign TYPE: a cruise roll/yaw doublet campaign carries the
 # stab_*/roll_worst_*/yaw_* outcome fields and needs the doublet thresholds (the landing-mission

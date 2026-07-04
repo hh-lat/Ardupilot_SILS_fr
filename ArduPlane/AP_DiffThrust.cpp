@@ -19,6 +19,17 @@ const float AP_DiffThrust::_y_ch[AP_DiffThrust::NUM_CH] = {
     +0.7725f, +1.0225f, +1.2725f, +1.5225f
 };
 
+/*
+  Channels that carry the differential-thrust yaw split. Only ch3 (index 2,
+  EDF4,5, y=-1.0225) and its mirror ch7 (index 6, EDF14,15, y=+1.0225) are
+  used - a symmetric mid-span pair, so the split stays thrust-neutral. Every
+  other channel receives only its base throttle. Set all entries true to
+  restore the original all-channel split.
+*/
+const bool AP_DiffThrust::_dt_split_ch[AP_DiffThrust::NUM_CH] = {
+    false, false, true, false, false, false, true, false, false
+};
+
 const AP_Param::GroupInfo AP_DiffThrust::var_info[] = {
 
     // @Param: ENABLE
@@ -194,8 +205,8 @@ void AP_DiffThrust::update(bool airspeed_valid, float airspeed)
     const float T_floor = 0.05f;                        // min deliverable thrust per edf 
     const float T_ucap = A2*u_cap*u_cap + A1*u_cap;     // max deliverable thrust per edf (at throttle cmd ceiling)
     const float dT_max = 0.8f * MAX(0.0f, MIN(T0 - T_floor, T_ucap - T0));
-    float k_alloc = -N_dt / _sum_y_sq;
-    const float k_alloc_max = dT_max / _y_max;
+    float k_alloc = -N_dt / _sum_y_sq_dt;
+    const float k_alloc_max = dT_max / _y_max_dt;
     k_alloc = constrain_float(k_alloc, -k_alloc_max, k_alloc_max);
     
 
@@ -203,9 +214,11 @@ void AP_DiffThrust::update(bool airspeed_valid, float airspeed)
 
     for (uint8_t k = 0; k < NUM_CH; k++){
         const SRV_Channel::Function fn = SRV_Channels::get_motor_function(k);
-        // Target thrus t for this channel, then invert quadratic for throttle
-
-        const float Tj = T0 + k_alloc * _y_ch[k];
+        // Target thrust for this channel, then invert quadratic for throttle. The
+        // yaw split is applied only on the DT-participating channels (ch3/ch7);
+        // every other channel carries base throttle alone.
+        const float yaw_term = _dt_split_ch[k] ? (k_alloc * _y_ch[k]) : 0.0f;
+        const float Tj = T0 + yaw_term;
         const float disc = A1*A1 + 4.0f*A2*Tj ;
         float u;
         if (disc >= 0.0f && A2 > 1e-6f) {

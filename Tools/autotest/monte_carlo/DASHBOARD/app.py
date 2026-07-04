@@ -510,7 +510,10 @@ def kde_overlay(df_all, param, success_col="took_off",
 # light, low-opacity phase-shading colours for the drill-down panels
 PHASE_COLORS = {"GROUND": "#7c8aa5", "TAKEOFF": "#7c8aa5", "CLIMB": BLUE, "CRUISE": GREEN,
                 "LOITER": "#22d3ee", "APPROACH": "#f59e0b", "FLARE": FAILURE_COLOR,
-                "ROLLOUT": "#a78bfa"}
+                "ROLLOUT": "#a78bfa",
+                # cruise roll/yaw doublet phases (nw_ = calm/no-wind test, w_ = gusty/wind test)
+                "ROLL_NW": BLUE, "YAW_NW": "#22d3ee", "WIND_ON": "#f59e0b",
+                "ROLL_W": "#a78bfa", "YAW_W": CRIMSON, "RETURN": "#7c8aa5"}
 
 
 def _chan(cts, name):
@@ -571,9 +574,13 @@ def telemetry_figure(cts):
     line(2, "roll_deg", "roll", BLUE); line(2, "pitch_deg", "pitch", "#f59e0b"); line(2, "yaw_deg", "yaw", GREEN)
     # 3 — body rates
     line(3, "p_dps", "p (roll rate)", BLUE); line(3, "q_dps", "q (pitch rate)", "#f59e0b"); line(3, "r_dps", "r (yaw rate)", GREEN)
-    # 4 — flight-path angle / climb / throttle
+    # 4 — flight-path angle / climb / throttle. For differential-thrust campaigns the per-motor
+    # L (port, SERVO1) & R (starboard, SERVO9) throttles straddle the base command — their split
+    # is the DT mixer working. line() no-ops when a channel is absent (non-DT campaigns).
     line(4, "gamma_deg", "γ flight-path [deg]", "#a78bfa"); line(4, "climb_mps", "climb [m/s]", GREEN, dash="dash")
-    line(4, "throttle_pct", "throttle [%]", "#8aa0c8", sec=True)
+    line(4, "throttle_pct", "throttle cmd [%]", "#8aa0c8", dash="dot", sec=True)
+    line(4, "throttleL_pct", "throttle L [%]", "#22d3ee", sec=True)
+    line(4, "throttleR_pct", "throttle R [%]", "#f472b6", sec=True)
     # 5 — AoA & sideslip
     line(5, "alpha_deg", "α (AoA)", CRIMSON); line(5, "beta_deg", "β (sideslip)", BLUE)
     # 6 — control deflections
