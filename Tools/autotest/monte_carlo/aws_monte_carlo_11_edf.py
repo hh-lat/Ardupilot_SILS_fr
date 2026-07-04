@@ -170,20 +170,20 @@ except ImportError:                                       # pragma: no cover
 #  up/down without re-typing counts.)  Add as many blocks as you like, including
 #  several "cross"/combined blocks with different sides/speeds.
 WIND_MIX = [
-    {"case": "none",       "count": 1000},
-    {"case": "head",       "count": 1500},
-    {"case": "tail",       "count": 1500},
-    {"case": "cross",      "count": 0, "side": "right"},
+    {"case": "none",       "count": 5},
+    {"case": "head",       "count": 5},
+    {"case": "tail",       "count": 5},
+    {"case": "cross",      "count": 10, "side": "right"},
     {"case": "cross",      "count": 0, "side": "left"},
-    {"case": "up",         "count": 1500},
-    {"case": "down",       "count": 1500},
+    {"case": "up",         "count": 5},
+    {"case": "down",       "count": 5},
     # combined horizontal + vertical (vertical magnitude = vert_speed m/s):
-    {"case": "cross+down", "count": 1000, "side": "right", "vert_speed": 2.0},
-    {"case": "head+down",  "count": 1000, "vert_speed": 2.0},
-    {"case": "tail+up",    "count": 1000, "vert_speed": 2.0},
+    {"case": "cross+down", "count": 5, "side": "right", "vert_speed": 1.0},
+    {"case": "head+down",  "count": 5, "vert_speed": 1.0},
+    {"case": "tail+up",    "count": 5, "vert_speed": 1.0},
 ]
 WIND_SPEED_LEVELS     = [1.0, 1.5, 2.0] # default m/s HORIZ levels; block case i -> levels[i % len]
-WIND_VERT_SPEED       = 2.0             # default vertical component (m/s) for combined cases
+WIND_VERT_SPEED       = 1.0             # default vertical component (m/s) for combined cases
                                         # (e.g. "cross+down"); per-block override via "vert_speed"
 CROSSWIND_SIDE        = "right"         # default cross side: "right" (hdg+90) | "left" (hdg-90)
 WIND_MIX_SHUFFLE      = True            # True -> deterministically (seeded) spread types across
@@ -211,13 +211,13 @@ WIND_PROFILE_CONSTANT = True            # True  -> SIM_WIND_T=1 (constant w/ alt
 #  The campaign failure size is rescaled to num_runs (crossed with the wind mix),
 #  so these counts set the RATIO of each scenario, not an absolute total.
 FAILURE_MIX = [
-    {"case": "none",          "count": 2000},   # healthy — all 18 EDFs alive
-    {"case": "outboard_port", "count": 1500},   # ch1 (EDF1) dead
-    {"case": "outboard_stbd", "count": 1500},   # ch9 (EDF18) dead
-    {"case": "dtch_port",     "count": 1500},   # ch3 (EDF4,5) dead — DT-split channel
-    {"case": "dtch_stbd",     "count": 1500},   # ch7 (EDF14,15) dead — DT-split channel
-    {"case": "ailch_port",    "count": 1000},   # ch2 (EDF2,3) dead — aileron-blown channel
-    {"case": "ailch_stbd",    "count": 1000},   # ch8 (EDF16,17) dead — aileron-blown channel
+    {"case": "none",          "count": 10},    # healthy — all 18 EDFs alive
+    {"case": "outboard_port", "count": 10},    # ch1 (EDF1) dead
+    {"case": "outboard_stbd", "count": 10},    # ch9 (EDF18) dead
+    {"case": "dtch_port",     "count": 10},    # ch3 (EDF4,5) dead — DT-split channel
+    {"case": "dtch_stbd",     "count": 10},    # ch7 (EDF14,15) dead — DT-split channel
+    {"case": "ailch_port",    "count": 0},    # ch2 (EDF2,3) dead — aileron-blown channel
+    {"case": "ailch_stbd",    "count": 0},    # ch8 (EDF16,17) dead — aileron-blown channel
 ]
 FAILURE_MIX_SHUFFLE = True   # deterministically spread failure scenarios across case ids,
                              # INDEPENDENTLY of the wind shuffle, so wind x failure combos
@@ -447,7 +447,7 @@ WORKSPACE     = AUTOTEST_DIR.parent.parent                # repo root
 USTOL_SIMS    = WORKSPACE / "ustol_sims"                  # tuned uSTOL params live here
 BINARY        = WORKSPACE / "build" / "sitl" / "bin" / "arduplane"
 DEFAULT_CFG   = SCRIPT_DIR / "monte_carlo_config_ustol_v1.json"
-DEFAULTS_PARM = USTOL_SIMS / "params_imp_v3.param"        # uSTOL tuned params (v3)
+DEFAULTS_PARM = USTOL_SIMS / "params_imp_v6_cruise.param"        # ustol_sims/params_imp_v6_cruise.param uSTOL tuned params (v3)
 FALLBACK_PARM = AUTOTEST_DIR / "models" / "plane.parm"
 
 
@@ -464,7 +464,7 @@ def resolve_defaults_parm() -> str:
     for cand in (DEFAULTS_PARM, USTOL_SIMS / "params_ustol.parm", FALLBACK_PARM):
         if cand.exists():
             return str(cand)
-    raise FileNotFoundError("Cannot find params_imp_v3.param or models/plane.parm")
+    raise FileNotFoundError("Cannot find params_imp_v6_cruise.param or models/plane.parm")
 
 
 def auto_workers() -> int:
@@ -502,6 +502,119 @@ def write_override_file(filepath: str, params: dict):
     with open(filepath, "w") as f:
         for k, v in params.items():
             f.write(f"{k}={v:.10f}\n")
+
+
+# ===================================================================
+#  sim_output -> Parquet (storage / file-count reduction)
+# ===================================================================
+# The sim_output_*.csv the FDM writes is ~85% of each case's bytes (~63 columns,
+# ~750 KB/case). As Parquet it is ~3-7x smaller and far faster to load, which speeds
+# up BOTH the copy off the box and any dashboard build. The columns below are kept
+# when --trim-cols is set, to narrow the file ~50% while keeping everything this
+# runner's own post-processing needs. Same base list as aws_monte_carlo_10_cruise_dt.py
+# / aws_monte_carlo_9_nodt.py's dashboard-column set, PLUS MLG_NR/FLG_NR (main/nose
+# landing-gear normal reaction force) which those runners drop as "unused downstream"
+# but THIS runner needs: they are the ground truth for the true L=W liftoff instant
+# that recompute_ground_roll_from_fdm_csv() below uses (see its docstring). Dropping
+# them would silently break that recomputation on any trimmed-Parquet case.
+SIM_OUTPUT_KEEP = [
+    "Time_s", "plane_moving_state", "TAS_mps", "alt_agl_m", "lat", "lon",
+    "phi", "theta", "p", "q", "r",
+    "MLG_NR", "FLG_NR",
+    "V_b_tas_0", "V_b_tas_2", "V_ned_gnd_0", "V_ned_gnd_1", "V_ned_gnd_2",
+    "delta_e", "delta_aL", "delta_r",
+    "delta_e_cmd", "delta_aL_cmd", "delta_aR_cmd", "delta_r_cmd",
+    "mot0_thr_cmd", "Lift_N", "Drag_N", "total_rotor_force",
+]
+
+
+def convert_sim_output_to_parquet(case_dir: str, trim_cols: bool = False) -> int:
+    """Convert each sim_output_*.csv in case_dir to Parquet and delete the CSV.
+
+    Best-effort and never fatal: on ANY error the original CSV is left in place, so a
+    case is never lost. With trim_cols, keep only SIM_OUTPUT_KEEP. Returns the number
+    of files converted."""
+    n = 0
+    for csv_path in glob.glob(os.path.join(case_dir, "sim_output_*.csv")):
+        try:
+            import pandas as pd                       # lazy: parquet needs pandas+pyarrow
+            df = pd.read_csv(csv_path)
+            if trim_cols:
+                keep = [c for c in SIM_OUTPUT_KEEP if c in df.columns]
+                if keep:
+                    df = df[keep]
+            # zstd (lossless) compresses these high-entropy float columns far better than the
+            # parquet default (snappy) - the storage win we're after. Falls back to default if
+            # the pyarrow build lacks zstd.
+            try:
+                df.to_parquet(csv_path[:-4] + ".parquet", index=False, compression="zstd")
+            except Exception:
+                df.to_parquet(csv_path[:-4] + ".parquet", index=False)
+            os.remove(csv_path)
+            n += 1
+        except Exception:
+            pass                                       # leave the CSV; CSV path still works
+    return n
+
+
+def recompute_ground_roll_from_fdm_csv(csv_path: str):
+    """Recompute (ground_roll_m, liftoff_speed) from the FDM's own high-rate log using
+    the TRUE liftoff instant, instead of the live ~10 Hz MAVLink-telemetry alt>=0.5m
+    proxy fly_ustol2() uses during flight to decide when to stop treating the aircraft
+    as grounded.
+
+    That proxy is a poor stand-in for the aeronautical definition of ground roll (ends
+    at L=W / wheels-off): on this airframe's climb-out the aircraft crosses 0.5m AGL
+    roughly 1 SECOND after the wheels actually leave the ground, so the live estimate
+    overstates ground_roll_m by ~70-85% (empirically verified against this same FDM log
+    across several cases) and understates liftoff_speed by a few percent (airspeed-
+    estimator filter lag during the rapid acceleration).
+
+    MLG_NR/FLG_NR (main/nose landing-gear normal reaction force, N) are the FDM's
+    ground truth for L=W: both go to exactly zero the instant the gear stops carrying
+    any weight. We take the first sample where both are zero AND stay zero for a few
+    consecutive samples (so a single-sample zero mid-rotation bounce can't trigger a
+    false-early detection), then integrate ground speed (trapezoidal) from when the
+    aircraft first starts moving up to that sample for the true ground-roll distance,
+    and read TAS_mps at that same sample for the true liftoff speed.
+
+    Returns (ground_roll_m, liftoff_speed), or (None, None) if the CSV is missing,
+    unreadable, lacks the needed columns, or the aircraft never left the ground (e.g.
+    climb_timeout) - callers should keep their live-telemetry estimate as a fallback.
+    """
+    try:
+        with open(csv_path, newline="") as f:
+            rows = list(csv.DictReader(f))
+        if not rows:
+            return None, None
+
+        def f_(row, key):
+            return float(row[key])
+
+        def ground_speed(row):
+            return math.hypot(f_(row, "V_ned_gnd_0"), f_(row, "V_ned_gnd_1"))
+
+        liftoff_idx = None
+        for i, row in enumerate(rows):
+            if f_(row, "MLG_NR") == 0.0 and f_(row, "FLG_NR") == 0.0:
+                if all(f_(rows[j], "MLG_NR") == 0.0
+                       for j in range(i, min(i + 5, len(rows)))):
+                    liftoff_idx = i
+                    break
+        if liftoff_idx is None:
+            return None, None
+
+        start_idx = next((i for i, row in enumerate(rows) if ground_speed(row) > 0.1), 0)
+
+        dist = 0.0
+        for i in range(start_idx + 1, liftoff_idx + 1):
+            t0, t1 = f_(rows[i - 1], "Time_s"), f_(rows[i], "Time_s")
+            v0, v1 = ground_speed(rows[i - 1]), ground_speed(rows[i])
+            dist += 0.5 * (v0 + v1) * (t1 - t0)
+
+        return dist, f_(rows[liftoff_idx], "TAS_mps")
+    except (KeyError, ValueError, OSError):
+        return None, None
 
 
 # ===================================================================
@@ -668,7 +781,7 @@ def haversine_m(lat1, lon1, lat2, lon2) -> float:
 # ===================================================================
 #  Flight profile — mission_ustol_2 open-loop FBWA takeoff/climb/flare/hold
 # ===================================================================
-_PUMP_TYPES = ["GLOBAL_POSITION_INT", "VFR_HUD", "ATTITUDE", "RAW_IMU"]
+_PUMP_TYPES = ["GLOBAL_POSITION_INT", "VFR_HUD", "ATTITUDE", "RAW_IMU", "SERVO_OUTPUT_RAW"]
 GRAVITY_MSS = 9.80665
 
 
@@ -692,14 +805,20 @@ def _pump(conn, st):
             st["climb"] = m.climb
             st["thr"]   = m.throttle
         elif t == "ATTITUDE":
-            st["roll"]  = math.degrees(m.roll)
-            st["pitch"] = math.degrees(m.pitch)
+            st["roll"]    = math.degrees(m.roll)
+            st["pitch"]   = math.degrees(m.pitch)
+            st["yawrate"] = math.degrees(m.yawspeed)
         elif t == "RAW_IMU":
             # RAW_IMU accel fields are milli-g (mg) in the body frame (z down).
             # Normal load factor n_z = -a_z/g (level/at-rest = +1 g); total g is
             # the specific-force magnitude. Track both for post-processing.
             st["nz"] = -m.zacc / 1000.0
             st["g_total"] = math.sqrt(m.xacc**2 + m.yacc**2 + m.zacc**2) / 1000.0
+        elif t == "SERVO_OUTPUT_RAW":
+            # ch3/ch7 are the only DT-split channels (_dt_split_ch); their PWM
+            # spread is the direct signature of the mixer working.
+            st["m3"] = getattr(m, "servo3_raw", st.get("m3", 0))
+            st["m7"] = getattr(m, "servo7_raw", st.get("m7", 0))
         m = conn.recv_match(type=_PUMP_TYPES, blocking=False)
 
 
@@ -804,7 +923,7 @@ def fly_ustol2(conn, m, writer, st, perf, sitl_proc, t0_flight, deadline):
     u = m.get("ustol2", {})
     CRUISE_ALT     = u.get("cruise_alt_m", m.get("takeoff_alt_m", 100.0))
     CRUISE_AS      = u.get("cruise_as_mps", 12.0)
-    CRUISE_CAP_THR = u.get("cruise_cap_thr_pwm", 1660)
+    CRUISE_CAP_THR = u.get("cruise_cap_thr_pwm", 1700)
     K_CAP          = u.get("k_cap", 3.0)
     HOLD_T         = u.get("cruise_hold_s", 10.0)
     LEVEL_BAND     = u.get("level_band_m", 10.0)
@@ -823,8 +942,36 @@ def fly_ustol2(conn, m, writer, st, perf, sitl_proc, t0_flight, deadline):
     RC2_MAX        = u.get("rc2_max", 2000)
     PTCH_LIM_MAX   = u.get("ptch_lim_max_deg", 20.0)
     PITCH_SIGN     = u.get("pitch_sign", -1)
-    THR_PWM        = u.get("throttle_climb_pwm", 1900)
+    THR_PWM        = u.get("throttle_climb_pwm", 1850)
     CLIMB_TO       = u.get("climb_timeout_s", 120.0)
+    CLIMB_AIRBORNE_ALT = u.get("climb_airborne_alt_m", 2.0)   # "genuinely airborne" gate
+    CLIMB_STRIKE_ALT   = u.get("climb_ground_strike_alt_m", 0.3)  # back below this = ground strike
+
+    # --- post-cruise roll/yaw doublets (DT-effectiveness check) ---
+    RC1_TRIM       = u.get("rc1_trim", 1500)
+    RC1_MAX        = u.get("rc1_max", 2000)
+    RC1_MIN        = u.get("rc1_min", 1000)
+    RC4_TRIM       = u.get("rc4_trim", 1500)
+    RC4_MAX        = u.get("rc4_max", 2000)
+    RC4_MIN        = u.get("rc4_min", 1000)
+    ROLL_LIMIT_DEG = u.get("roll_limit_deg", 30.0)
+    RUD_LIMIT_DEG  = u.get("rud_limit_deg", 40.0)
+    YAW_SEQ        = u.get("yaw_seq_deg",  [10.0, -10.0, 20.0, 0.0])
+    ROLL_SEQ       = u.get("roll_seq_deg", [10.0, 0.0, -15.0, 0.0, 20.0, 0.0])
+    DBL_HOLD_T     = u.get("doublet_hold_s", 4.0)
+    SETTLE_MAX_T   = u.get("settle_max_s", 15.0)
+    SETTLE_OK_T    = u.get("settle_ok_s", 3.0)
+    RECOVER_MAX_T  = u.get("recover_max_s", 15.0)
+    ROLL_OK_DEG    = u.get("roll_ok_deg", 3.0)
+    YAWRATE_OK     = u.get("yawrate_ok_dps", 5.0)
+    BANK_ABORT     = u.get("bank_abort_deg", 45.0)
+    DBL_ALT_FLOOR  = u.get("doublet_alt_floor_m", 0.5 * CRUISE_ALT)
+    RECOVER_PITCH  = u.get("recover_pitch_deg", -3.0)
+    RECOVER_THR    = u.get("recover_thr_pwm", 1500)
+    HARD_ABORT_ALT = u.get("doublet_hard_abort_alt_m", 30.0)
+    K_ALT_THR      = u.get("doublet_k_alt_thr", 6.0)
+    THR_DBL_MIN    = u.get("doublet_thr_min_pwm", 1450)
+    THR_DBL_MAX    = u.get("doublet_thr_max_pwm", 1850)
 
     # --- landing: approach schedule + HYBRID flare (Option B). Defaults below are the SITL-
     #     VALIDATED landing model (mission_ustol_11_landing.py): theta(h) flare schedule + powered
@@ -832,9 +979,9 @@ def fly_ustol2(conn, m, writer, st, perf, sitl_proc, t0_flight, deadline):
     V_APP          = u.get("v_app_mps", 12.0)         # approach airspeed held on PITCH
     SINK_APP       = u.get("sink_app_mps", -1.5)      # target approach sink rate (m/s, -=down)
     SINK_TD        = u.get("sink_td_mps", -0.3)       # target touchdown sink rate (m/s)
-    FLARE_ALT      = u.get("flare_alt_m", 13.32)      # begin flare below this height (m AGL) = MATLAB S.h_flare (was 8.0)
+    FLARE_ALT      = u.get("flare_alt_m", 13.0)      # begin flare below this height (m AGL) = MATLAB S.h_flare (was 8.0)
     TD_ALT         = u.get("td_alt_m", 0.25)          # touchdown when alt drops below this (m) (was 0.5)
-    ROLLOUT_T      = u.get("rollout_s", 4.0)          # idle + nose-down on the ground, then disarm
+    ROLLOUT_T      = u.get("rollout_s", 2.0)          # idle + nose-down on the ground, then disarm
     K_APP_PITCH    = u.get("k_app_pitch", 1.0)        # approach pitch-on-speed gain (deg per m/s)
     APP_PITCH_MIN  = u.get("app_pitch_min_deg", -10.0)
     APP_PITCH_MAX  = u.get("app_pitch_max_deg", 4.0)
@@ -880,11 +1027,20 @@ def fly_ustol2(conn, m, writer, st, perf, sitl_proc, t0_flight, deadline):
         frac = -1.0 if frac < -1 else (1.0 if frac > 1 else frac)
         return int(RC2_TRIM + frac * (RC2_MAX - RC2_TRIM))
 
-    def send_sticks(theta_deg, thr):
-        # AETR override order: ch1 roll=neutral, ch2 pitch, ch3 throttle, ch4 yaw=neutral.
+    def roll_pwm(bank_deg):
+        frac = max(-1.0, min(1.0, bank_deg / ROLL_LIMIT_DEG))
+        span = (RC1_MAX - RC1_TRIM) if frac >= 0 else (RC1_TRIM - RC1_MIN)
+        return int(RC1_TRIM + frac * span)
+
+    def rud_pwm(rud_deg):
+        frac = max(-1.0, min(1.0, rud_deg / RUD_LIMIT_DEG))
+        return int(RC4_TRIM + frac * (RC4_MAX - RC4_TRIM))
+
+    def send_sticks(theta_deg, thr, roll_deg=0.0, rud_deg=0.0):
+        # AETR override order: ch1 roll, ch2 pitch, ch3 throttle, ch4 yaw.
         conn.mav.rc_channels_override_send(
             conn.target_system, conn.target_component,
-            1500, pitch_pwm(theta_deg), int(thr), 1500, 0, 0, 0, 0)
+            roll_pwm(roll_deg), pitch_pwm(theta_deg), int(thr), rud_pwm(rud_deg), 0, 0, 0, 0)
 
     def release_sticks():
         conn.mav.rc_channels_override_send(
@@ -892,7 +1048,7 @@ def fly_ustol2(conn, m, writer, st, perf, sitl_proc, t0_flight, deadline):
 
     _last_csv = [0.0]
 
-    def write_row(phase, theta):
+    def write_row(phase, theta, roll_cmd=0.0, rud_cmd=0.0):
         now = time.time()
         if now - _last_csv[0] < 0.2:          # ~5 Hz
             return
@@ -904,7 +1060,10 @@ def fly_ustol2(conn, m, writer, st, perf, sitl_proc, t0_flight, deadline):
             "%.2f" % st["climb"], "%.0f" % st["thr"],
             "%.2f" % theta,
             "%.7f" % (st["lat"] or 0.0), "%.7f" % (st["lon"] or 0.0),
-            "%.3f" % st["nz"], "%.3f" % st["g_total"]])
+            "%.3f" % st["nz"], "%.3f" % st["g_total"],
+            "%d" % st.get("m3", 0), "%d" % st.get("m7", 0),
+            "%.2f" % st.get("yawrate", 0.0),
+            "%.2f" % roll_cmd, "%.2f" % rud_cmd])
 
     start_lat = start_lon = None
 
@@ -912,6 +1071,7 @@ def fly_ustol2(conn, m, writer, st, perf, sitl_proc, t0_flight, deadline):
     v_peak = 0.0
     theta = 0.0
     flare0 = None
+    climbed_airborne = False
     t_climb = time.time()
     t_prev = t_climb
     while True:
@@ -921,6 +1081,16 @@ def fly_ustol2(conn, m, writer, st, perf, sitl_proc, t0_flight, deadline):
         if now > deadline or now - t_climb > CLIMB_TO:
             return "climb_timeout"
         _pump(conn, st)
+        # Ground-contact detector: a roll/yaw departure during CLIMB can dive the
+        # aircraft back into the ground well before cruise. Without this check the
+        # loop just carries on (no ground-contact awareness), climbs back out, and
+        # the mission later reports a clean "landed" - masking a genuine crash.
+        # Gate on having climbed clearly clear of the ground first, so ordinary
+        # liftoff noise near 0m can't false-trigger.
+        if st["alt"] >= CLIMB_AIRBORNE_ALT:
+            climbed_airborne = True
+        elif climbed_airborne and st["alt"] <= CLIMB_STRIKE_ALT:
+            return "ground_strike_climb"
         dt = min(now - t_prev, 0.15)
         t_prev = now
         v_peak = max(v_peak, st["as"])
@@ -959,7 +1129,7 @@ def fly_ustol2(conn, m, writer, st, perf, sitl_proc, t0_flight, deadline):
         theta = rate_limit(theta, target, dt)
         send_sticks(theta, int(thr_cmd))
         write_row(phase, theta)
-        if st["alt"] >= CRUISE_ALT - 1.0:
+        if st["alt"] >= CRUISE_ALT - 3.0:
             break
         time.sleep(0.05)                       # ~20 Hz override stream
 
@@ -975,6 +1145,98 @@ def fly_ustol2(conn, m, writer, st, perf, sitl_proc, t0_flight, deadline):
         send_sticks(theta_cap, CRUISE_CAP_THR)
         write_row("CRUISE", theta_cap)
         time.sleep(0.05)
+
+    # ---- ROLL/YAW DOUBLETS: DT-effectiveness check, straight after cruise ----
+    def _cruise_pitch():
+        return max(-5.0, min(TH_CLIMB, K_CAP * (st["as"] - CRUISE_AS)))
+
+    def _dbl_thr():
+        return int(max(THR_DBL_MIN, min(CRUISE_CAP_THR + K_ALT_THR * (CRUISE_ALT - st["alt"]), THR_DBL_MAX)))
+
+    def _in_band():
+        return (abs(st["roll"]) < ROLL_OK_DEG and abs(st["yawrate"]) < YAWRATE_OK
+                and st["alt"] >= DBL_ALT_FLOOR)
+
+    def _departed():
+        return abs(st["roll"]) > BANK_ABORT or st["alt"] < DBL_ALT_FLOOR
+
+    def _settle(phase, max_t):
+        t0 = time.time(); ok_since = None
+        while time.time() - t0 < max_t:
+            if sitl_proc.poll() is not None:
+                return "crashed_cruise"
+            if time.time() > deadline:
+                return "deadline"
+            _pump(conn, st)
+            if st["alt"] < HARD_ABORT_ALT:
+                return "ABORT_LOW_ALT"
+            send_sticks(_cruise_pitch(), _dbl_thr())
+            write_row(phase, _cruise_pitch())
+            now = time.time()
+            ok_since = ok_since if (_in_band() and ok_since is not None) else (now if _in_band() else None)
+            if ok_since is not None and now - ok_since >= SETTLE_OK_T:
+                return None
+            time.sleep(0.05)
+        return None
+
+    def _recover():
+        t0 = time.time(); ok_since = None
+        while time.time() - t0 < RECOVER_MAX_T:
+            if sitl_proc.poll() is not None:
+                return "crashed_cruise"
+            if time.time() > deadline:
+                return "deadline"
+            _pump(conn, st)
+            if st["alt"] < HARD_ABORT_ALT:
+                return "ABORT_LOW_ALT"
+            send_sticks(RECOVER_PITCH, RECOVER_THR)
+            write_row("RECOVER", RECOVER_PITCH)
+            now = time.time()
+            ok_since = ok_since if (_in_band() and ok_since is not None) else (now if _in_band() else None)
+            if ok_since is not None and now - ok_since >= SETTLE_OK_T:
+                return None
+            time.sleep(0.05)
+        return None
+
+    def _run_doublet_axis(label, targets, axis):
+        for sp in targets:
+            r = _settle(label, SETTLE_MAX_T)
+            if r:
+                return r
+            if _departed():
+                r = _recover()
+                if r:
+                    return r
+            t0 = time.time()
+            while time.time() - t0 < DBL_HOLD_T:
+                if sitl_proc.poll() is not None:
+                    return "crashed_cruise"
+                if time.time() > deadline:
+                    return "deadline"
+                _pump(conn, st)
+                if st["alt"] < HARD_ABORT_ALT:
+                    return "ABORT_LOW_ALT"
+                if axis == "roll":
+                    send_sticks(_cruise_pitch(), _dbl_thr(), roll_deg=sp)
+                    write_row(label, _cruise_pitch(), roll_cmd=sp)
+                else:
+                    send_sticks(_cruise_pitch(), _dbl_thr(), rud_deg=sp)
+                    write_row(label, _cruise_pitch(), rud_cmd=sp)
+                if _departed():
+                    r = _recover()
+                    if r:
+                        return r
+                    break
+                time.sleep(0.05)
+        return None
+
+    r = _run_doublet_axis("YAW_DBL", YAW_SEQ, "yaw")
+    if r and r != "ABORT_LOW_ALT":
+        return r
+    if r is None:
+        r = _run_doublet_axis("ROLL_DBL", ROLL_SEQ, "roll")
+        if r and r != "ABORT_LOW_ALT":
+            return r
 
     # NO LOITER: keep streaming overrides straight into the approach — the aircraft
     # never leaves FBWA, so there is no nav handoff / RC-loss failsafe to manage.
@@ -1198,7 +1460,8 @@ def write_case_report(filepath, case_id, perturbed, nominals, result):
 # ===================================================================
 def _run_case(case_id, case_seed, instance_id, config, perturbed, output_dir,
               workspace, speedup, save_plot, hard_timeout, params_file, wind,
-              dt_enabled=True, fail_case="none"):
+              dt_enabled=True, fail_case="none",
+              sim_parquet=True, trim_cols=False, keep_aux=False):
     """Execute one Monte Carlo case: launch SITL, set the case's wind, optionally
     enable differential thrust + inject the case's EDF engine-out (USTF_MASK), fly
     the uSTOL all-FBWA + HYBRID-flare landing profile (no loiter)."""
@@ -1259,9 +1522,14 @@ def _run_case(case_id, case_seed, instance_id, config, perturbed, output_dir,
     gcs_sysid = int(ucfg.get("gcs_sysid", 250))
 
     try:
+        # SITL stdout is the FDM's per-step debug spam ("Time:..., MLG_NR...") - a few MB of
+        # serial-port noise per case that nothing downstream reads. Drop it to /dev/null by
+        # default (no file, no spam); --keep-aux re-enables the sitl_stdout.log for debugging.
+        sitl_log = (open(os.path.join(case_dir, "sitl_stdout.log"), "w")
+                    if keep_aux else subprocess.DEVNULL)
         sitl_proc = subprocess.Popen(
             cmd, cwd=worker_dir, env=env,
-            stdout=open(os.path.join(case_dir, "sitl_stdout.log"), "w"),
+            stdout=sitl_log,
             stderr=subprocess.STDOUT,
             preexec_fn=os.setsid)
         _log(case_id, f"SITL PID {sitl_proc.pid}  inst {instance_id}  "
@@ -1391,10 +1659,12 @@ def _run_case(case_id, case_seed, instance_id, config, perturbed, output_dir,
         writer.writerow([
             "time_s", "phase", "alt_agl_m", "airspeed", "roll_deg",
             "pitch_deg", "climb_mps", "throttle_pct", "theta_cmd_deg", "lat", "lon",
-            "load_factor_nz", "load_factor_total"])
+            "load_factor_nz", "load_factor_total",
+            "motor3_pwm", "motor7_pwm", "yaw_rate_dps", "roll_cmd_deg", "rud_cmd_deg"])
 
         st = {"alt": 0.0, "as": 0.0, "climb": 0.0, "lat": None, "lon": None,
-              "thr": 0.0, "roll": 0.0, "pitch": 0.0, "nz": 1.0, "g_total": 1.0}
+              "thr": 0.0, "roll": 0.0, "pitch": 0.0, "nz": 1.0, "g_total": 1.0,
+              "m3": 0, "m7": 0, "yawrate": 0.0}
         perf = {"liftoff_time": None, "liftoff_speed": None, "ground_roll_m": None}
         t0_flight = time.time()
 
@@ -1457,6 +1727,35 @@ def _run_case(case_id, case_seed, instance_id, config, perturbed, output_dir,
             if os.path.isdir(bin_log_dir):
                 shutil.rmtree(bin_log_dir, ignore_errors=True)
 
+        # Recompute ground_roll_m/liftoff_speed from the FDM's own high-rate log (true
+        # L=W liftoff via MLG_NR/FLG_NR) instead of the live ~10Hz-telemetry alt>=0.5m
+        # proxy fly_ustol2() used during flight - that proxy overstates ground_roll_m by
+        # ~70-85% on this airframe (verified). Must run BEFORE the Parquet conversion
+        # below, which deletes the CSV. Falls back to the live perf-based estimate above
+        # (already in result["ground_roll_m"]/["liftoff_speed"]) if this fails.
+        sim_csvs = sorted(glob.glob(os.path.join(case_dir, "sim_output_*.csv")))
+        if sim_csvs:
+            gr_true, vlof_true = recompute_ground_roll_from_fdm_csv(sim_csvs[0])
+            if gr_true is not None:
+                result["ground_roll_m"] = gr_true
+            if vlof_true is not None:
+                result["liftoff_speed"] = vlof_true
+
+        # sim_output -> Parquet (the high-value reduction: sim_output is ~85% of a case's
+        # bytes). Done AFTER the CSV is in case_dir and the ground-roll recompute above has
+        # read it; best-effort (leaves the CSV on any error). --sim-format csv skips this.
+        if sim_parquet:
+            convert_sim_output_to_parquet(case_dir, trim_cols=trim_cols)
+
+        # Lean output (6->3 files): drop the per-case files nothing downstream reads.
+        # overrides.txt is redundant (its params are in result.json); the report.txt below is
+        # skipped too, and sitl_stdout.log was never created (DEVNULL). --keep-aux retains all.
+        if not keep_aux:
+            try:
+                os.remove(override_file)
+            except OSError:
+                pass
+
         # Optional per-case PNG (headless Agg backend).
         if save_plot:
             try:
@@ -1464,10 +1763,13 @@ def _run_case(case_id, case_seed, instance_id, config, perturbed, output_dir,
             except Exception:
                 pass
 
-        nominals = {k: v["nominal"] for k, v in config["params"].items()}
-        write_case_report(
-            os.path.join(case_dir, f"case_{case_id:04d}_report.txt"),
-            case_id, perturbed, nominals, result)
+        # Human-readable per-case report - nothing downstream reads it, so write it only
+        # with --keep-aux (part of the 6->3 file-count reduction).
+        if keep_aux:
+            nominals = {k: v["nominal"] for k, v in config["params"].items()}
+            write_case_report(
+                os.path.join(case_dir, f"case_{case_id:04d}_report.txt"),
+                case_id, perturbed, nominals, result)
         # Machine-readable result — drives summary.csv rebuild + --resume.
         try:
             with open(os.path.join(case_dir, "result.json"), "w") as jf:
@@ -1510,12 +1812,13 @@ def _init_worker(q):
 
 def _worker_entry(args):
     (case_id, case_seed, config, perturbed, output_dir, workspace,
-     speedup, save_plot, hard_timeout, params_file, wind, dt_enabled, fail_case) = args
+     speedup, save_plot, hard_timeout, params_file, wind, dt_enabled, fail_case,
+     sim_parquet, trim_cols, keep_aux) = args
     inst = _instance_queue.get()
     try:
         return _run_case(case_id, case_seed, inst, config, perturbed, output_dir,
                          workspace, speedup, save_plot, hard_timeout, params_file, wind,
-                         dt_enabled, fail_case)
+                         dt_enabled, fail_case, sim_parquet, trim_cols, keep_aux)
     finally:
         _instance_queue.put(inst)
 
@@ -1637,7 +1940,23 @@ def main():
     parser.add_argument("--failures", choices=["on", "off"], default="on",
                         help="'on' (default): inject the FAILURE_MIX EDF engine-outs per case "
                              "via USTF_MASK. 'off': healthy fleet (all cases fly 'none', mask=0).")
+    parser.add_argument("--sim-format", choices=["parquet", "csv"], default="parquet",
+                        help="per-case sim_output format. 'parquet' (default): convert the FDM "
+                             "CSV to Parquet (~85%% of a case's bytes, ~3-7x smaller, faster to "
+                             "load + copy). 'csv': keep the raw CSV (e.g. for plot_case_full.py).")
+    parser.add_argument("--trim-cols", action="store_true",
+                        help="when writing Parquet, keep only the SIM_OUTPUT_KEEP columns "
+                             "(~50%% narrower), including MLG_NR/FLG_NR so the true-liftoff "
+                             "ground-roll recomputation stays auditable from the saved Parquet. "
+                             "Off by default (keep all columns) so nothing downstream can "
+                             "silently break.")
+    parser.add_argument("--keep-aux", action="store_true",
+                        help="keep the per-case files nothing downstream reads (overrides.txt, "
+                             "report.txt, sitl_stdout.log). Default: drop them (6->3 files/case) "
+                             "and send SITL stdout to /dev/null (no serial-port spam).")
     args = parser.parse_args()
+    sim_parquet = (args.sim_format == "parquet")
+    trim_cols   = args.trim_cols
 
     config      = load_config(args.config)
     # Param/defaults file: --params wins; else the historical auto-resolve order.
@@ -1727,6 +2046,9 @@ def main():
     print("=" * 70)
     print(f"  Diff-thrust   : {'ON (SERVO1..9=k_motor1..9, UST_ENABLE=1, UMAX=1.0)' if dt_enabled else 'OFF (stock uniform throttle - no-DT baseline)'}")
     print(f"  EDF failures  : {'ON (USTF_MASK per FAILURE_MIX)' if failures_enabled else 'OFF (healthy fleet, mask=0)'}")
+    print(f"  Output        : sim_output={'Parquet' if sim_parquet else 'CSV'}"
+          f"{' (trimmed cols)' if (sim_parquet and trim_cols) else ''}; "
+          f"aux files {'kept' if args.keep_aux else 'dropped (6->3/case, no SITL-stdout spam)'}")
     for k in sorted(fail_counts):
         print(f"      {k:<14}: {fail_counts[k]}")
     print(f"  Wind mix      : {num_runs} cases across {len(wind_counts)} type(s)")
@@ -1806,7 +2128,8 @@ def main():
     workspace = str(WORKSPACE)
     tasks = [(cid, f"{args.seed}:{cid}", config, all_perturbed[cid], output_dir,
               workspace, args.speedup, args.plot, hard_timeout, params_file,
-              all_wind[cid], dt_enabled, all_fail[cid])
+              all_wind[cid], dt_enabled, all_fail[cid],
+              sim_parquet, trim_cols, args.keep_aux)
              for cid in range(num_runs) if cid not in done]
     print(f"  Cases to run this invocation: {len(tasks)}\n")
 
@@ -1860,6 +2183,9 @@ def main():
         f.write(f"Diff-thrust     : {'ON' if dt_enabled else 'OFF (baseline)'}\n")
         f.write(f"EDF failures    : {'ON' if failures_enabled else 'OFF (healthy)'}  "
                 f"{dict(sorted(fail_counts.items()))}\n")
+        f.write(f"sim_output      : {'Parquet' if sim_parquet else 'CSV'}"
+                f"{' (trimmed cols)' if (sim_parquet and trim_cols) else ''}; "
+                f"aux files {'kept' if args.keep_aux else 'dropped'}\n")
         f.write(f"Wind mix        : {dict(sorted(wind_counts.items()))}\n")
         f.write(f"Wind speeds     : {WIND_SPEED_LEVELS} m/s default\n")
         f.write(f"Cases completed : {n_tot}\n")

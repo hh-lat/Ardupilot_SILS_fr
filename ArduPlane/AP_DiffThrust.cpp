@@ -20,6 +20,17 @@ const float AP_DiffThrust::_y_ch[AP_DiffThrust::NUM_CH] = {
     +0.7725f, +1.0225f, +1.2725f, +1.5225f
 };
 
+/*
+  Channels that carry the differential-thrust yaw split. Only ch3 (index 2,
+  EDF4,5, y=-1.0225) and its mirror ch7 (index 6, EDF14,15, y=+1.0225) are
+  used - a symmetric mid-span pair, so the split stays thrust-neutral. Every
+  other channel receives only its base/engine-out throttle. Set all entries
+  true to restore the original all-channel split.
+*/
+const bool AP_DiffThrust::_dt_split_ch[AP_DiffThrust::NUM_CH] = {
+    false, false, true, false, false, false, true, false, false
+};
+
 const AP_Param::GroupInfo AP_DiffThrust::var_info[] = {
 
     // @Param: ENABLE
@@ -81,7 +92,6 @@ const AP_Param::GroupInfo AP_DiffThrust::var_info[] = {
 AP_DiffThrust::AP_DiffThrust()
 {
     AP_Param::setup_object_defaults(this, var_info);
-    _range_inited = false;
 }
 
 void AP_DiffThrust::set_dt_active(bool active)
@@ -95,19 +105,20 @@ void AP_DiffThrust::set_dt_active(bool active)
 
 void AP_DiffThrust::ensure_ranges()
 {
-    if (_range_inited) {
-        return;
-    }
     // k_motor1..k_motor9 have no case in SRV_Channel_aux.cpp aux_servo_function_setup(),
     // so their output range is never established and a bare set_output_scaled() would
-    // peg every ESC to SERVOn_MIN. Establish a 0..1000 range so scaled commands map to
-    // each channel's configured SERVOn_MIN..MAX (honouring per-channel reversal). Aux
-    // functions are bound long before servos_output() first runs, so doing this lazily
-    // on the first enabled update() is safe.
+    // peg every ESC's high_out at its uninitialized default - saturating to SERVOn_MAX
+    // for any nonzero scaled command. set_range() only touches channels whose function
+    // is CURRENTLY k_motorN, so calling this once on the first update() (as before) races
+    // the SERVOx_FUNCTION param assignment: when UST_ENABLE defaults to 1 at compile time,
+    // update() starts running before a ground-station/script has a chance to reassign
+    // SERVO1..9_FUNCTION away from their boot default (k_throttle), so the one-shot call
+    // finds no matching channels, sets nothing, and never retries. Calling it every loop
+    // is a fixed 9-iteration int-field write - negligible cost - and guarantees the range
+    // is correct regardless of when SERVOx_FUNCTION gets (re)assigned.
     for (uint8_t k = 0; k < NUM_CH; k++) {
         SRV_Channels::set_range(SRV_Channels::get_motor_function(k), 1000);
     }
-    _range_inited = true;
 }
 
 void AP_DiffThrust::update(bool airspeed_valid, float airspeed, AP_DT_EngineOut &fail)
@@ -205,9 +216,21 @@ void AP_DiffThrust::update(bool airspeed_valid, float airspeed, AP_DT_EngineOut 
     const float T_floor = 0.05f;                        // min deliverable thrust per edf 
     const float T_ucap = A2*u_cap*u_cap + A1*u_cap;     // max deliverable thrust per edf (at throttle cmd ceiling)
     const float dT_max = 0.8f * MAX(0.0f, MIN(T0 - T_floor, T_ucap - T0));
-    const float sum_y_sq = fail.failure_active() ? fail.sum_y_sq_alive() : _sum_y_sq;
-    float k_alloc = is_positive(sum_y_sq) ? (-N_dt / sum_y_sq) : 0.0f; 
-    const float k_alloc_max = dT_max / _y_max;
+
+    // Sum(y^2) and max|y| over the DT-participating channels (ch3/ch7) that are
+    // currently alive. Only these carry the yaw split, so the denominator and the
+    // saturation clamp are computed over that restricted set. If both DT channels
+    // are dead, sum_y_sq==0 -> k_alloc==0 (no diff-thrust yaw; rely on the rudder).
+    float sum_y_sq = 0.0f;
+    float y_max_dt = 0.0f;
+    for (uint8_t k = 0; k < NUM_CH; k++) {
+        if (_dt_split_ch[k] && fail.channel_alive(k)) {
+            sum_y_sq += _y_ch[k] * _y_ch[k];
+            y_max_dt = MAX(y_max_dt, fabsf(_y_ch[k]));
+        }
+    }
+    float k_alloc = is_positive(sum_y_sq) ? (-N_dt / sum_y_sq) : 0.0f;
+    const float k_alloc_max = is_positive(y_max_dt) ? (dT_max / y_max_dt) : 0.0f;
     k_alloc = constrain_float(k_alloc, -k_alloc_max, k_alloc_max);
     
 
@@ -222,12 +245,24 @@ void AP_DiffThrust::update(bool airspeed_valid, float airspeed, AP_DT_EngineOut 
         }
 
         // Target thrust for this channel (engine-out gain applied first), then invert
-        // quadratic for throttle.
-        const float Tj = fail.thrust_gain(k) * T0 + k_alloc * _y_ch[k];
+        // quadratic for throttle. The yaw split is applied only on the DT-participating
+        // channels (ch3/ch7); all others carry base/engine-out throttle alone.
+        const float yaw_term = _dt_split_ch[k] ? (k_alloc * _y_ch[k]) : 0.0f;
+        const float Tj = fail.thrust_gain(k) * T0 + yaw_term;
         const float disc = A1*A1 + 4.0f*A2*Tj ;
         float u;
         if (disc >= 0.0f && A2 > 1e-6f) {
-            u = (-A1 + sqrtf(disc)) / (2.0f * A2);
+            const float root_hi = (-A1 + sqrtf(disc)) / (2.0f * A2);
+            const float root_lo = (-A1 - sqrtf(disc)) / (2.0f * A2);
+            // T(d) = A2*d^2 + A1*d is a parabola with a minimum at d* = -A1/(2*A2)
+            // (~0.15-0.26 across this airframe's flight envelope), so it is NOT
+            // monotonic on [0,1]: any thrust achievable by a low throttle d < d*
+            // (idle/approach/flare) has a mirror-image second solution at d' > d*.
+            // Always taking the "+" root silently snapped every low-throttle
+            // command onto the wrong, high-throttle branch. Pick whichever root
+            // sits closer to the commanded base so a small yaw/engine-out offset
+            // from base stays on the same branch base is on.
+            u = (fabsf(root_lo - base) <= fabsf(root_hi - base)) ? root_lo : root_hi;
         } else {
             u = 0.0f;                                  // Tj below map minimum -> idle
         }

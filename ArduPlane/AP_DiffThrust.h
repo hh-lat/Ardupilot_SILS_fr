@@ -83,6 +83,12 @@ private:
     static const uint8_t NUM_CH = 9;
     static const float _y_ch[NUM_CH];           // pair-averaged span arm per channel [m]
     static constexpr float _y_max = 1.5225f;    // max |_y_ch|
+
+    // Channels that carry the differential-thrust yaw split. Restricted to ch3
+    // (EDF4,5) and its mirror ch7 (EDF14,15); every other channel gets only its
+    // base/engine-out throttle. (Original design used all channels - revert this
+    // array to all-true to restore that.)
+    static const bool _dt_split_ch[NUM_CH];
    
     // denominator for thrust-neutral allocation
     static constexpr float _sum_y_sq = 11.159f;
@@ -96,7 +102,6 @@ private:
     static constexpr float _CT_JM = 1.6471f;
     static constexpr float _a_sound = 340.0f;
 
-    // one-time output-range setup for the nine motor channels (lazy; see .cpp)
-    bool _range_inited;
+    // per-loop output-range setup for the nine motor channels (see .cpp)
     void ensure_ranges();
 };
