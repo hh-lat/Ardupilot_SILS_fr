@@ -90,14 +90,25 @@ void AP_DiffThrust::ensure_ranges()
     }
     // k_motor1..k_motor9 have no case in SRV_Channel_aux.cpp aux_servo_function_setup(),
     // so their output range is never established and a bare set_output_scaled() would
-    // peg every ESC to SERVOn_MIN. Establish a 0..1000 range so scaled commands map to
-    // each channel's configured SERVOn_MIN..MAX (honouring per-channel reversal). Aux
-    // functions are bound long before servos_output() first runs, so doing this lazily
-    // on the first enabled update() is safe.
+    // peg every ESC to SERVOn_MAX. Establish a 0..1000 range so scaled commands map to
+    // each channel's configured SERVOn_MIN..MAX (honouring per-channel reversal).
+    //
+    // set_range() only affects channels whose function ALREADY equals k_motorN, so this
+    // must run AFTER the ESC outputs have been assigned SERVOn_FUNCTION=k_motorN. On a
+    // build with UST_ENABLE defaulting to 1, the first servos_output() runs before the
+    // SERVO map is applied (still k_throttle), so set_range would match zero channels and
+    // latch a broken state. Retry every loop and only latch _range_inited once all nine
+    // k_motor channels are actually assigned - at which point the range is genuinely set.
+    bool all_assigned = true;
     for (uint8_t k = 0; k < NUM_CH; k++) {
-        SRV_Channels::set_range(SRV_Channels::get_motor_function(k), 1000);
+        const SRV_Channel::Function fn = SRV_Channels::get_motor_function(k);
+        if (SRV_Channels::function_assigned(fn)) {
+            SRV_Channels::set_range(fn, 1000);
+        } else {
+            all_assigned = false;
+        }
     }
-    _range_inited = true;
+    _range_inited = all_assigned;
 }
 
 void AP_DiffThrust::update(bool airspeed_valid, float airspeed)

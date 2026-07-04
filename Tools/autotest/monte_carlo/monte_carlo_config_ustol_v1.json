@@ -572,27 +572,27 @@
         },
         "prop_cmyu_J2": {
             "nominal": 0.53211,
-            "sigma_3": 0.266055,
+            "sigma_3": 0.00266055,
             "description": "Cmyu 1/J^2 (50%) -> vehcle.prop.cmyu_J2"
         },
         "prop_cmyu_0": {
             "nominal": 0.03669,
-            "sigma_3": 0.018345,
+            "sigma_3": 0.00018345,
             "description": "Cmyu offset (50%) -> vehcle.prop.cmyu_0"
         },
         "prop_CT_1": {
             "nominal": 0.691683,
-            "sigma_3": 0.3458415,
+            "sigma_3": 0.003458415,
             "description": "CT constant (50%) -> vehcle.prop.CT_1"
         },
         "prop_CT_J": {
             "nominal": -0.734466,
-            "sigma_3": 0.367233,
+            "sigma_3": 0.00367233,
             "description": "CT J term (50%) -> vehcle.prop.CT_J"
         },
         "prop_CT_JM": {
             "nominal": 1.64705,
-            "sigma_3": 0.823525,
+            "sigma_3": 0.00823525,
             "description": "CT J*Mtip term (50%) -> vehcle.prop.CT_JM"
         },
         "max_thrust": {

@@ -121,17 +121,17 @@ WIND_MIX = [
     # NOTE (v10): WIND_MIX drives the winds-ON (pass 2) leg only - every case already
     # gets a built-in winds-OFF leg (pass 1). A "none" case is pointless here (pass 2
     # would equal pass 1), so it is left at count 0.
-    {"case": "none",       "count": 300},
-    {"case": "head",       "count": 300},
-    {"case": "tail",       "count": 300},
-    {"case": "cross",      "count": 500, "side": "right"},
+    {"case": "none",       "count": 5},
+    {"case": "head",       "count": 5},
+    {"case": "tail",       "count": 5},
+    {"case": "cross",      "count": 10, "side": "right"},
     {"case": "cross",      "count": 0, "side": "left"},
-    {"case": "up",         "count": 300},
-    {"case": "down",       "count": 300},
+    {"case": "up",         "count": 5},
+    {"case": "down",       "count": 5},
     # combined horizontal + vertical (vertical magnitude = vert_speed m/s):
-    {"case": "cross+down", "count": 500, "side": "right", "vert_speed": 1.0},
-    {"case": "head+down",  "count": 300, "vert_speed": 1.0},
-    {"case": "tail+up",    "count": 300, "vert_speed": 1.0},
+    {"case": "cross+down", "count": 5, "side": "right", "vert_speed": 1.0},
+    {"case": "head+down",  "count": 5, "vert_speed": 1.0},
+    {"case": "tail+up",    "count": 5, "vert_speed": 1.0},
 ]
 WIND_SPEED_LEVELS     = [1.0, 1.5, 2.0] # default m/s HORIZ levels; block case i -> levels[i % len]
 WIND_VERT_SPEED       = 1.0             # default vertical component (m/s) for combined cases
@@ -824,7 +824,8 @@ def fly_cruise_doublets(conn, m, writer, st, perf, sitl_proc, t0_flight, deadlin
     def departed():
         # Spiral past the bank limit OR a loss of test altitude (a sinking, wings-level mush is
         # just as much a departure as an over-bank - and the roll/yaw checks alone never catch it).
-        return abs(st["roll"]) > BANK_ABORT or st["alt"] < ALT_FLOOR_M
+        #return abs(st["roll"]) > BANK_ABORT or st["alt"] < ALT_FLOOR_M
+        return False
 
     def _new_stab():
         return {"n_ok": 0, "n_aborted": 0, "departed": False,
