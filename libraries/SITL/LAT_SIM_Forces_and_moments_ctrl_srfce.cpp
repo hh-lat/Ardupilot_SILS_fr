@@ -6,7 +6,7 @@
 #include "LAT_SIM_Forces_and_moments_ctrl_srfce.h"
 #include "LAT_SIM_servo_dynamics.h"
 #include "LAT_SIM_Conversions_Frame_rotations.h"
-
+#include "LAT_SIM_rotor_dynamics.h"    
 
 // uSTOL v1: wing aerodynamic-center x/c vs flap config (18 or 32) and blowing coeff
 static float ustol_aero_center(float flap_config, float Cmyu)
@@ -19,6 +19,121 @@ static float ustol_aero_center(float flap_config, float Cmyu)
 	float c_lin =  0.01033f + frac*( 0.00156f - 0.01033f);
 	float Cmyu_clip = constrain_float1(Cmyu, 0.0f, Cmyu_max);
 	return c0 + bb*sqrtf(Cmyu_clip) + c_lin*Cmyu_clip;
+}
+
+// === Differential-EDF strip model (port of uSTOL_DEmonstrator_aERO_differential) ====
+// each helper is a whole wing fit  evaluated at a single strip's blowing coeff cmu
+// At uniform cmu these reproduce the inline whole wing values exactly
+
+static float ustol_wing_CL_attached(float Cmu, float alpha, float delta_f, float flap_config)
+{
+	float Cmyu = Cmu * vehcle.wing.lambda_b;
+	float cla  = 2.0f*pi*(1.0f + 0.151f*sqrtf(Cmu) + 0.219f*Cmu);
+	float clt  = sqrtf(4.0f*pi*Cmu*(1.0f + 0.151f*sqrtf(Cmu) + 0.139f*Cmu));
+	float cl_delf = 2.0f*pi*vehcle.controls.tau_f;
+	float G    = (vehcle.AR + 0.637f*Cmyu) /
+				 (vehcle.AR + 2.0f + 0.604f*sqrtf(Cmyu) + 0.876f*Cmyu);
+	float nu_camber = vehcle.wing.k_fit;
+	float nu_alpha  = (vehcle.wing.lambda_b + (1.0f - vehcle.wing.lambda_b)*2.0f*pi/cla) * vehcle.wing.k_fit;
+	float nu_tau    = vehcle.wing.lambda_b;
+	float nu_delf   = vehcle.wing.S_f / vehcle.s * vehcle.controls.Kb_f * vehcle.wing.k_fit;
+	float tau       = (flap_config * 7.0f/9.0f + 18.0f*2.0f/9.0f) * D2R;
+	return G*(1.0f + vehcle.t_by_c)*(nu_camber*vehcle.wing.cl0_camber
+		     + nu_tau*clt*tau + nu_alpha*cla*alpha + nu_delf*cl_delf*delta_f)
+            - vehcle.t_by_c*(tau + alpha)*Cmyu;
+
+}
+
+// Post-stall blended wing lift CLp(Cmu) — mirrors :263-278
+static float ustol_wing_CL_post(float Cmu, float alpha, float delta_f, float flap_config)
+{
+    float CL_w  = ustol_wing_CL_attached(Cmu, alpha, delta_f, flap_config);
+    float Cmu_b = 0.52f*Cmu;
+    float f20   = (flap_config - 18.0f) / 14.0f;
+    float Mw  = vehcle.cl_stall.wM0 + vehcle.cl_stall.wM1*Cmu_b;
+    if (Mw < 0.5f) Mw = 0.5f;
+    float a0w = (vehcle.cl_stall.wa00 + vehcle.cl_stall.wa0mu*Cmu_b + vehcle.cl_stall.wa0f*f20)*pi/180.0f;
+    float ew1 = constrain_float1(-Mw*(alpha - a0w), -88.0f, 88.0f);
+    float ew2 = constrain_float1( Mw*(alpha + a0w), -88.0f, 88.0f);
+    float Ww  = (1.0f + expf(ew1) + expf(ew2)) / ((1.0f + expf(ew1))*(1.0f + expf(ew2)));
+    Ww = constrain_float1(Ww, 0.0f, 1.0f);
+    return (1.0f - Ww)*CL_w + Ww*vehcle.cl_stall.wkflat*sinf(2.0f*alpha);
+}
+
+// Wing drag share CDw(Cmu) — mirrors drag block :388-417 (wing-attributable parts;
+// Cmu-independent CD0/CD_a2·α² are kept but cancel in the deviation)
+static float ustol_wing_CD_strip(float Cmu, float alpha, float delta_f, float flap_config)
+{
+    float CLa    = ustol_wing_CL_attached(Cmu, alpha, delta_f, flap_config);
+    float Cmu052 = 0.52f*Cmu;
+    float CD_baseline = vehcle.fuse.CD0
+                      + vehcle.wing.k_w*CLa*CLa / (pi*vehcle.AR + 2.0f*Cmu052)
+                      + vehcle.fuse.CD_a2*alpha*alpha
+                      + vehcle.fuse.CD_a2_Cmyu*alpha*alpha*Cmu052;
+    float CD_flat = vehcle.stall.K_flat*(2.0f*sinf(alpha)*sinf(alpha));
+    float a0 = (vehcle.stall.a0_const + vehcle.stall.a0_Cmyu*Cmu052)*pi/180.0f;
+    float e1 = constrain_float1(-vehcle.stall.k*(alpha - a0), -88.0f, 88.0f);
+    float e2 = constrain_float1( vehcle.stall.k*(alpha + a0), -88.0f, 88.0f);
+    float Wd = (1.0f + expf(e1) + expf(e2)) / ((1.0f + expf(e1))*(1.0f + expf(e2)));
+    Wd = constrain_float1(Wd, 0.0f, 1.0f);
+    return (1.0f - Wd)*CD_baseline + Wd*CD_flat + vehcle.wing.r*Cmu052;
+}
+
+// Per-strip wing pitch about CG Cmw(Cmu) — mirrors pitch block :807-814,842-843
+static float ustol_wing_Cm_strip(float Cmu, float alpha, float delta_f, float flap_config)
+{
+    float CLp = ustol_wing_CL_post(Cmu, alpha, delta_f, flap_config);
+    float Cmyu_clip = constrain_float1(Cmu, 0.0f, 9.21f);
+    float frac = (flap_config - 18.0f) / 14.0f;
+    float a_p = -0.09464f + frac*(-0.34177f - (-0.09464f));
+    float b_p = -0.04901f + frac*( 0.29446f - (-0.04901f));
+    float c_p = -0.08333f + frac*(-0.30770f - (-0.08333f));
+    float Cm0_ac_wing = a_p + b_p*sqrtf(Cmyu_clip) + c_p*Cmyu_clip;
+    float x_ac_w = ustol_aero_center(flap_config, Cmu);
+    return Cm0_ac_wing + CLp*(vehcle.cg.x_cg_c - x_ac_w);
+}
+
+//Assemble the 5 strip deviations (deviation from: exactly 0 at uniform throttle)
+void v_edf_strip_corrections()
+{
+	vehcle.dCL_strip = 0.0f; vehcle.dCD_strip = 0.0f; vehcle.dCm_strip = 0.0f;
+	vehcle.dCl_diff = 0.0f; vehcle.dCn_aero = 0.0f;
+
+	if (vehcle.plane_model != PLANE_USTOL_V1) return;
+	if (vehcle.tas < vehcle.aero_zero_speed) return;
+	int n = s_motor_manager.num_motors;
+	if (n <= 0) return;
+
+	float alpha = vehcle.alpha, delta_f = vehcle.delta_f;
+	float flap_config = 18.0f + 0.7f*(delta_f*R2D);
+	float ca = cosf(alpha), sa = sinf(alpha);
+	float b  = vehcle.b;
+	float wj = 1.0f / (float)n; //uniform strip weight (= edf.w = 1/n)
+	float Cmu_eff = vehcle.Cmu; // = 
+
+	float CLp_eff = ustol_wing_CL_post(Cmu_eff, alpha, delta_f, flap_config);
+	float CDw_eff = ustol_wing_CD_strip(Cmu_eff, alpha, delta_f, flap_config);
+	float m_eff   = ustol_wing_Cm_strip(Cmu_eff, alpha, delta_f, flap_config);
+
+	float sumCLp = 0.0f, sumCDw = 0.0f, sumM = 0.0f, roll_acc = 0.0f, yaw_acc = 0.0f;
+	for (int i=0; i<n; i++){
+		float Cmu_j = s_motor[i].Cmu;
+		float y_j   = s_motor[i].rotor_xyz[1]; //y-coordinate of strip
+		float CLp_j = ustol_wing_CL_post(Cmu_j, alpha, delta_f, flap_config);
+		float CDw_j = ustol_wing_CD_strip(Cmu_j, alpha, delta_f, flap_config);
+		float m_j   = ustol_wing_Cm_strip(Cmu_j, alpha, delta_f, flap_config);
+		sumCLp += CLp_j * wj;
+		sumCDw += CDw_j * wj;
+		sumM += m_j * wj;
+		roll_acc += wj*(y_j/b)*((CLp_j - CLp_eff)*ca + (CDw_j - CDw_eff)*sa);
+		yaw_acc  += wj*(y_j/b)*((CDw_j - CDw_eff)*ca - (CLp_j - CLp_eff)*sa);
+	}
+	vehcle.dCL_strip = sumCLp - CLp_eff;
+	vehcle.dCD_strip = sumCDw - CDw_eff;
+	vehcle.dCm_strip = sumM - m_eff;
+	vehcle.dCl_diff = -roll_acc;
+	vehcle.dCn_aero = +yaw_acc;
+
 }
 
 void v_calculate_lift_force()
@@ -283,7 +398,7 @@ void v_calculate_lift_force()
 
 			vehcle.CL_w = CL_w;  
 			vehcle.CL_t = CL_t;
-			vehcle.CL = CL;
+			vehcle.CL = CL + vehcle.dCL_strip;  // add EDF-strip correction
 			vehcle.all_lift_force = vehcle.Q*vehcle.s*vehcle.CL;
 			break;
 		}
@@ -414,7 +529,7 @@ void v_calculate_drag_force()
 			// rate (blowing cross) terms — rates in rad/s
 			float CD_rate = vehcle.fuse.CDq*vehcle.q*vehcle.c/(2.0f*vehcle.tas);
 
-			vehcle.CD = (1.0f - W)*CD_baseline + W*CD_flat + CD_rest + CD_rate;
+			vehcle.CD = (1.0f - W)*CD_baseline + W*CD_flat + CD_rest + CD_rate + vehcle.dCD_strip;  // add EDF-strip correction
 			vehcle.all_drag_force = vehcle.Q*vehcle.s*vehcle.CD;
 			break;
 		}
@@ -665,7 +780,7 @@ void v_calculate_aero_roll_moment()
 			float r_hat = vehcle.r*vehcle.b/(2.0f*V);
 			float Cml_rate = vehcle.roll.Clp*p_hat + vehcle.roll.Clr*r_hat;
 
-			vehcle.Cl = A_L + A_R + R_att + Cml_rate;
+			vehcle.Cl = A_L + A_R + R_att + Cml_rate + vehcle.dCl_diff;  // add EDF-strip correction
 			vehcle.all_aero_moment[0] = vehcle.Q*vehcle.s*vehcle.b*vehcle.Cl;
 			break;
 		}
@@ -842,7 +957,7 @@ void v_calculate_aero_pitch_moment()
 			vehcle.Cm = Cm0_ac_wing
 			          + CL_w_post*(vehcle.cg.x_cg_c - x_ac_w)
 			          - CL_t_post*vehcle.cg.x_cg_tac_abs
-			          + Cmq*(vehcle.q * vehcle.c / (2.0f*vehcle.tas));
+			          + Cmq*(vehcle.q * vehcle.c / (2.0f*vehcle.tas)) + vehcle.dCm_strip;  // add EDF-strip correction
 			vehcle.all_aero_moment[1] = vehcle.Q*vehcle.s*vehcle.c*vehcle.Cm;
 
 			// --- centers of pressure (x/c from wing LE, aft +; exported for the dashboard) ---
@@ -1003,7 +1118,7 @@ void v_calculate_aero_yaw_moment()
 			float Cn_rate = vehcle.yaw.Cnp*vehcle.p*vehcle.b/(2.0f*vehcle.tas) +
 							vehcle.yaw.Cnr*vehcle.r*vehcle.b/(2.0f*vehcle.tas);
 
-			vehcle.Cn = Cn_base*(1.0f - W) + W*(vehcle.yaw.kv*Cn_flat) + Cn_other + Cn_rate;
+			vehcle.Cn = Cn_base*(1.0f - W) + W*(vehcle.yaw.kv*Cn_flat) + Cn_other + Cn_rate + vehcle.dCn_aero;  // add EDF-strip correction
 			vehcle.all_aero_moment[2] = vehcle.Q*vehcle.s*vehcle.b*vehcle.Cn;
 				break;
 		}
@@ -1033,7 +1148,7 @@ void v_aero_force_and_moments()
 	// vehcle.p = 0.1;
 	// vehcle.q = 0.2;
 	// vehcle.r = 0.15;
-
+    v_edf_strip_corrections();
 	v_calculate_lift_force();
 	temp3X1_1[0] = 0.0;
 	temp3X1_1[1] = 0.0;

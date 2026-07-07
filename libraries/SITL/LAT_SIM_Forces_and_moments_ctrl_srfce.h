@@ -7,3 +7,4 @@ extern void v_calculate_side_force();
 extern void v_calculate_aero_roll_moment();
 extern void v_calculate_aero_pitch_moment();
 extern void v_calculate_aero_yaw_moment();
+extern void v_edf_strip_corrections();

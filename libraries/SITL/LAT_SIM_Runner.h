@@ -162,6 +162,14 @@ typedef struct
     float AR;
     float e;
     float Cmu;
+
+	float dCL_strip;
+	float dCD_strip;
+	float dCm_strip;
+	float dCl_diff;
+	float dCn_aero;
+	
+
     float s;
     float s_blown;
     float t_by_c;

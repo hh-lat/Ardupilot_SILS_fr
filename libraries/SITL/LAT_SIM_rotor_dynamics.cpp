@@ -259,6 +259,7 @@ void v_update_rotors_rpm_from_throttle()
 				{
 					s_motor[i].rpm = 0.0f;
 				}
+				if (s_motor[i].failed > 0.5f) s_motor[i].rpm = 0.0f;   // <-- forced engine-out
 			break;
 			}
 		}

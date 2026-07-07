@@ -9,9 +9,12 @@ extern const AP_HAL::HAL& hal;
 
 const uint8_t AP_DT_EngineOut::_n_ch[AP_DT_EngineOut::NUM_CH]   = {1, 2, 2, 2, 4, 2, 2, 2, 1};
 const uint8_t AP_DT_EngineOut::_edf_lo[AP_DT_EngineOut::NUM_CH] = {1, 2, 4, 6, 8, 12, 14, 16, 18};
+// Per-channel spanwise arms [m], pair-averaged, port -> centre -> starboard.
+// SAME geometry as AP_DiffThrust::_y_ch: the per-channel averages of the SITL FDM
+// EDF layout (s_motor[i].rotor_xyz[1]). Keep the two arrays identical.
 const float AP_DT_EngineOut::_y_ch[AP_DT_EngineOut::NUM_CH] = {
-    -1.5225f, -1.2725f, -1.0225f, -0.7725f, 0.0f,
-    +0.7725f, +1.0225f, +1.2725f, +1.5225f
+    -1.585f, -1.3975f, -1.1475f, -0.8975f, 0.0f,
+    +0.8975f, +1.1475f, +1.3975f, +1.585f
 };
 
 const AP_Param::GroupInfo AP_DT_EngineOut::var_info[] = {
@@ -55,7 +58,7 @@ AP_DT_EngineOut::AP_DT_EngineOut()
         _q[k] = 1.0f;
     }
     _active = false;
-    _sum_y_sq_alive = 11.159f;   // matches AP_DiffThrust::_sum_y_sq when healthy
+    _sum_y_sq_alive = 13.175f;   // matches AP_DiffThrust::_sum_y_sq when healthy (sum of _y_ch^2)
 }
 
 void AP_DT_EngineOut::check_and_update()

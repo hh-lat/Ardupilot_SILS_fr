@@ -54,6 +54,8 @@ float rpm_max;
 float rpm_min;
 float dia_prop;
 float CT_static;
+float failed;   // 1 = EDF forced off (rpm/thrust=0, Cmu -> unblown floor); 0 = healthy
+
 
 }S_motor;
 

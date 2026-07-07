@@ -8,21 +8,26 @@
 extern const AP_HAL::HAL& hal;
 
 /*
-  uSTOL V1.3 Config-A spanwise moment arms [m] for the nine thrust channels,
-  pair-averaged over each channel's same-side motor pair, ordered
-  port -> centre -> starboard and index-aligned with k_motor1..k_motor9.
-  Channel index 4 (k_motor5) is the centre mirror at y=0 and never
-  differentiates. Starboard is +y. These reproduce the validated source
-  geometry (MOTOR_Y / CH2MOT) exactly.
+  uSTOL spanwise moment arms [m] for the nine thrust channels, pair-averaged
+  over each channel's same-side EDF pair, ordered port -> centre -> starboard
+  and index-aligned with k_motor1..k_motor9. Channel index 4 (k_motor5) is the
+  centre mirror at y=0 and never differentiates. Starboard is +y.
+
+  These are the per-channel averages of the SITL FDM EDF layout (s_motor[i].
+  rotor_xyz[1] in LAT_SIM_Runner.cpp: 9 EDFs/side at 0.125 m pitch, 0.585..1.585 m
+  from centreline), so the yaw moment the mixer commands is realised by the FDM
+  at the SAME arms (no allocation-vs-plant gain error). If the FDM EDF geometry
+  changes, update these to match. Mirror-consistent: ch1<->ch9, ch2<->ch8,
+  ch3<->ch7, ch4<->ch6.
 */
 const float AP_DiffThrust::_y_ch[AP_DiffThrust::NUM_CH] = {
-    -1.5225f, -1.2725f, -1.0225f, -0.7725f, 0.0f,
-    +0.7725f, +1.0225f, +1.2725f, +1.5225f
+    -1.585f, -1.3975f, -1.1475f, -0.8975f, 0.0f,
+    +0.8975f, +1.1475f, +1.3975f, +1.585f
 };
 
 /*
   Channels that carry the differential-thrust yaw split. Only ch3 (index 2,
-  EDF4,5, y=-1.0225) and its mirror ch7 (index 6, EDF14,15, y=+1.0225) are
+  EDF4,5, y=-1.1475) and its mirror ch7 (index 6, EDF14,15, y=+1.1475) are
   used - a symmetric mid-span pair, so the split stays thrust-neutral. Every
   other channel receives only its base/engine-out throttle. Set all entries
   true to restore the original all-channel split.
@@ -85,6 +90,21 @@ const AP_Param::GroupInfo AP_DiffThrust::var_info[] = {
     // @Range: 0 1
     // @User: Advanced
     AP_GROUPINFO("KRUD", 7, AP_DiffThrust, _k_rud, 0.0f),
+
+    // @Param: UMIN
+    // @DisplayName: Diff-thrust per-motor command floor
+    // @Description: Lower bound on the per-motor normalised throttle command (0..1) for ALIVE channels, e.g. to keep EDFs above a spin-up idle. A failed/dead channel is still commanded to 0 regardless. Clamped internally to 0..UST_UMAX.
+    // @Range: 0.0 0.5
+    // @User: Advanced
+    AP_GROUPINFO("UMIN", 8, AP_DiffThrust, _umin, 0.0f),
+
+    // @Param: ASND
+    // @DisplayName: Speed of sound for thrust map
+    // @Description: Speed of sound [m/s] used for the blade tip Mach term in the throttle->thrust map. Match to the SITL FDM (vehcle.sound_speed).
+    // @Units: m/s
+    // @Range: 300 360
+    // @User: Advanced
+    AP_GROUPINFO("ASND", 9, AP_DiffThrust, _a_sound, 340.0f),
 
     AP_GROUPEND
 };
@@ -164,6 +184,7 @@ void AP_DiffThrust::update(bool airspeed_valid, float airspeed, AP_DT_EngineOut 
     // stock rudder demand normalised to [-1, 1] (+ = nose-right).
     const float yaw_n = constrain_float(SRV_Channels::get_output_scaled(SRV_Channel::k_rudder) / 4500.0f, -1.0f, 1.0f);
     const float u_cap = constrain_float(_umax, 0.05f, 0.95f);
+    const float u_floor = constrain_float(_umin, 0.0f, u_cap);   // per-motor command floor (alive channels only)
 
     // antisymmetric per-channel split: nose-right (+yaw_n) cuts starboard (+y) and adds
     // port (-y), giving a nose-right yaw moment. Magnitude scales with the span arm; the
@@ -266,7 +287,7 @@ void AP_DiffThrust::update(bool airspeed_valid, float airspeed, AP_DT_EngineOut 
         } else {
             u = 0.0f;                                  // Tj below map minimum -> idle
         }
-        u = constrain_float(u, 0.0f, u_cap);
+        u = constrain_float(u, u_floor, u_cap);
         SRV_Channels::set_output_scaled(fn, u * 1000.0f);
     }
 

@@ -78,11 +78,13 @@ private:
     AP_Float _dt_rlff;      // UST_DT_RLFF
     AP_Float _umax;         // UST_UMAX
     AP_Float _k_rud;        // UST_KRUD  rudder yaw-authority coeff [N*m/(m/s)^2]; 0 = legacy w(V) schedule
+    AP_Float _umin;         // UST_UMIN  per-motor command floor (alive channels)
+    AP_Float _a_sound;      // UST_ASND  speed of sound [m/s] (thrust-map blade tip Mach)
 
-    // ---- uSTOL V1.3 Config-A spanwise geometry (hardcoded; see .cpp) ----
+    // ---- uSTOL spanwise geometry (hardcoded; matches SITL FDM rotor_xyz; see .cpp) ----
     static const uint8_t NUM_CH = 9;
     static const float _y_ch[NUM_CH];           // pair-averaged span arm per channel [m]
-    static constexpr float _y_max = 1.5225f;    // max |_y_ch|
+    static constexpr float _y_max = 1.585f;     // max |_y_ch|
 
     // Channels that carry the differential-thrust yaw split. Restricted to ch3
     // (EDF4,5) and its mirror ch7 (EDF14,15); every other channel gets only its
@@ -90,17 +92,17 @@ private:
     // array to all-true to restore that.)
     static const bool _dt_split_ch[NUM_CH];
    
-    // denominator for thrust-neutral allocation
-    static constexpr float _sum_y_sq = 11.159f;
+    // denominator for thrust-neutral allocation (sum of _y_ch^2 over all channels,
+    // healthy). Legacy: the active split now sums over the alive DT channels at runtime.
+    static constexpr float _sum_y_sq = 13.175f;
    
-    // EDF prop constants for thrust-neutral allocation
+    // EDF prop constants for thrust-neutral allocation (hardcoded; match SITL FDM prop model)
     static constexpr float _rho = 1.15f;
     static constexpr float _n_max_rps = 200.0f;
     static constexpr float _D = 0.120f;
     static constexpr float _CT1 = 0.6917f;
     static constexpr float _CT_J = -0.7345f;
     static constexpr float _CT_JM = 1.6471f;
-    static constexpr float _a_sound = 340.0f;
 
     // per-loop output-range setup for the nine motor channels (see .cpp)
     void ensure_ranges();

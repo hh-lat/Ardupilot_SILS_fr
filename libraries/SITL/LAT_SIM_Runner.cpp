@@ -840,6 +840,7 @@ void v_plane_param_define_ustol_v1()
 		s_motor[i].rotor_xyz[2] = 0.03336f;                  // thrust line 33.36 mm below CG (down +) [m]
 		s_motor[i].rotor_tilt[0] = 0.0; s_motor[i].rotor_tilt[1] = 0.0; s_motor[i].rotor_tilt[2] = 0.0;
 		s_motor[i].rotor_r_direction = (i % 2 == 0) ? 1.0 : -1.0;
+		s_motor[i].failed = 0.0f;   // engine-out flag: 0 = healthy (set to 1 elsewhere to force this EDF off)
 	}
 
 	// Wing
