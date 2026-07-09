@@ -156,7 +156,8 @@ void v_output_log_init()
         "J,"
         "Cmu,"
         "W_clw,W_clr,W_cd,W_cy,W_cn,"
-        "x_cp_ac,x_cp_w,x_ac_w"
+        "x_cp_ac,x_cp_w,x_ac_w,"
+        "Cl,Cn,L_Nm,M_Nm,N_Nm"          // roll/yaw coeffs + body aero moments (roll L, pitch M, yaw N) [N*m]
         "\n");
 
     fflush(log_fp);
@@ -193,7 +194,8 @@ void v_output_log_write(float t)
         "%.1f,"
         "%.5f,%.5f,"
         "%.5f,%.5f,%.5f,"
-        "%.5f,%.5f,%.5f,%.5f,%.5f,%.5f,%.5f,%.5f,%.5f,%.5f,%.5f,%.5f,%.5f,%.5f\n",
+        "%.5f,%.5f,%.5f,%.5f,%.5f,%.5f,%.5f,%.5f,%.5f,%.5f,%.5f,%.5f,%.5f,%.5f,"
+        "%.5f,%.5f,%.5f,%.5f,%.5f\n",
         t,
         (int)vehcle.plane_moving_state,
         vehcle.tas,
@@ -258,7 +260,9 @@ void v_output_log_write(float t)
         s_motor[0].J,
         s_motor[0].Cmu,
         vehcle.W_clw, vehcle.W_clr, vehcle.W_cd, vehcle.W_cy, vehcle.W_cn,
-        vehcle.x_cp_ac, vehcle.x_cp_w, vehcle.x_ac_w
+        vehcle.x_cp_ac, vehcle.x_cp_w, vehcle.x_ac_w,
+        vehcle.Cl, vehcle.Cn,
+        vehcle.all_aero_moment[0], vehcle.all_aero_moment[1], vehcle.all_aero_moment[2]
         );
 
     fflush(log_fp);

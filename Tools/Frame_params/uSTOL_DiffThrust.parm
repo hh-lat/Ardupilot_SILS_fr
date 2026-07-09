@@ -40,9 +40,14 @@ UST_NDES_MAX,20.0      #total commanded yaw moment [N*m] at full rudder demand
 UST_KRUD,0.11         # rudder yaw-authority coeff: N_rud_avail = KRUD*V^2 [N*m]. >0 = true
                       # rudder/DT daisy-chain (DT covers residual; supersedes VLO/VHI). 0 = legacy w(V).
 UST_DT_RLFF,0.0       # aileron roll feedforward (0 = off); scales with applied DT yaw moment
-UST_UMAX,0.90       # per-motor command ceiling (wire/current cap)
+UST_UMAX,0.95       # per-motor command ceiling. 0.95 (not 0.90) leaves boost headroom for the roll assist to raise the low-wing channels in an engine-out (validated log 00000020)
 UST_UMIN,0.0        # per-motor command floor for ALIVE channels (0 = off); dead channels still forced to 0
 UST_ASND,340.0      # speed of sound [m/s] for the thrust-map blade tip Mach (match SITL vehcle.sound_speed=340.294)
+UST_RL_EN,1        # DT roll assist: 1=on (validated). Adds roll via blown lift on the DT channels (ch3/ch7) when the aileron saturates
+UST_RL_ENG,0.85    # aileron-output fraction where roll assist starts ramping (healthy aileron); auto-lowers if ch2/ch8 fail
+UST_RL_MAX,3.0     # peak per-channel thrust bias [N] for full roll assist. 2.0 validated (log 00000020); ~3.0 for crisper tracking if UMAX raised to 0.97
+UST_RL_VMIN,8.0    # min airspeed [m/s] for roll assist (blown-lift roll needs flow; blocks ground activation)
+
 
 # --- rule-based engine-out reallocation (AP_DT_EngineOut, USTF_ prefix) ---
 # Declares which EDFs are dead and reallocates thrust across the 9 channels. When
@@ -53,6 +58,6 @@ UST_ASND,340.0      # speed of sound [m/s] for the thrust-map blade tip Mach (ma
 # Bit (n-1) = EDF n. e.g. fail ch3 (EDF4,5) -> bits 3,4 -> USTF_MASK=24;
 #                          fail ch7 (EDF14,15) -> bits 13,14 -> USTF_MASK=24576.
 USTF_MASK,0           # bitmask of failed EDFs (bit n-1 = EDF n, port tip=1 .. stbd tip=18). 0 = healthy
-USTF_ABST,0.5         # aileron-channel (ch2/ch8) mirror thrust boost fraction when that channel is fully dead
+USTF_ABST,-0.5        # aileron-channel (ch2/ch8) mirror thrust fraction when fully dead. -0.5 (REDUCE mirror, not boost): shrinks the roll disturbance AND reinforces the roll assist instead of fighting it (validated log 00000020). +0.5 boosted the mirror and caused roll divergence.
 USTF_MRED,0.5         # mid-channel (ch3/4/6/7) mirror thrust multiplier when that channel is fully dead
 USTF_OPTS,0           # bit0: allow arm with MASK!=0 ; bit1: boost partial mid channels ; bit2: disable thrust make-up

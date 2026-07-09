@@ -106,6 +106,36 @@ const AP_Param::GroupInfo AP_DiffThrust::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("ASND", 9, AP_DiffThrust, _a_sound, 340.0f),
 
+    // @Param: RL_EN
+    // @DisplayName: Diff-thrust roll assist enable
+    // @Description: Enable differential-thrust roll assist. When the aileron saturates (runs out of roll authority, e.g. after an aileron-blowing EDF channel fails) DT adds a rolling moment via blown-lift asymmetry, in the direction the roll controller is demanding. 0 = disabled.
+    // @Values: 0:Disabled,1:Enabled
+    // @User: Advanced
+    AP_GROUPINFO("RL_EN", 10, AP_DiffThrust, _rl_en, 0),
+
+    // @Param: RL_ENG
+    // @DisplayName: Diff-thrust roll-assist engage threshold
+    // @Description: Aileron output magnitude (0..1 of full travel) at which DT roll assist begins to ramp in when the aileron-blowing channels are healthy. Ramps from 0 here to full at aileron saturation. Auto-lowered as ch2/ch8 blowing is lost.
+    // @Range: 0.5 0.98
+    // @User: Advanced
+    AP_GROUPINFO("RL_ENG", 11, AP_DiffThrust, _rl_eng, 0.85f),
+
+    // @Param: RL_MAX
+    // @DisplayName: Diff-thrust roll-assist peak thrust bias
+    // @Description: Peak per-channel thrust bias [N] at the wingtip channel for full roll assist. Sets DT roll authority; increase until the roll is arrested in an aileron-channel engine-out, but keep below the per-EDF thrust headroom.
+    // @Units: N
+    // @Range: 0 5
+    // @User: Advanced
+    AP_GROUPINFO("RL_MAX", 12, AP_DiffThrust, _rl_max, 2.0f),
+    
+    // @Param: RL_VMIN
+    // @DisplayName: Diff-thrust roll-assist minimum airspeed
+    // @Description: Minimum airspeed [m/s] at which DT roll assist is active. Below this speed, roll assist is disabled.
+    // @Units: m/s
+    // @Range: 0 20
+    // @User: Advanced
+    AP_GROUPINFO("RL_VMIN", 13, AP_DiffThrust, _rl_vmin, 8.0f),  
+
     AP_GROUPEND
 };
 
@@ -234,7 +264,7 @@ void AP_DiffThrust::update(bool airspeed_valid, float airspeed, AP_DT_EngineOut 
     // Sign: +yaw_n = nose-right -> k_alloc < 0 -> port (y<0) thrust UP, stbd DOWN.
     //const float k_alloc = -N_dt / _sum_y_sq; // dT_j = k_alloc * y_j
 //--------------------------------------------------------------------------------------
-    const float T_floor = 0.05f;                        // min deliverable thrust per edf 
+    const float T_floor = A2*0.05f*0.05f + A1*0.05f;     // min deliverable thrust per edf 
     const float T_ucap = A2*u_cap*u_cap + A1*u_cap;     // max deliverable thrust per edf (at throttle cmd ceiling)
     const float dT_max = 0.8f * MAX(0.0f, MIN(T0 - T_floor, T_ucap - T0));
 
@@ -254,7 +284,18 @@ void AP_DiffThrust::update(bool airspeed_valid, float airspeed, AP_DT_EngineOut 
     const float k_alloc_max = is_positive(y_max_dt) ? (dT_max / y_max_dt) : 0.0f;
     k_alloc = constrain_float(k_alloc, -k_alloc_max, k_alloc_max);
     
-
+    // --- Roll assits via the DT (daisy-chain : ailerons start primary)
+    float roll_cmd = 0.0f;
+    if (_rl_en != 0 && airspeed_valid && airspeed >= _rl_vmin){
+        const float ail_n = constrain_float(SRV_Channels::get_output_scaled(SRV_Channel::k_aileron) / 4500.0f, -1.0f, 1.0f);
+        const float ail_alive = 0.5f * ((fail.channel_alive(1) ? 1.0f : 0.0f) +
+                                        (fail.channel_alive(7) ? 1.0f : 0.0f));
+        // engage threshold: _rl_eng when the aileron is healthy; lower (help sooner) as its
+        // blowing is lost. ail_alive=0 (both dead) -> engage across the whole aileron range.
+        const float eng_thresh = constrain_float(_rl_eng * ail_alive, 0.0f, 0.98f);
+        const float engage = constrain_float((fabsf(ail_n) - eng_thresh) / MAX(1.0f - eng_thresh, 0.02f), 0.0f, 1.0f);
+        roll_cmd = engage * ((ail_n >= 0.0f) ? 1.0f : -1.0f);
+    }
 
 
     for (uint8_t k = 0; k < NUM_CH; k++){
@@ -269,7 +310,9 @@ void AP_DiffThrust::update(bool airspeed_valid, float airspeed, AP_DT_EngineOut 
         // quadratic for throttle. The yaw split is applied only on the DT-participating
         // channels (ch3/ch7); all others carry base/engine-out throttle alone.
         const float yaw_term = _dt_split_ch[k] ? (k_alloc * _y_ch[k]) : 0.0f;
-        const float Tj = fail.thrust_gain(k) * T0 + yaw_term;
+        //const float Tj = fail.thrust_gain(k) * T0 + yaw_term;
+        const float roll_term = _dt_split_ch[k] ? ( -_rl_max * roll_cmd * (_y_ch[k] / _y_max)) : 0.0f;
+        const float Tj = fail.thrust_gain(k) * T0 + yaw_term + roll_term;
         const float disc = A1*A1 + 4.0f*A2*Tj ;
         float u;
         if (disc >= 0.0f && A2 > 1e-6f) {

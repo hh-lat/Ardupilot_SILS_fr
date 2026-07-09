@@ -81,6 +81,12 @@ private:
     AP_Float _umin;         // UST_UMIN  per-motor command floor (alive channels)
     AP_Float _a_sound;      // UST_ASND  speed of sound [m/s] (thrust-map blade tip Mach)
 
+    AP_Int8 _rl_en;         // UST_RL_EN enable DT roll assits
+    AP_Float _rl_eng;       // UST_RL_ENG aileron output fraction where roll assists starts (healthy aileron)
+    AP_Float _rl_max;       // UST_RL_MAX peak per channel thrust bias for roll [N]
+    AP_Float _rl_vmin;      // UST_RL_VMIN min airspeed for roll assits [m/s]
+    
+
     // ---- uSTOL spanwise geometry (hardcoded; matches SITL FDM rotor_xyz; see .cpp) ----
     static const uint8_t NUM_CH = 9;
     static const float _y_ch[NUM_CH];           // pair-averaged span arm per channel [m]

@@ -216,8 +216,8 @@ FAILURE_MIX = [
     {"case": "outboard_stbd", "count": 10},    # ch9 (EDF18) dead
     {"case": "dtch_port",     "count": 10},    # ch3 (EDF4,5) dead — DT-split channel
     {"case": "dtch_stbd",     "count": 10},    # ch7 (EDF14,15) dead — DT-split channel
-    {"case": "ailch_port",    "count": 0},    # ch2 (EDF2,3) dead — aileron-blown channel
-    {"case": "ailch_stbd",    "count": 0},    # ch8 (EDF16,17) dead — aileron-blown channel
+    {"case": "ailch_port",    "count": 10},    # ch2 (EDF2,3) dead — aileron-blown channel
+    {"case": "ailch_stbd",    "count": 10},    # ch8 (EDF16,17) dead — aileron-blown channel
 ]
 FAILURE_MIX_SHUFFLE = True   # deterministically spread failure scenarios across case ids,
                              # INDEPENDENTLY of the wind shuffle, so wind x failure combos
@@ -815,10 +815,14 @@ def _pump(conn, st):
             st["nz"] = -m.zacc / 1000.0
             st["g_total"] = math.sqrt(m.xacc**2 + m.yacc**2 + m.zacc**2) / 1000.0
         elif t == "SERVO_OUTPUT_RAW":
-            # ch3/ch7 are the only DT-split channels (_dt_split_ch); their PWM
-            # spread is the direct signature of the mixer working.
+            # ch3/ch7 are the only DT-split channels (_dt_split_ch); their PWM spread
+            # is the direct signature of the mixer working. SERVO10 (k_aileron) is
+            # the roll-assist engage signal (AP_DiffThrust reads k_aileron's scaled
+            # output to compute ail_n). This dialect's SERVO_OUTPUT_RAW carries all
+            # 16 servoN_raw fields directly (no port-group splitting).
             st["m3"] = getattr(m, "servo3_raw", st.get("m3", 0))
             st["m7"] = getattr(m, "servo7_raw", st.get("m7", 0))
+            st["ail_pwm"] = getattr(m, "servo10_raw", st.get("ail_pwm", 0))
         m = conn.recv_match(type=_PUMP_TYPES, blocking=False)
 
 
@@ -1063,7 +1067,8 @@ def fly_ustol2(conn, m, writer, st, perf, sitl_proc, t0_flight, deadline):
             "%.3f" % st["nz"], "%.3f" % st["g_total"],
             "%d" % st.get("m3", 0), "%d" % st.get("m7", 0),
             "%.2f" % st.get("yawrate", 0.0),
-            "%.2f" % roll_cmd, "%.2f" % rud_cmd])
+            "%.2f" % roll_cmd, "%.2f" % rud_cmd,
+            "%d" % st.get("ail_pwm", 0)])
 
     start_lat = start_lon = None
 
@@ -1461,7 +1466,8 @@ def write_case_report(filepath, case_id, perturbed, nominals, result):
 def _run_case(case_id, case_seed, instance_id, config, perturbed, output_dir,
               workspace, speedup, save_plot, hard_timeout, params_file, wind,
               dt_enabled=True, fail_case="none",
-              sim_parquet=True, trim_cols=False, keep_aux=False):
+              sim_parquet=True, trim_cols=False, keep_aux=False,
+              roll_assist_enabled=True):
     """Execute one Monte Carlo case: launch SITL, set the case's wind, optionally
     enable differential thrust + inject the case's EDF engine-out (USTF_MASK), fly
     the uSTOL all-FBWA + HYBRID-flare landing profile (no loiter)."""
@@ -1470,6 +1476,7 @@ def _run_case(case_id, case_seed, instance_id, config, perturbed, output_dir,
     result = dict(
         case_id=case_id, case_seed=case_seed,
         dt_enabled=bool(dt_enabled), fail_case=fail_case, edf_mask=edf_mask,
+        roll_assist_enabled=bool(roll_assist_enabled),
         takeoff_success=False, mission_complete=False,
         duration_s=0.0, max_alt_m=0.0, land_result="unknown",
         ground_roll_m=None, liftoff_speed=None, landing_roll_m=None,
@@ -1596,10 +1603,19 @@ def _run_case(case_id, case_seed, instance_id, config, perturbed, output_dir,
                 ("UST_KRUD",     ucfg.get("ust_krud", 0.11)),      # >0 = rudder-aware daisy-chain
                 ("UST_DT_RLFF",  ucfg.get("ust_dt_rlff", 0.0)),
                 ("UST_UMAX",     ucfg.get("ust_umax", 1.0)),       # 1.0 = uncapped (SITL takeoff)
+                # DT roll assist: when the aileron saturates (e.g. after an aileron-blowing
+                # EDF channel fails), DT biases ch3/ch7 thrust to add a rolling moment via
+                # blown-lift asymmetry, in the direction the roll controller is demanding.
+                # --roll-assist off sets UST_RL_EN=0 (values below become inert).
+                ("UST_RL_EN",    1 if roll_assist_enabled else 0),
+                ("UST_RL_ENG",   ucfg.get("ust_rl_eng", 0.85)),
+                ("UST_RL_MAX",   ucfg.get("ust_rl_max", 2.0)),
+                ("UST_RL_VMIN",  ucfg.get("ust_rl_vmin", 8.0)),
             ]:
                 set_param(conn, n, v)
             _log(case_id, "differential thrust ENABLED (SERVO1..9=k_motor1..9, UST_ENABLE=1, "
-                          f"NDES_MAX={ucfg.get('ust_ndes_max', 20.0)} N*m, KRUD={ucfg.get('ust_krud', 0.11)})")
+                          f"NDES_MAX={ucfg.get('ust_ndes_max', 20.0)} N*m, KRUD={ucfg.get('ust_krud', 0.11)}, "
+                          f"roll-assist={'ON' if roll_assist_enabled else 'OFF'})")
         elif has_ust:
             set_param(conn, "UST_ENABLE", 0)                       # explicit stock baseline (only if present)
         else:
@@ -1660,11 +1676,12 @@ def _run_case(case_id, case_seed, instance_id, config, perturbed, output_dir,
             "time_s", "phase", "alt_agl_m", "airspeed", "roll_deg",
             "pitch_deg", "climb_mps", "throttle_pct", "theta_cmd_deg", "lat", "lon",
             "load_factor_nz", "load_factor_total",
-            "motor3_pwm", "motor7_pwm", "yaw_rate_dps", "roll_cmd_deg", "rud_cmd_deg"])
+            "motor3_pwm", "motor7_pwm", "yaw_rate_dps", "roll_cmd_deg", "rud_cmd_deg",
+            "ail_pwm"])
 
         st = {"alt": 0.0, "as": 0.0, "climb": 0.0, "lat": None, "lon": None,
               "thr": 0.0, "roll": 0.0, "pitch": 0.0, "nz": 1.0, "g_total": 1.0,
-              "m3": 0, "m7": 0, "yawrate": 0.0}
+              "m3": 0, "m7": 0, "yawrate": 0.0, "ail_pwm": 0}
         perf = {"liftoff_time": None, "liftoff_speed": None, "ground_roll_m": None}
         t0_flight = time.time()
 
@@ -1813,12 +1830,13 @@ def _init_worker(q):
 def _worker_entry(args):
     (case_id, case_seed, config, perturbed, output_dir, workspace,
      speedup, save_plot, hard_timeout, params_file, wind, dt_enabled, fail_case,
-     sim_parquet, trim_cols, keep_aux) = args
+     sim_parquet, trim_cols, keep_aux, roll_assist_enabled) = args
     inst = _instance_queue.get()
     try:
         return _run_case(case_id, case_seed, inst, config, perturbed, output_dir,
                          workspace, speedup, save_plot, hard_timeout, params_file, wind,
-                         dt_enabled, fail_case, sim_parquet, trim_cols, keep_aux)
+                         dt_enabled, fail_case, sim_parquet, trim_cols, keep_aux,
+                         roll_assist_enabled)
     finally:
         _instance_queue.put(inst)
 
@@ -1829,7 +1847,7 @@ def _worker_entry(args):
 # Frozen output schema — DO NOT add/remove columns after a campaign starts
 # (re-deriving metrics from thousands of logs afterward is painful).
 SUMMARY_COLUMNS = [
-    "case_id", "case_seed", "dt_enabled", "fail_case", "edf_mask",
+    "case_id", "case_seed", "dt_enabled", "fail_case", "edf_mask", "roll_assist_enabled",
     "takeoff_success", "mission_complete", "land_result",
     "exit_reason", "duration_s",
     "wind_case", "wind_speed_mps", "wind_horiz_mps", "wind_vert_mps",
@@ -1940,6 +1958,12 @@ def main():
     parser.add_argument("--failures", choices=["on", "off"], default="on",
                         help="'on' (default): inject the FAILURE_MIX EDF engine-outs per case "
                              "via USTF_MASK. 'off': healthy fleet (all cases fly 'none', mask=0).")
+    parser.add_argument("--roll-assist", choices=["on", "off"], default="on",
+                        help="'on' (default): UST_RL_EN=1 - when the aileron saturates (e.g. "
+                             "after ailch_port/ailch_stbd), DT biases ch3/ch7 thrust to add a "
+                             "rolling moment via blown-lift asymmetry. 'off': UST_RL_EN=0, the "
+                             "pre-roll-assist baseline. Run both to see whether it fixes the "
+                             "aileron-channel climb-phase departures.")
     parser.add_argument("--sim-format", choices=["parquet", "csv"], default="parquet",
                         help="per-case sim_output format. 'parquet' (default): convert the FDM "
                              "CSV to Parquet (~85%% of a case's bytes, ~3-7x smaller, faster to "
@@ -1978,8 +2002,9 @@ def main():
             print(f"\nERROR: WIND_MIX count must be >= 0 (block {blk})")
             sys.exit(1)
     # FAILURE MIX: validate every block (skipped entirely when --failures off).
-    dt_enabled       = (args.diff_thrust == "on")
-    failures_enabled = (args.failures == "on")
+    dt_enabled          = (args.diff_thrust == "on")
+    failures_enabled    = (args.failures == "on")
+    roll_assist_enabled = (args.roll_assist == "on")
     for blk in FAILURE_MIX:
         if not valid_failure_case(blk.get("case", "")):
             print(f"\nERROR: FAILURE_MIX case={blk.get('case')!r} invalid; use one of "
@@ -2045,6 +2070,7 @@ def main():
     print("  LAT Monte Carlo Runner — uSTOL all-FBWA + landing + DT + EDF-FAILURE + WIND")
     print("=" * 70)
     print(f"  Diff-thrust   : {'ON (SERVO1..9=k_motor1..9, UST_ENABLE=1, UMAX=1.0)' if dt_enabled else 'OFF (stock uniform throttle - no-DT baseline)'}")
+    print(f"  Roll assist   : {'ON (UST_RL_EN=1)' if roll_assist_enabled else 'OFF (UST_RL_EN=0, pre-roll-assist baseline)'}")
     print(f"  EDF failures  : {'ON (USTF_MASK per FAILURE_MIX)' if failures_enabled else 'OFF (healthy fleet, mask=0)'}")
     print(f"  Output        : sim_output={'Parquet' if sim_parquet else 'CSV'}"
           f"{' (trimmed cols)' if (sim_parquet and trim_cols) else ''}; "
@@ -2129,7 +2155,7 @@ def main():
     tasks = [(cid, f"{args.seed}:{cid}", config, all_perturbed[cid], output_dir,
               workspace, args.speedup, args.plot, hard_timeout, params_file,
               all_wind[cid], dt_enabled, all_fail[cid],
-              sim_parquet, trim_cols, args.keep_aux)
+              sim_parquet, trim_cols, args.keep_aux, roll_assist_enabled)
              for cid in range(num_runs) if cid not in done]
     print(f"  Cases to run this invocation: {len(tasks)}\n")
 
@@ -2181,6 +2207,7 @@ def main():
         f.write("Monte Carlo campaign complete.\n")
         f.write(f"Finished        : {datetime.now().isoformat()}\n")
         f.write(f"Diff-thrust     : {'ON' if dt_enabled else 'OFF (baseline)'}\n")
+        f.write(f"Roll assist     : {'ON' if roll_assist_enabled else 'OFF (baseline)'}\n")
         f.write(f"EDF failures    : {'ON' if failures_enabled else 'OFF (healthy)'}  "
                 f"{dict(sorted(fail_counts.items()))}\n")
         f.write(f"sim_output      : {'Parquet' if sim_parquet else 'CSV'}"
